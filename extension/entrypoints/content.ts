@@ -190,7 +190,7 @@ export default defineContentScript({
           const overrides = await getOverridesForHost(location.hostname);
 
           const fieldMatches = matchFields(document, overrides);
-          const fieldResult = fillFields(fieldMatches, profile);
+          const fieldResult = await fillFields(fieldMatches, profile);
 
           const radioGroupMatches = matchRadioGroups(document);
           const radioResult = fillRadioGroups(radioGroupMatches, profile);

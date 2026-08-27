@@ -1,4 +1,5 @@
 import { getRadioOptionLabel, normalizeText, type FieldMatch, type RadioGroupMatch } from './field-matcher';
+import { fillCombobox, isCombobox } from './combobox';
 import { SCHEMA_FIELDS, type Profile } from './schema';
 
 export interface FillResult {
@@ -118,7 +119,14 @@ function setRadioGroupByPredicate(elements: HTMLInputElement[], matches: (option
   return true;
 }
 
-function fillTextField(el: FieldMatch['element'], text: string): boolean {
+async function fillTextField(el: FieldMatch['element'], text: string): Promise<boolean> {
+  // A scripted dropdown looks like a text input but ignores a plain value
+  // assignment, so it has to be opened and chosen from instead.
+  if (isCombobox(el)) return fillCombobox(el, text);
+  return fillPlainTextField(el, text);
+}
+
+function fillPlainTextField(el: FieldMatch['element'], text: string): boolean {
   if (el instanceof HTMLSelectElement) {
     const target = normalizeText(text);
     return setSelectByPredicate(el, (t) => t === target || t.includes(target));
@@ -128,10 +136,11 @@ function fillTextField(el: FieldMatch['element'], text: string): boolean {
   return true;
 }
 
-function fillBooleanField(el: FieldMatch['element'], value: boolean): boolean {
+async function fillBooleanField(el: FieldMatch['element'], value: boolean): Promise<boolean> {
   if (el instanceof HTMLSelectElement) {
     return setSelectByPredicate(el, (t) => matchesBooleanAnswer(t, value));
   }
+  if (isCombobox(el)) return fillCombobox(el, value ? 'Yes' : 'No');
   if (el instanceof HTMLInputElement && el.type === 'checkbox') {
     setNativeChecked(el, value);
     dispatchChange(el);
@@ -140,11 +149,22 @@ function fillBooleanField(el: FieldMatch['element'], value: boolean): boolean {
   return false;
 }
 
-function fillPreferenceField(el: FieldMatch['element'], profile: Profile, path: string): boolean {
-  const preferences = resolvePreferenceList(profile, path).map(normalizeText);
+async function fillPreferenceField(
+  el: FieldMatch['element'],
+  profile: Profile,
+  path: string
+): Promise<boolean> {
+  const preferences = resolvePreferenceList(profile, path);
   if (el instanceof HTMLSelectElement) {
-    for (const pref of preferences) {
+    for (const pref of preferences.map(normalizeText)) {
       if (setSelectByPredicate(el, (t) => t === pref || t.includes(pref))) return true;
+    }
+    return false;
+  }
+  if (isCombobox(el)) {
+    // Try each acceptable answer in order; the form may offer only some.
+    for (const pref of preferences) {
+      if (await fillCombobox(el, pref)) return true;
     }
     return false;
   }
@@ -153,7 +173,7 @@ function fillPreferenceField(el: FieldMatch['element'], profile: Profile, path: 
 }
 
 /** Fills text/select/textarea/checkbox fields matched by matchFields. */
-export function fillFields(matches: FieldMatch[], profile: Profile): FillResult {
+export async function fillFields(matches: FieldMatch[], profile: Profile): Promise<FillResult> {
   let filledCount = 0;
   const skippedLabels: string[] = [];
 
@@ -163,12 +183,12 @@ export function fillFields(matches: FieldMatch[], profile: Profile): FillResult 
 
     if (kind === 'boolean') {
       const value = resolveBoolean(profile, match.path);
-      if (value !== null) didFill = fillBooleanField(match.element, value);
+      if (value !== null) didFill = await fillBooleanField(match.element, value);
     } else if (kind === 'preference') {
-      didFill = fillPreferenceField(match.element, profile, match.path);
+      didFill = await fillPreferenceField(match.element, profile, match.path);
     } else {
       const text = resolveText(profile, match.path);
-      if (text) didFill = fillTextField(match.element, text);
+      if (text) didFill = await fillTextField(match.element, text);
     }
 
     if (didFill) filledCount += 1;
