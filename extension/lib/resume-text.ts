@@ -59,12 +59,24 @@ async function extractPdfText(file: File): Promise<string> {
   }).promise;
 
   const pages: string[] = [];
+  const linkUrls = new Set<string>();
+
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
     const page = await doc.getPage(pageNumber);
     const content = await page.getTextContent();
     pages.push(joinPdfTextItems(content.items as Array<{ str?: string; hasEOL?: boolean }>));
+
+    // Resumes commonly show a bare word ("LinkedIn") hyperlinked to the real
+    // address, which lives in the annotation layer and never appears in the
+    // text. Without this the links simply go missing.
+    const annotations = (await page.getAnnotations()) as Array<{ url?: string }>;
+    for (const annotation of annotations) {
+      if (annotation.url) linkUrls.add(annotation.url);
+    }
   }
-  return pages.join('\n\n');
+
+  const text = pages.join('\n\n');
+  return linkUrls.size ? `${text}\n\n${[...linkUrls].join('\n')}` : text;
 }
 
 async function extractDocxText(file: File): Promise<string> {
