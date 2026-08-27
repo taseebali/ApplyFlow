@@ -1,5 +1,13 @@
 import { fillFields, fillRadioGroups, setNativeFieldValue } from '@/lib/filler';
-import { matchFields, matchFileInputs, matchRadioGroups, type FileInputMatch } from '@/lib/field-matcher';
+import {
+  findUnrecognizedFields,
+  matchFields,
+  matchFileInputs,
+  matchRadioGroups,
+  type FileInputMatch,
+  type UnrecognizedField,
+} from '@/lib/field-matcher';
+import { getOverridesForHost } from '@/lib/field-overrides';
 import { getProfile } from '@/lib/storage';
 import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
@@ -13,6 +21,9 @@ export interface FillPageResponse {
   filledCount: number;
   unmatchedCount: number;
   unmatchedLabels: string[];
+  /** Fields we could fill but could not identify — the panel offers to learn these. */
+  unrecognized: UnrecognizedField[];
+  hostname: string;
 }
 
 export interface GetJobInfoMessage {
@@ -122,8 +133,9 @@ export default defineContentScript({
       if (message?.type === 'fill-page') {
         (async () => {
           const profile = await getProfile();
+          const overrides = await getOverridesForHost(location.hostname);
 
-          const fieldMatches = matchFields(document);
+          const fieldMatches = matchFields(document, overrides);
           const fieldResult = fillFields(fieldMatches, profile);
 
           const radioGroupMatches = matchRadioGroups(document);
@@ -133,6 +145,8 @@ export default defineContentScript({
             filledCount: fieldResult.filledCount + radioResult.filledCount,
             unmatchedCount: fieldResult.skippedCount + radioResult.skippedCount,
             unmatchedLabels: [...fieldResult.skippedLabels, ...radioResult.skippedLabels],
+            unrecognized: findUnrecognizedFields(document, overrides),
+            hostname: location.hostname,
           };
           sendResponse(response);
         })();
