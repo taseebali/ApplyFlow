@@ -146,3 +146,26 @@
 .panel .status-row {
   margin: 0;
 }
+
+.panel .import-review {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.panel .import-row {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+
+.panel .import-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.panel .import-actions .btn {
+  flex: 1;
+}

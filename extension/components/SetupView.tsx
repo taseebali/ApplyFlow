@@ -12,6 +12,7 @@ import {
   WorkAuthSection,
   WorkHistorySection,
 } from './ProfileForm';
+import { ResumeImportSection } from './ResumeImportSection';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
@@ -62,6 +63,12 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       blurb:
         'Save your details once, then fill any job application with a click. Everything stays on this computer. You can skip any step and come back later.',
       render: () => null,
+    },
+    {
+      id: 'import',
+      title: 'Start from your resume',
+      blurb: 'Optional, but it saves most of the typing ahead. You review everything before it is used.',
+      render: () => <ResumeImportSection profile={profile} onChange={setProfile} llm={llm} />,
     },
     {
       id: 'contact',
