@@ -208,3 +208,45 @@ body {
   flex-wrap: wrap;
   margin-top: 16px;
 }
+
+.panel .drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel .draft {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.panel .draft-question {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.panel .draft textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+.panel .draft-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.panel .draft-actions .btn {
+  flex: 1;
+}

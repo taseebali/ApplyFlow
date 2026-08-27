@@ -73,7 +73,7 @@ function dispatchChange(el: HTMLElement) {
  * bypasses that instance patch, so the framework's change tracker correctly
  * sees a diff once we dispatch the input/change events below.
  */
-function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
+export function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
   const prototype =
     el instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype
@@ -83,6 +83,15 @@ function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaE
   const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
   if (setter) setter.call(el, value);
   else el.value = value;
+}
+
+/** Writes a value into a field the way a real user would, so framework-controlled forms notice. */
+export function setNativeFieldValue(
+  el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  value: string
+) {
+  setNativeValue(el, value);
+  dispatchChange(el);
 }
 
 function setNativeChecked(el: HTMLInputElement, checked: boolean) {

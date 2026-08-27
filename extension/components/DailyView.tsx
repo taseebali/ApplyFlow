@@ -6,6 +6,10 @@ import type {
   FillPageResponse,
   GetJobInfoMessage,
   GetJobInfoResponse,
+  GetQuestionsMessage,
+  GetQuestionsResponse,
+  InsertAnswerMessage,
+  InsertAnswerResponse,
 } from '@/entrypoints/content';
 import { ensureReadPermission, getDocumentsFolderHandle } from '@/lib/document-store';
 import {
@@ -17,8 +21,10 @@ import {
 } from '@/lib/document-matcher';
 import { getSettings } from '@/lib/settings';
 import { logApplicationToNotion } from '@/lib/notion-client';
+import { draftAnswer } from '@/lib/llm-client';
+import { getProfile, setProfile } from '@/lib/storage';
 import { ActionCard } from '@/components/ActionCard';
-import { AttachIcon, FillIcon, TrackerIcon } from '@/components/icons';
+import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
 
 type FillStatus =
   | { kind: 'idle' }
@@ -383,12 +389,127 @@ function LogToNotionSection() {
   );
 }
 
+type DraftState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'not-configured' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; drafts: Array<{ id: string; question: string; text: string; inserted: boolean }> };
+
+function DraftAnswersCard() {
+  const [state, setState] = useState<DraftState>({ kind: 'idle' });
+
+  const handleDraft = async () => {
+    setState({ kind: 'loading' });
+    try {
+      const settings = await getSettings();
+      if (!settings.llm.backend) {
+        setState({ kind: 'not-configured' });
+        return;
+      }
+
+      const tabId = await getActiveTabId();
+      const message: GetQuestionsMessage = { type: 'get-questions' };
+      const found: GetQuestionsResponse = await browser.tabs.sendMessage(tabId, message);
+
+      if (found.questions.length === 0) {
+        setState({ kind: 'error', message: 'No open-ended questions found on this page.' });
+        return;
+      }
+
+      const profile = await getProfile();
+      const drafts = [];
+      for (const q of found.questions) {
+        // A saved answer wins over a fresh generation: it is instant, free,
+        // and already worded the way the user wants.
+        const saved = profile.customQA.find((entry) =>
+          entry.question.toLowerCase().includes(q.question.toLowerCase().slice(0, 25))
+        );
+        const text = saved
+          ? saved.answer
+          : await draftAnswer(
+              { question: q.question, jobDescription: found.jobDescription, profile },
+              settings.llm
+            );
+        drafts.push({ id: q.id, question: q.question, text, inserted: false });
+      }
+      setState({ kind: 'ready', drafts });
+    } catch (err) {
+      setState({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Could not draft answers.',
+      });
+    }
+  };
+
+  const updateDraft = (id: string, patch: Partial<{ text: string; inserted: boolean }>) =>
+    setState((prev) =>
+      prev.kind === 'ready'
+        ? { kind: 'ready', drafts: prev.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }
+        : prev
+    );
+
+  const handleInsert = async (id: string, text: string) => {
+    const tabId = await getActiveTabId();
+    const message: InsertAnswerMessage = { type: 'insert-answer', id, text };
+    const response: InsertAnswerResponse = await browser.tabs.sendMessage(tabId, message);
+    if (response.inserted) updateDraft(id, { inserted: true });
+  };
+
+  const handleSaveReusable = async (question: string, answer: string) => {
+    const profile = await getProfile();
+    await setProfile({
+      ...profile,
+      customQA: [...profile.customQA, { id: crypto.randomUUID(), question, answer }],
+    });
+  };
+
+  return (
+    <>
+      <ActionCard
+        icon={<DraftIcon />}
+        title="Draft answers"
+        description="Drafts replies to open-ended questions. You review before anything is entered."
+        tint="neutral"
+        onClick={handleDraft}
+        disabled={state.kind === 'loading'}
+      >
+        {state.kind === 'loading' && <span className="pill pill-neutral">Drafting…</span>}
+        {state.kind === 'not-configured' && (
+          <span className="pill pill-neutral">Set up AI drafting in Settings first</span>
+        )}
+        {state.kind === 'error' && <span className="pill pill-danger">{state.message}</span>}
+      </ActionCard>
+
+      {state.kind === 'ready' && (
+        <div className="drafts">
+          {state.drafts.map((draft) => (
+            <div className="draft" key={draft.id}>
+              <p className="draft-question">{draft.question}</p>
+              <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
+              <div className="draft-actions">
+                <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
+                  {draft.inserted ? 'Inserted' : 'Insert'}
+                </button>
+                <button className="btn" onClick={() => handleSaveReusable(draft.question, draft.text)}>
+                  Save for reuse
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function DailyView({ onOpenSetup }: { onOpenSetup: () => void }) {
   void onOpenSetup;
   return (
     <div className="daily-actions">
       <FillAndAttachSection />
       <LogToNotionSection />
+      <DraftAnswersCard />
     </div>
   );
 }

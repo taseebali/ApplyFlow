@@ -1,9 +1,10 @@
-import { fillFields, fillRadioGroups } from '@/lib/filler';
+import { fillFields, fillRadioGroups, setNativeFieldValue } from '@/lib/filler';
 import { matchFields, matchFileInputs, matchRadioGroups, type FileInputMatch } from '@/lib/field-matcher';
 import { getProfile } from '@/lib/storage';
 import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
 import type { DocumentKind } from '@/lib/document-matcher';
+import { detectQuestions } from '@/lib/question-detector';
 
 export interface FillPageMessage {
   type: 'fill-page';
@@ -40,7 +41,33 @@ export interface AttachDocumentsResponse {
   attached: Partial<Record<DocumentKind, boolean>>;
 }
 
-type IncomingMessage = FillPageMessage | GetJobInfoMessage | AttachDocumentsMessage;
+export interface GetQuestionsMessage {
+  type: 'get-questions';
+}
+export interface GetQuestionsResponse {
+  questions: Array<{ id: string; question: string }>;
+  jobDescription: string | null;
+}
+
+export interface InsertAnswerMessage {
+  type: 'insert-answer';
+  id: string;
+  text: string;
+}
+export interface InsertAnswerResponse {
+  inserted: boolean;
+}
+
+type IncomingMessage =
+  | FillPageMessage
+  | GetJobInfoMessage
+  | AttachDocumentsMessage
+  | GetQuestionsMessage
+  | InsertAnswerMessage;
+
+// Detected question elements can't cross the message boundary, so they're kept
+// here and referenced by id when the side panel asks to insert an answer.
+const detectedQuestions = new Map<string, HTMLTextAreaElement | HTMLInputElement>();
 
 /**
  * Many ATSs don't have dedicated resume/cover-letter fields at all — just one
@@ -131,6 +158,34 @@ export default defineContentScript({
           file: new File([f.data], f.name, { type: f.mimeType }),
         }));
         const response: AttachDocumentsResponse = { attached: attachDocuments(entries) };
+        sendResponse(response);
+        return true;
+      }
+
+      if (message?.type === 'get-questions') {
+        (async () => {
+          detectedQuestions.clear();
+          const found = detectQuestions(document);
+          const questions = found.map((q, i) => {
+            const id = `q${i}`;
+            detectedQuestions.set(id, q.element);
+            return { id, question: q.question };
+          });
+          const response: GetQuestionsResponse = {
+            questions,
+            jobDescription: await scrapeJobDescription(),
+          };
+          sendResponse(response);
+        })();
+        return true;
+      }
+
+      if (message?.type === 'insert-answer') {
+        const element = detectedQuestions.get(message.id);
+        if (element) {
+          setNativeFieldValue(element, message.text);
+        }
+        const response: InsertAnswerResponse = { inserted: Boolean(element) };
         sendResponse(response);
         return true;
       }
