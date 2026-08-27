@@ -676,6 +676,12 @@ export function LlmSettingsSection({
             </a>
             . Your question and profile details are sent to OpenRouter when you press Draft answers.
           </p>
+          <p className="hint">
+            A small, cheap model is enough here — this is mostly pulling structure out of text and writing a first
+            draft you then edit. Models ending in <code>:free</code> cost nothing, but usually come with no
+            data-retention guarantee and tight daily limits; since the text sent includes your resume and work
+            history, prefer a cheap paid model, or use Ollama to keep everything on your machine.
+          </p>
           <label className="field">
             <span>API key</span>
             <input

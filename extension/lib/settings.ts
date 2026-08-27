@@ -22,7 +22,9 @@ export const EMPTY_SETTINGS: Settings = {
     backend: null,
     ollamaModel: 'llama3.1',
     openRouterApiKey: '',
-    openRouterModel: 'anthropic/claude-3.5-sonnet',
+    // Deliberately a small, cheap model: this workload is structured
+    // extraction plus a short first draft the user edits, not hard reasoning.
+    openRouterModel: 'google/gemini-2.0-flash-001',
   },
   setupCompleted: false,
 };
