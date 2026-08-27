@@ -126,9 +126,63 @@ function attachDocuments(entries: Array<{ kind: DocumentKind; file: File }>): Pa
   return result;
 }
 
+/**
+ * Multi-page ATS flows (Workday especially) swap the form without a full
+ * page load, so the panel's "filled" summary silently goes stale and the
+ * next page looks already handled. Tell the panel when that happens.
+ *
+ * Detection only — filling still requires a click. Auto-filling a page the
+ * user has not looked at could put wrong data into a live application.
+ */
+function watchForPageChanges() {
+  /** Which fields are on screen — the thing that actually matters to filling. */
+  const formFingerprint = () =>
+    findUnrecognizedFields(document)
+      .map((f) => f.signature)
+      .concat(matchFields(document).map((m) => m.path))
+      .sort()
+      .join('|');
+
+  let lastUrl = location.href;
+  let lastForm = formFingerprint();
+
+  const announce = () => {
+    const url = location.href;
+    const form = formFingerprint();
+    // Some flows change the URL, others swap the form in place and keep it.
+    // Either way the panel's summary is now about a page that is gone.
+    if (url === lastUrl && form === lastForm) return;
+    lastUrl = url;
+    lastForm = form;
+    if (!form) return; // Nothing fillable here; no point nudging the user.
+    // The panel may not be open; a failed send is expected and harmless.
+    browser.runtime.sendMessage({ type: 'page-changed', url }).catch(() => {});
+  };
+
+  // History API navigations do not fire an event of their own.
+  for (const method of ['pushState', 'replaceState'] as const) {
+    const original = history[method];
+    history[method] = function patched(this: History, ...args: Parameters<History['pushState']>) {
+      const result = original.apply(this, args);
+      announce();
+      return result;
+    };
+  }
+  window.addEventListener('popstate', announce);
+
+  // Debounced, because a single render can produce hundreds of mutations.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(announce, 500);
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
+    watchForPageChanges();
+
     browser.runtime.onMessage.addListener((message: IncomingMessage, _sender, sendResponse) => {
       if (message?.type === 'fill-page') {
         (async () => {
