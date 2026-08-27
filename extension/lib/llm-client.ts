@@ -42,7 +42,7 @@ export function buildPrompt(context: DraftContext): string {
   ].join('\n');
 }
 
-async function draftWithOllama(prompt: string, llm: LlmSettings): Promise<string> {
+async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> {
   const response = await fetch('http://localhost:11434/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,7 @@ async function draftWithOllama(prompt: string, llm: LlmSettings): Promise<string
   return (data.response ?? '').trim();
 }
 
-async function draftWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
+async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -77,9 +77,17 @@ async function draftWithOpenRouter(prompt: string, llm: LlmSettings): Promise<st
   return (data.choices?.[0]?.message?.content ?? '').trim();
 }
 
-export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<string> {
-  const prompt = buildPrompt(context);
-  if (llm.backend === 'ollama') return draftWithOllama(prompt, llm);
-  if (llm.backend === 'openrouter') return draftWithOpenRouter(prompt, llm);
+/**
+ * Sends a prompt to whichever backend the user configured and returns the raw
+ * text. Every LLM feature goes through here so the fetch and error handling
+ * live in exactly one place.
+ */
+export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
+  if (llm.backend === 'ollama') return runWithOllama(prompt, llm);
+  if (llm.backend === 'openrouter') return runWithOpenRouter(prompt, llm);
   throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
+}
+
+export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<string> {
+  return runPrompt(buildPrompt(context), llm);
 }
