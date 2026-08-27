@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isCombobox } from './combobox';
+import { isCombobox, pickOptionText } from './combobox';
 
 function setBody(html: string) {
   document.body.innerHTML = html;
@@ -43,5 +43,33 @@ describe('isCombobox', () => {
   it('is false for non-input elements', () => {
     setBody('<select role="combobox"><option>a</option></select>');
     expect(isCombobox(document.querySelector('select')!)).toBe(false);
+  });
+});
+
+describe('pickOptionText', () => {
+  const OPTIONS = ['EU citizen', 'Permanent resident', 'Student visa holder', 'Requires sponsorship'];
+
+  it('matches the same words in a different order', () => {
+    // The form says "Immediately Available"; the profile says the reverse.
+    const opts = ['Not available', 'Immediately Available', '3 months'];
+    expect(pickOptionText(opts, 'Available Immediately')).toBe(1);
+  });
+
+  it('prefers an exact match over a looser one', () => {
+    expect(pickOptionText(['Yes, remote', 'Yes'], 'Yes')).toBe(1);
+  });
+
+  it('ignores case and punctuation differences', () => {
+    expect(pickOptionText(['YES.', 'No'], 'yes')).toBe(0);
+  });
+
+  it('returns -1 when nothing sensibly matches', () => {
+    // "Yes" against work-authorisation options is a real case: the profile
+    // stores a yes/no but the form wants a status.
+    expect(pickOptionText(OPTIONS, 'Yes')).toBe(-1);
+  });
+
+  it('matches a status option when the profile holds one', () => {
+    expect(pickOptionText(OPTIONS, 'Student visa holder')).toBe(2);
   });
 });

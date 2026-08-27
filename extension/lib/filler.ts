@@ -95,6 +95,13 @@ export function setNativeFieldValue(
   dispatchChange(el);
 }
 
+/**
+ * Why the last dropdown attempt failed. Scripted dropdowns cannot be tested
+ * outside a real browser, so when one fails the panel needs to say where it
+ * got to rather than reporting a bare miss.
+ */
+let lastComboboxReason: string | undefined;
+
 function setNativeChecked(el: HTMLInputElement, checked: boolean) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
   if (setter) setter.call(el, checked);
@@ -122,7 +129,11 @@ function setRadioGroupByPredicate(elements: HTMLInputElement[], matches: (option
 async function fillTextField(el: FieldMatch['element'], text: string): Promise<boolean> {
   // A scripted dropdown looks like a text input but ignores a plain value
   // assignment, so it has to be opened and chosen from instead.
-  if (isCombobox(el)) return fillCombobox(el, text);
+  if (isCombobox(el)) {
+    const result = await fillCombobox(el, text);
+    if (!result.ok) lastComboboxReason = result.reason;
+    return result.ok;
+  }
   return fillPlainTextField(el, text);
 }
 
@@ -140,7 +151,11 @@ async function fillBooleanField(el: FieldMatch['element'], value: boolean): Prom
   if (el instanceof HTMLSelectElement) {
     return setSelectByPredicate(el, (t) => matchesBooleanAnswer(t, value));
   }
-  if (isCombobox(el)) return fillCombobox(el, value ? 'Yes' : 'No');
+  if (isCombobox(el)) {
+    const result = await fillCombobox(el, value ? 'Yes' : 'No');
+    if (!result.ok) lastComboboxReason = result.reason;
+    return result.ok;
+  }
   if (el instanceof HTMLInputElement && el.type === 'checkbox') {
     setNativeChecked(el, value);
     dispatchChange(el);
@@ -164,7 +179,9 @@ async function fillPreferenceField(
   if (isCombobox(el)) {
     // Try each acceptable answer in order; the form may offer only some.
     for (const pref of preferences) {
-      if (await fillCombobox(el, pref)) return true;
+      const result = await fillCombobox(el, pref);
+      if (result.ok) return true;
+      lastComboboxReason = result.reason;
     }
     return false;
   }
@@ -181,6 +198,7 @@ export async function fillFields(matches: FieldMatch[], profile: Profile): Promi
     const kind = getValueKind(match.path);
     let didFill = false;
 
+    lastComboboxReason = undefined;
     if (kind === 'boolean') {
       const value = resolveBoolean(profile, match.path);
       if (value !== null) didFill = await fillBooleanField(match.element, value);
@@ -192,7 +210,8 @@ export async function fillFields(matches: FieldMatch[], profile: Profile): Promi
     }
 
     if (didFill) filledCount += 1;
-    else skippedLabels.push(match.label);
+    else skippedLabels.push(lastComboboxReason ? `${match.label} — ${lastComboboxReason}` : match.label);
+    lastComboboxReason = undefined;
   }
 
   return { filledCount, skippedCount: skippedLabels.length, skippedLabels };
@@ -207,6 +226,7 @@ export function fillRadioGroups(groups: RadioGroupMatch[], profile: Profile): Fi
     const kind = getValueKind(group.path);
     let didFill = false;
 
+    lastComboboxReason = undefined;
     if (kind === 'boolean') {
       const value = resolveBoolean(profile, group.path);
       if (value !== null) {
