@@ -108,6 +108,48 @@ function getCandidates(el: FillableElement): Array<{ source: string; text: strin
     .filter((c) => c.text.length > 0);
 }
 
+/** Every element on the page we could write a profile value into. */
+function fillableElements(root: ParentNode): FillableElement[] {
+  return Array.from(root.querySelectorAll<FillableElement>('input, select, textarea')).filter((el) => {
+    if (el instanceof HTMLInputElement) {
+      // Radios are matched as groups (see matchRadioGroups) since a single
+      // radio's own label is just its option text ("Yes"), not the question.
+      const skipTypes = ['hidden', 'submit', 'button', 'reset', 'image', 'file', 'radio'];
+      return !skipTypes.includes(el.type);
+    }
+    return true;
+  });
+}
+
+export interface UnrecognizedField {
+  label: string;
+  signature: string;
+}
+
+/**
+ * Fields we could fill but could not identify. These are what the user can
+ * teach us — distinct from a field we recognised but had no data for.
+ */
+export function findUnrecognizedFields(
+  root: ParentNode = document,
+  overrides: Record<string, string> = {}
+): UnrecognizedField[] {
+  const recognized = new Set(matchFields(root, overrides).map((m) => m.element));
+  const seen = new Set<string>();
+  const fields: UnrecognizedField[] = [];
+
+  for (const element of fillableElements(root)) {
+    if (recognized.has(element)) continue;
+    const signature = fieldSignature(element);
+    // One row per distinct field; repeated signatures are the same question.
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    fields.push({ label: getDisplayLabel(element), signature });
+  }
+
+  return fields;
+}
+
 /**
  * Matches every fillable form element on the page to a Profile schema field.
  * `overrides` are mappings the user taught us for this site; they are exact
@@ -117,17 +159,7 @@ export function matchFields(
   root: ParentNode = document,
   overrides: Record<string, string> = {}
 ): FieldMatch[] {
-  const elements = Array.from(
-    root.querySelectorAll<FillableElement>('input, select, textarea')
-  ).filter((el) => {
-    if (el instanceof HTMLInputElement) {
-      // Radios are matched as groups (see matchRadioGroups) since a single
-      // radio's own label is just its option text ("Yes"), not the question.
-      const skipTypes = ['hidden', 'submit', 'button', 'reset', 'image', 'file', 'radio'];
-      return !skipTypes.includes(el.type);
-    }
-    return true;
-  });
+  const elements = fillableElements(root);
 
   const matches: FieldMatch[] = [];
 

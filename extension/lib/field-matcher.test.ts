@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fieldSignature, matchFields } from './field-matcher';
+import { fieldSignature, findUnrecognizedFields, matchFields } from './field-matcher';
 
 function setBody(html: string) {
   document.body.innerHTML = html;
@@ -42,5 +42,30 @@ describe('matchFields with overrides', () => {
     setBody('<label for="e">Email</label><input id="e" name="email" />');
     expect(matchFields(document)[0]!.path).toBe('contact.email');
     expect(matchFields(document, { 'name:email': 'links.website' })[0]!.path).toBe('links.website');
+  });
+});
+
+describe('findUnrecognizedFields', () => {
+  beforeEach(() => setBody(''));
+
+  it('reports only the fields matching could not identify', () => {
+    setBody(`
+      <label for="e">Email</label><input id="e" name="email" />
+      <label for="q">Kontaktnummer</label><input id="q" name="custom_9" />
+    `);
+    const unknown = findUnrecognizedFields(document);
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0]!.label).toBe('Kontaktnummer');
+    expect(unknown[0]!.signature).toBe('name:custom_9');
+  });
+
+  it('stops reporting a field once it has been taught', () => {
+    setBody('<label for="q">Kontaktnummer</label><input id="q" name="custom_9" />');
+    expect(findUnrecognizedFields(document, { 'name:custom_9': 'contact.phone' })).toHaveLength(0);
+  });
+
+  it('does not list the same field twice', () => {
+    setBody('<input name="dup" /><input name="dup" />');
+    expect(findUnrecognizedFields(document)).toHaveLength(1);
   });
 });
