@@ -7,6 +7,7 @@ import {
   LinksSection,
   LogisticsSection,
   NotionSettingsSection,
+  ProjectsSection,
   WorkAuthSection,
   WorkHistorySection,
 } from './ProfileForm';
@@ -59,7 +60,7 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       id: 'projects',
       title: 'Your projects',
       blurb: 'Details here are what the AI draws on when drafting answers. The more specific, the better the drafts.',
-      render: () => null,
+      render: () => <ProjectsSection profile={profile} onChange={setProfile} />,
     },
     {
       id: 'saved-answers',

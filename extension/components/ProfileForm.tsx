@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CustomQAEntry, EducationEntry, Profile, WorkHistoryEntry } from '@/lib/schema';
+import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryEntry } from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
 import { EMPTY_SETTINGS, getSettings, setSettings } from '@/lib/settings';
 import { searchDatabases, type NotionDatabaseOption } from '@/lib/notion-client';
@@ -180,6 +180,62 @@ export function EducationSection({ profile, onChange }: { profile: Profile; onCh
       ))}
       <button type="button" className="btn" onClick={add}>
         + Add education entry
+      </button>
+    </section>
+  );
+}
+
+export function ProjectsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+  const update = (id: string, patch: Partial<ProjectEntry>) =>
+    onChange({
+      ...profile,
+      projects: profile.projects.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+    });
+
+  const add = () =>
+    onChange({
+      ...profile,
+      projects: [
+        ...profile.projects,
+        { id: crypto.randomUUID(), name: '', role: '', description: '', techStack: '', outcomes: '' },
+      ],
+    });
+
+  const remove = (id: string) =>
+    onChange({ ...profile, projects: profile.projects.filter((entry) => entry.id !== id) });
+
+  return (
+    <section>
+      <h2>Projects</h2>
+      <p className="hint">
+        What you built, what you did on it, and how it turned out. This is what the AI uses to draft answers, so
+        specifics beat summaries.
+      </p>
+      {profile.projects.map((entry) => (
+        <div className="entry" key={entry.id}>
+          <div className="grid">
+            <TextField label="Name" value={entry.name} onChange={(v) => update(entry.id, { name: v })} />
+            <TextField label="Your role" value={entry.role} onChange={(v) => update(entry.id, { role: v })} />
+            <TextField label="Tech stack" value={entry.techStack} onChange={(v) => update(entry.id, { techStack: v })} />
+          </div>
+          <label className="field">
+            <span>Description</span>
+            <textarea
+              value={entry.description}
+              onChange={(e) => update(entry.id, { description: e.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>Outcomes</span>
+            <textarea value={entry.outcomes} onChange={(e) => update(entry.id, { outcomes: e.target.value })} />
+          </label>
+          <button type="button" className="btn btn-danger remove" onClick={() => remove(entry.id)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn" onClick={add}>
+        + Add project
       </button>
     </section>
   );
