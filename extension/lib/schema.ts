@@ -15,7 +15,12 @@ export interface EducationEntry {
   degree: string;
   fieldOfStudy: string;
   startDate: string;
+  /**
+   * When `current` is set this is the *expected* finish date, which is exactly
+   * what application forms mean by "expected graduation date".
+   */
   endDate: string;
+  current: boolean;
 }
 
 export interface CustomQAEntry {
@@ -158,6 +163,20 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
   { path: 'contact.state', aliases: ['state', 'province', 'region'] },
   { path: 'contact.postalCode', aliases: ['zip', 'zip code', 'postal code', 'postcode'] },
   { path: 'contact.country', aliases: ['country'] },
+  {
+    path: 'education.graduationDate',
+    aliases: [
+      'expected graduation date',
+      'graduation date',
+      'expected graduation',
+      'expected completion date',
+      'when do you graduate',
+      'graduation',
+    ],
+  },
+  { path: 'education.school', aliases: ['university', 'college', 'school', 'institution'] },
+  { path: 'education.degree', aliases: ['degree', 'qualification'] },
+  { path: 'education.fieldOfStudy', aliases: ['field of study', 'major', 'course of study', 'subject'] },
   { path: 'links.linkedin', aliases: ['linkedin', 'linkedin url', 'linkedin profile'] },
   { path: 'links.github', aliases: ['github', 'github url', 'github profile'] },
   { path: 'links.portfolio', aliases: ['portfolio', 'portfolio url', 'portfolio link'] },

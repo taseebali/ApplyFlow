@@ -208,7 +208,7 @@ export function EducationSection({ profile, onChange }: { profile: Profile; onCh
       ...profile,
       education: [
         ...profile.education,
-        { id: crypto.randomUUID(), school: '', degree: '', fieldOfStudy: '', startDate: '', endDate: '' },
+        { id: crypto.randomUUID(), school: '', degree: '', fieldOfStudy: '', startDate: '', endDate: '', current: false },
       ],
     });
 
@@ -233,8 +233,27 @@ export function EducationSection({ profile, onChange }: { profile: Profile; onCh
               value={entry.startDate}
               onChange={(v) => update(entry.id, { startDate: v })}
             />
-            <TextField label="End date" value={entry.endDate} onChange={(v) => update(entry.id, { endDate: v })} />
+            <TextField
+              label={entry.current ? 'Expected end date' : 'End date'}
+              value={entry.endDate}
+              onChange={(v) => update(entry.id, { endDate: v })}
+            />
+            <label className="field checkbox">
+              <input
+                type="checkbox"
+                checked={entry.current}
+                onChange={(e) => update(entry.id, { current: e.target.checked })}
+              />
+              <span>Still studying here</span>
+            </label>
           </div>
+          {!entry.endDate && (
+            <p className="hint" style={{ margin: '8px 0 0' }}>
+              {entry.current
+                ? 'Add the date you expect to finish — forms ask for it as your expected graduation date.'
+                : 'Add an end date so forms asking for a graduation date can be filled.'}
+            </p>
+          )}
           <button type="button" className="btn btn-danger remove" onClick={() => remove(entry.id)}>
             Remove
           </button>

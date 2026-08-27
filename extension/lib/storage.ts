@@ -8,7 +8,12 @@ export function applyProfileDefaults(stored: Partial<Profile>): Profile {
     contact: { ...EMPTY_PROFILE.contact, ...stored.contact },
     links: { ...EMPTY_PROFILE.links, ...stored.links },
     workHistory: stored.workHistory ?? EMPTY_PROFILE.workHistory,
-    education: stored.education ?? EMPTY_PROFILE.education,
+    // Entries saved before `current` existed default to finished, which is
+    // the safe reading: it never claims someone is still studying.
+    education: (stored.education ?? EMPTY_PROFILE.education).map((entry) => ({
+      ...entry,
+      current: entry.current ?? false,
+    })),
     projects: stored.projects ?? EMPTY_PROFILE.projects,
     workAuthorization: { ...EMPTY_PROFILE.workAuthorization, ...stored.workAuthorization },
     logistics: { ...EMPTY_PROFILE.logistics, ...stored.logistics },

@@ -270,6 +270,7 @@ export function parseEducationSection(section: string): EducationEntry[] {
     fieldOfStudy: '',
     startDate: '',
     endDate: '',
+    current: false,
   });
 
   for (const line of lines) {
@@ -285,6 +286,10 @@ export function parseEducationSection(section: string): EducationEntry[] {
       current = null;
     }
     current ??= blank();
+
+    // "expected", "present" and friends are how a resume says the course is
+    // still running — which is exactly what forms call expected graduation.
+    if (/\b(expected|present|current|ongoing|in progress)\b/i.test(line)) current.current = true;
 
     const years = line.match(YEAR) ?? [];
     if (years.length && !current.startDate) {
@@ -349,9 +354,10 @@ const LLM_PROMPT_HEADER = [
   'Return ONLY a JSON object, with no prose, no explanation, and no markdown fences.',
   'Use this exact shape, omitting any array you cannot fill:',
   '{"workHistory":[{"company":"","title":"","location":"","startDate":"","endDate":"","current":false,"description":""}],',
-  '"education":[{"school":"","degree":"","fieldOfStudy":"","startDate":"","endDate":""}],',
+  '"education":[{"school":"","degree":"","fieldOfStudy":"","startDate":"","endDate":"","current":false}],',
   '"projects":[{"name":"","role":"","description":"","techStack":"","outcomes":""}]}',
   'Copy facts from the resume only — never invent employers, dates, or metrics.',
+  'Set current to true for a course still in progress; endDate is then the expected finish date.',
   'Leave a field as an empty string if the resume does not state it.',
   '',
   'RESUME:',
@@ -404,6 +410,7 @@ function toEducation(value: unknown): EducationEntry[] {
       fieldOfStudy: str(e.fieldOfStudy),
       startDate: str(e.startDate),
       endDate: str(e.endDate),
+      current: e.current === true,
     }))
     .filter((e) => e.school || e.degree);
 }

@@ -38,6 +38,17 @@ function getRawByPath(profile: Profile, path: string): unknown {
   }, profile);
 }
 
+/**
+ * The qualification a form is asking about is the one in progress, or failing
+ * that the most recently finished one — not whichever happens to be first in
+ * the list.
+ */
+function primaryEducation(profile: Profile) {
+  const inProgress = profile.education.find((e) => e.current);
+  if (inProgress) return inProgress;
+  return [...profile.education].sort((a, b) => (b.endDate || '').localeCompare(a.endDate || ''))[0];
+}
+
 /** Text-valued fields, including ones derived rather than stored directly on Profile. */
 function resolveText(profile: Profile, path: string): string | undefined {
   if (path === 'contact.fullName') {
@@ -46,6 +57,16 @@ function resolveText(profile: Profile, path: string): string | undefined {
   }
   if (path === 'logistics.hearAboutUs') {
     return profile.logistics.hearAboutUsPreferences[0];
+  }
+  if (path.startsWith('education.')) {
+    const entry = primaryEducation(profile);
+    if (!entry) return undefined;
+    // "Expected graduation date" is the end date of the course being studied.
+    if (path === 'education.graduationDate') return entry.endDate || undefined;
+    if (path === 'education.school') return entry.school || undefined;
+    if (path === 'education.degree') return entry.degree || undefined;
+    if (path === 'education.fieldOfStudy') return entry.fieldOfStudy || undefined;
+    return undefined;
   }
   const value = getRawByPath(profile, path);
   return typeof value === 'string' && value.length > 0 ? value : undefined;

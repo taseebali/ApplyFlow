@@ -252,3 +252,19 @@ describe('layout independence', () => {
     }
   });
 });
+
+describe('education still-in-progress detection', () => {
+  it('marks a course as current when the resume says expected', () => {
+    const entries = parseEducationSection(
+      'B.Sc. Computer Science - Hochschule Berlin | April 2024 - August 2027 (expected)'
+    );
+    expect(entries[0]!.current).toBe(true);
+    // The expected finish date is what forms ask for as graduation date.
+    expect(entries[0]!.endDate).toBe('2027');
+  });
+
+  it('leaves a finished course as not current', () => {
+    const entries = parseEducationSection('BSc Physics 2015 - 2018\nTU Munich College');
+    expect(entries[0]!.current).toBe(false);
+  });
+});
