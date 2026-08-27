@@ -45,10 +45,14 @@ async function extractPdfText(file: File): Promise<string> {
   // one-off cost of importing it here.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
+  // pdf.js needs a real worker in the browser. Left unset it tries to build a
+  // "fake worker" by evaluating code at runtime, which the extension's CSP
+  // blocks — so point it at the worker bundled beside us as an asset.
+  const workerUrl = (await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
   const doc = await pdfjs.getDocument({
     data: new Uint8Array(await readArrayBuffer(file)),
-    // The extension's CSP forbids eval, and the worker cannot be spawned from
-    // a bundled chunk — running on the main thread is slower but correct.
     isEvalSupported: false,
     useWorkerFetch: false,
     useSystemFonts: false,
@@ -103,8 +107,15 @@ export async function extractResumeText(file: File): Promise<string> {
     else if (format === 'docx') raw = await extractDocxText(file);
     else raw = await extractPlainText(file);
   } catch (err) {
+    // Always carry the underlying reason through. A generic "damaged file"
+    // message sends the user hunting for a problem in a file that is fine,
+    // when the real fault is usually ours.
+    const reason = err instanceof Error ? err.message : String(err);
+    const passwordProtected = /password/i.test(reason);
     throw new ResumeTextError(
-      `Couldn't read "${file.name}". It may be password-protected or damaged.`,
+      passwordProtected
+        ? `"${file.name}" is password-protected. Save an unlocked copy and try again.`
+        : `Couldn't read "${file.name}": ${reason}`,
       { cause: err }
     );
   }
