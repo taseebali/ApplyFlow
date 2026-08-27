@@ -3,6 +3,7 @@ import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryE
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
 import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
+import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 
 export type NotionConfig = Settings['notion'];
 
@@ -617,6 +618,56 @@ export function LlmSettingsSection({
             />
           </label>
         </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Taught field mappings are otherwise invisible once saved — this makes them
+ * reviewable, and undoable when a mapping turns out to be wrong.
+ */
+export function FieldMappingsSection() {
+  const [overrides, setOverrides] = useState<FieldOverrides>({});
+  const [loaded, setLoaded] = useState(false);
+
+  const reload = () => getFieldOverrides().then(setOverrides);
+  useEffect(() => {
+    reload().finally(() => setLoaded(true));
+  }, []);
+
+  const forget = async (hostname: string) => {
+    await clearFieldOverrides(hostname);
+    await reload();
+  };
+
+  if (!loaded) return null;
+  const hosts = Object.keys(overrides).sort();
+
+  return (
+    <section>
+      <h2>Learned fields</h2>
+      <p className="hint">
+        Fields you have told ApplyFlow about on specific sites. It uses these before guessing from labels.
+      </p>
+      {hosts.length === 0 ? (
+        <p className="hint" style={{ marginBottom: 0 }}>
+          Nothing learned yet. After filling a page, any field it could not place can be taught from the panel.
+        </p>
+      ) : (
+        hosts.map((host) => (
+          <div className="entry" key={host}>
+            <strong style={{ fontSize: 13 }}>{host}</strong>
+            {Object.entries(overrides[host] ?? {}).map(([signature, path]) => (
+              <p key={signature} className="hint" style={{ margin: '6px 0 0' }}>
+                {signature} → {path}
+              </p>
+            ))}
+            <button type="button" className="btn btn-danger remove" onClick={() => forget(host)}>
+              Forget these
+            </button>
+          </div>
+        ))
       )}
     </section>
   );
