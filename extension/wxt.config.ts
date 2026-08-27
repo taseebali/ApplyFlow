@@ -7,7 +7,11 @@ export default defineConfig({
     name: 'Job Application Autofiller',
     description: 'Fills job application forms from your locally-stored profile.',
     permissions: ['storage'],
-    host_permissions: ['https://api.notion.com/*'],
+    host_permissions: [
+      'https://api.notion.com/*',
+      'https://openrouter.ai/*',
+      'http://localhost:11434/*',
+    ],
     action: {
       default_title: 'Job Application Autofiller',
     },

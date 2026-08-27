@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryEntry } from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
-import { EMPTY_SETTINGS, getSettings, setSettings } from '@/lib/settings';
+import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings } from '@/lib/settings';
 import { searchDatabases, type NotionDatabaseOption } from '@/lib/notion-client';
 
 export function TextField({
@@ -513,6 +513,87 @@ export function CustomQASection({ profile, onChange }: { profile: Profile; onCha
       ))}
       <button type="button" className="btn" onClick={add}>
         + Add custom Q&amp;A
+      </button>
+    </section>
+  );
+}
+
+export function LlmSettingsSection() {
+  const [llm, setLlm] = useState<LlmSettings | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
+
+  useEffect(() => {
+    getSettings().then((settings) => setLlm(settings.llm));
+  }, []);
+
+  if (!llm) return null;
+
+  const handleSave = async () => {
+    const settings = await getSettings();
+    await setSettings({ ...settings, llm });
+    setSaveState('saved');
+    setTimeout(() => setSaveState('idle'), 1500);
+  };
+
+  return (
+    <section>
+      <h2>AI answer drafting</h2>
+      <p className="hint">
+        Optional. Drafts answers to open-ended questions using your work history and projects. Drafts are always
+        shown to you to edit — nothing is entered automatically.
+      </p>
+      <label className="field">
+        <span>Where should drafting run?</span>
+        <select
+          value={llm.backend ?? ''}
+          onChange={(e) => setLlm({ ...llm, backend: (e.target.value || null) as LlmSettings['backend'] })}
+        >
+          <option value="">Off</option>
+          <option value="ollama">On my computer (Ollama)</option>
+          <option value="openrouter">OpenRouter (API key)</option>
+        </select>
+      </label>
+
+      {llm.backend === 'ollama' && (
+        <>
+          <p className="hint" style={{ marginTop: 12 }}>
+            Requires <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> running locally with a
+            model pulled. Nothing leaves your computer.
+          </p>
+          <TextField label="Model" value={llm.ollamaModel} onChange={(v) => setLlm({ ...llm, ollamaModel: v })} />
+        </>
+      )}
+
+      {llm.backend === 'openrouter' && (
+        <>
+          <p className="hint" style={{ marginTop: 12 }}>
+            Uses your own{' '}
+            <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+              OpenRouter API key
+            </a>
+            . Your question and profile details are sent to OpenRouter when you press Draft answers.
+          </p>
+          <label className="field">
+            <span>API key</span>
+            <input
+              type="password"
+              value={llm.openRouterApiKey}
+              onChange={(e) => setLlm({ ...llm, openRouterApiKey: e.target.value })}
+            />
+          </label>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>Model</span>
+            <input
+              type="text"
+              value={llm.openRouterModel}
+              onChange={(e) => setLlm({ ...llm, openRouterModel: e.target.value })}
+            />
+          </label>
+        </>
+      )}
+
+      <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleSave}>
+        {saveState === 'saved' ? 'Saved' : 'Save'}
       </button>
     </section>
   );

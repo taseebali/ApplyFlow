@@ -5,6 +5,7 @@ import {
   DocumentsSection,
   EducationSection,
   LinksSection,
+  LlmSettingsSection,
   LogisticsSection,
   NotionSettingsSection,
   ProjectsSection,
@@ -97,7 +98,7 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       id: 'ai',
       title: 'AI answer drafting',
       blurb: 'Optional. Let a local or hosted model draft answers to open-ended questions.',
-      render: () => null,
+      render: () => <LlmSettingsSection />,
     },
     {
       id: 'done',
