@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResumeHeuristic, splitSections } from './resume-parser';
+import { parseLlmResponse, parseResume, parseResumeHeuristic, splitSections } from './resume-parser';
 
 const RESUME = `Jordan Avery
 Munich, Germany
@@ -77,6 +77,65 @@ describe('parseResumeHeuristic', () => {
   it('returns empty sections rather than throwing on unrecognisable input', () => {
     const parsed = parseResumeHeuristic('');
     expect(parsed.contact).toEqual({});
+    expect(parsed.workHistory).toEqual([]);
+  });
+});
+
+describe('parseLlmResponse', () => {
+  const GOOD = JSON.stringify({
+    workHistory: [{ company: 'Revel8', title: 'Engineer', current: true, description: 'd' }],
+    education: [{ school: 'TU Munich', degree: 'BSc' }],
+    projects: [{ name: 'ApplyFlow', techStack: 'TypeScript' }],
+  });
+
+  it('reads well-formed JSON into schema-shaped entries with ids', () => {
+    const parsed = parseLlmResponse(GOOD);
+    expect(parsed.workHistory).toHaveLength(1);
+    expect(parsed.workHistory[0]!.company).toBe('Revel8');
+    expect(parsed.workHistory[0]!.current).toBe(true);
+    expect(parsed.workHistory[0]!.id).toBeTruthy();
+    expect(parsed.education[0]!.school).toBe('TU Munich');
+    expect(parsed.projects[0]!.name).toBe('ApplyFlow');
+  });
+
+  it('recovers JSON wrapped in markdown fences and prose', () => {
+    const parsed = parseLlmResponse('Sure! Here you go:\n```json\n' + GOOD + '\n```\nHope that helps.');
+    expect(parsed.workHistory[0]!.company).toBe('Revel8');
+  });
+
+  it('returns empty arrays rather than throwing on unparsable output', () => {
+    expect(parseLlmResponse('I cannot help with that.')).toEqual({
+      workHistory: [],
+      education: [],
+      projects: [],
+    });
+    expect(parseLlmResponse('{ broken json').workHistory).toEqual([]);
+  });
+
+  it('drops entries with no identifying content and coerces bad field types', () => {
+    const parsed = parseLlmResponse(
+      JSON.stringify({
+        workHistory: [{ description: 'orphan with no company or title' }, { company: 'Real', title: 42 }],
+        projects: [{ role: 'no name' }],
+      })
+    );
+    expect(parsed.workHistory).toHaveLength(1);
+    expect(parsed.workHistory[0]!.company).toBe('Real');
+    expect(parsed.workHistory[0]!.title).toBe('');
+    expect(parsed.projects).toHaveLength(0);
+  });
+
+  it('ignores a non-array where an array was expected', () => {
+    expect(parseLlmResponse(JSON.stringify({ workHistory: 'nope' })).workHistory).toEqual([]);
+  });
+});
+
+describe('parseResume', () => {
+  const OFF = { backend: null, ollamaModel: '', openRouterApiKey: '', openRouterModel: '' } as const;
+
+  it('still imports contact details with no AI backend configured', async () => {
+    const parsed = await parseResume(RESUME, OFF);
+    expect(parsed.contact.email).toBe('jordan.avery2@example.com');
     expect(parsed.workHistory).toEqual([]);
   });
 });

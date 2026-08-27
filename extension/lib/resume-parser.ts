@@ -1,4 +1,6 @@
 import type { EducationEntry, ProjectEntry, Profile, WorkHistoryEntry } from './schema';
+import { runPrompt } from './llm-client';
+import type { LlmSettings } from './settings';
 
 export interface ParsedResume {
   contact: Partial<Profile['contact']>;
@@ -128,4 +130,117 @@ function guessName(header: string, email: string | undefined): { firstName: stri
   }
 
   return null;
+}
+
+const LLM_PROMPT_HEADER = [
+  'Extract structured data from the resume below.',
+  'Return ONLY a JSON object, with no prose, no explanation, and no markdown fences.',
+  'Use this exact shape, omitting any array you cannot fill:',
+  '{"workHistory":[{"company":"","title":"","location":"","startDate":"","endDate":"","current":false,"description":""}],',
+  '"education":[{"school":"","degree":"","fieldOfStudy":"","startDate":"","endDate":""}],',
+  '"projects":[{"name":"","role":"","description":"","techStack":"","outcomes":""}]}',
+  'Copy facts from the resume only — never invent employers, dates, or metrics.',
+  'Leave a field as an empty string if the resume does not state it.',
+  '',
+  'RESUME:',
+].join('\n');
+
+/** Models often wrap JSON in prose or ```json fences despite being told not to. */
+function extractJsonObject(raw: string): unknown {
+  const withoutFences = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = withoutFences.indexOf('{');
+  const end = withoutFences.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(withoutFences.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function entriesOf(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === 'object');
+}
+
+/** Builds schema-shaped entries, dropping anything with no identifying content. */
+function toWorkHistory(value: unknown): WorkHistoryEntry[] {
+  return entriesOf(value)
+    .map((e) => ({
+      id: crypto.randomUUID(),
+      company: str(e.company),
+      title: str(e.title),
+      location: str(e.location),
+      startDate: str(e.startDate),
+      endDate: str(e.endDate),
+      current: e.current === true,
+      description: str(e.description),
+    }))
+    .filter((e) => e.company || e.title);
+}
+
+function toEducation(value: unknown): EducationEntry[] {
+  return entriesOf(value)
+    .map((e) => ({
+      id: crypto.randomUUID(),
+      school: str(e.school),
+      degree: str(e.degree),
+      fieldOfStudy: str(e.fieldOfStudy),
+      startDate: str(e.startDate),
+      endDate: str(e.endDate),
+    }))
+    .filter((e) => e.school || e.degree);
+}
+
+function toProjects(value: unknown): ProjectEntry[] {
+  return entriesOf(value)
+    .map((e) => ({
+      id: crypto.randomUUID(),
+      name: str(e.name),
+      role: str(e.role),
+      description: str(e.description),
+      techStack: str(e.techStack),
+      outcomes: str(e.outcomes),
+    }))
+    .filter((e) => e.name);
+}
+
+/** Turns a raw model response into schema-shaped entries. Exported for testing. */
+export function parseLlmResponse(raw: string): Pick<ParsedResume, 'workHistory' | 'education' | 'projects'> {
+  const data = extractJsonObject(raw) as Record<string, unknown> | null;
+  if (!data) return { workHistory: [], education: [], projects: [] };
+  return {
+    workHistory: toWorkHistory(data.workHistory),
+    education: toEducation(data.education),
+    projects: toProjects(data.projects),
+  };
+}
+
+export async function parseResumeWithLlm(
+  text: string,
+  llm: LlmSettings
+): Promise<Pick<ParsedResume, 'workHistory' | 'education' | 'projects'>> {
+  return parseLlmResponse(await runPrompt(`${LLM_PROMPT_HEADER}\n${text}`, llm));
+}
+
+/**
+ * Heuristics always run and own contact details and links, where regex beats a
+ * model. The LLM owns the structured sections, where resume layouts vary too
+ * much for regex. A model failure degrades to the heuristic result rather than
+ * failing the whole import.
+ */
+export async function parseResume(text: string, llm: LlmSettings): Promise<ParsedResume> {
+  const heuristic = parseResumeHeuristic(text);
+  if (llm.backend === null) return heuristic;
+
+  try {
+    const structured = await parseResumeWithLlm(text, llm);
+    return { ...heuristic, ...structured };
+  } catch {
+    return heuristic;
+  }
 }
