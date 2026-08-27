@@ -62,7 +62,7 @@ function getLabelText(el: FillableElement): string {
 }
 
 /** Best-available raw (non-normalized) label text for display purposes. */
-function getDisplayLabel(el: FillableElement): string {
+export function getDisplayLabel(el: FillableElement): string {
   const label = getLabelText(el).trim();
   if (label) return label;
   const ariaLabel = el.getAttribute('aria-label')?.trim();
