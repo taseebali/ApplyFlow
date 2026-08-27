@@ -120,17 +120,73 @@ function isBullet(line: string): boolean {
   return BULLET.test(line);
 }
 
-/** A comma-separated run of short lowercase tokens is a tech list, not prose. */
+/** A comma-separated run of short tokens is a tech list, not prose. */
 function isTechList(line: string): boolean {
   const parts = line.split(',').map((p) => p.trim());
   if (parts.length < 2) return false;
   return parts.every((p) => p.length > 0 && p.length < 30 && !/[.!?]$/.test(p));
 }
 
+function isUrlish(text: string): boolean {
+  return /(https?:\/\/|\b[\w-]+\.(com|org|net|io|dev|ai|co|me)\b)/i.test(text);
+}
+
 /**
- * Projects are written as a title line, sometimes a technology line, then
- * bullets describing the work. A new title line is one that is not a bullet
- * and follows bullet text, which is what separates one project from the next.
+ * True only when a segment is essentially nothing but a date. Checking that
+ * the leftovers are merely short is not enough — "MSc Robotics 2021" would
+ * qualify and the degree would be discarded as a date.
+ */
+function isDateish(text: string): boolean {
+  if (!DATE_START.test(text)) return false;
+  const withoutDates = text
+    .replace(/\b(19|20)\d{2}\b/g, '')
+    .replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?/gi, '')
+    .replace(/\b(present|current|ongoing|expected|to|until|since)\b/gi, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+  return withoutDates.length <= 2;
+}
+
+/**
+ * Splits a heading on the separators resumes actually use, so each piece can
+ * be judged on what it contains rather than where it sits. Line *position*
+ * is the thing that differs most between resume layouts; content does not.
+ */
+function headingSegments(line: string, splitOnDash = false): string[] {
+  // A spaced dash separates fields in an education line ("Degree - School"),
+  // but in a project title it is part of the name ("werkstudent.exe - Pipeline",
+  // "Repo Triage Agent — LLM Agent"), so only education opts into it.
+  const pattern = splitOnDash ? /\s*[|•·]\s*|\s+[–—-]\s+/ : /\s*[|•·]\s*/;
+  return line
+    .split(pattern)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A project heading packs several things onto one line, in an order that
+ * varies by resume: the name, sometimes a technology list, sometimes a repo
+ * link, sometimes dates. Each piece is identified by what it looks like, so
+ * the same code reads "Name | Python, Docker" and "Name GitHub" alike.
+ */
+export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
+  const entry = { name: '', role: '', description: '', techStack: '', outcomes: '' };
+
+  for (const segment of headingSegments(line)) {
+    if (!entry.techStack && isTechList(segment) && !isUrlish(segment)) entry.techStack = segment;
+    else if (isUrlish(segment) || isDateish(segment)) continue;
+    else if (!entry.name) entry.name = segment;
+  }
+
+  if (!entry.name) entry.name = headingSegments(line)[0] ?? line.trim();
+  // Trailing anchor words like "GitHub" are link text, not part of the name.
+  entry.name = entry.name.replace(/\s*(github|gitlab|demo|live|repo|link|website)\s*$/i, '').trim();
+  return entry;
+}
+
+/**
+ * Projects are written as a heading, optionally a technology line, then
+ * bullets describing the work. A new heading is a non-bullet line following
+ * bullet text, which is what separates one project from the next.
  */
 export function parseProjectsSection(section: string): ProjectEntry[] {
   const projects: ProjectEntry[] = [];
@@ -163,15 +219,7 @@ export function parseProjectsSection(section: string): ProjectEntry[] {
 
     if (!current || sawBullet) {
       push();
-      // Trailing link words like "GitHub" are anchor text, not part of the name.
-      current = {
-        id: crypto.randomUUID(),
-        name: line.replace(/\s*(github|gitlab|demo|live|repo|link)\s*$/i, '').trim(),
-        role: '',
-        description: '',
-        techStack: '',
-        outcomes: '',
-      };
+      current = { id: crypto.randomUUID(), ...parseProjectHeading(line) };
       sawBullet = false;
       continue;
     }
@@ -192,6 +240,13 @@ const DATE_START =
   /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{0,4}|\b(19|20)\d{2}\b|\b(present|current|ongoing|expected)\b/i;
 /** A trailing grade such as "1.6 (German scale)" or "GPA 3.8". */
 const TRAILING_GRADE = /\s*(gpa\s*:?\s*)?\d[.,]\d+\s*(\([^)]*\))?\s*$/i;
+
+/** Cuts a heading at the point its date range begins, rather than deleting date
+ * tokens in place, which leaves debris like "April  – Aug (expected)". */
+function stripDates(text: string): string {
+  const at = text.search(DATE_START);
+  return (at > 0 ? text.slice(0, at) : text).replace(/[,|–—-]\s*$/, '').trim();
+}
 
 /**
  * Education entries pair a degree line with a school line, in either order.
@@ -220,30 +275,32 @@ export function parseEducationSection(section: string): EducationEntry[] {
   for (const line of lines) {
     const hasDegree = DEGREE.test(line);
     const hasSchool = SCHOOL.test(line);
+    if (!hasDegree && !hasSchool) continue;
 
-    if (hasDegree && (!current || current.degree)) {
-      if (current?.degree || current?.school) entries.push(current);
-      current = blank();
+    // A new qualification starts whenever a degree appears and the entry in
+    // hand already has one — true whether the resume puts degree and school
+    // on one line or on two.
+    if (hasDegree && current?.degree) {
+      entries.push(current);
+      current = null;
     }
     current ??= blank();
 
-    if (hasDegree && !current.degree) {
-      // Cut the line at the date rather than deleting date tokens from it,
-      // which otherwise leaves debris like "April  – Aug (expected)".
-      const dateAt = line.search(DATE_START);
-      current.degree = (dateAt > 0 ? line.slice(0, dateAt) : line)
-        .replace(/[,–—-]\s*$/, '')
-        .trim();
+    const years = line.match(YEAR) ?? [];
+    if (years.length && !current.startDate) {
+      current.startDate = years[0]!;
+      // Prefer a real end year over words like "expected", which say when
+      // something finishes but not in what year.
+      if (years.length > 1) current.endDate = years[years.length - 1]!;
+    }
 
-      const years = line.match(YEAR) ?? [];
-      if (years.length) {
-        current.startDate = years[0]!;
-        // Prefer a real end year over words like "expected", which say when
-        // but not what year.
-        if (years.length > 1) current.endDate = years[years.length - 1]!;
-      }
-    } else if (hasSchool && !current.school) {
-      current.school = line.replace(TRAILING_GRADE, '').trim();
+    // Judge each piece by what it contains. "B.Sc. CS - Hochschule Berlin | 2024"
+    // and a two-line degree/school pair both land in the right fields.
+    for (const segment of headingSegments(line, true)) {
+      const clean = segment.replace(TRAILING_GRADE, '').replace(/[,–—-]\s*$/, '').trim();
+      if (!clean || isDateish(clean)) continue;
+      if (DEGREE.test(clean) && !current.degree) current.degree = stripDates(clean);
+      else if (SCHOOL.test(clean) && !current.school) current.school = stripDates(clean);
     }
   }
 

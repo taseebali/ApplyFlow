@@ -209,3 +209,46 @@ describe('parseEducationSection', () => {
     expect(entries[1]!.school).toBe('NUST College');
   });
 });
+
+// Two real resumes for the same person, formatted completely differently.
+// These exist to stop the parser being tuned to one layout at another's cost.
+describe('layout independence', () => {
+  it('reads a project heading whether tech follows a pipe or sits on its own line', () => {
+    const piped = parseProjectsSection(
+      'werkstudent.exe - End-to-End Pipeline | Python, Anthropic API, Google Workspace APIs\n• Did the thing.'
+    );
+    const stacked = parseProjectsSection(
+      'Real-Time Vision System GitHub\npython, pytorch, docker\n• Did the thing.'
+    );
+    expect(piped[0]!.name).toBe('werkstudent.exe - End-to-End Pipeline');
+    expect(piped[0]!.techStack).toBe('Python, Anthropic API, Google Workspace APIs');
+    expect(stacked[0]!.name).toBe('Real-Time Vision System');
+    expect(stacked[0]!.techStack).toBe('python, pytorch, docker');
+  });
+
+  it('keeps hyphenated words inside a project name', () => {
+    const projects = parseProjectsSection('VERDICT - AutoML Decision-Intelligence Platform\n• Built it.');
+    expect(projects[0]!.name).toBe('VERDICT - AutoML Decision-Intelligence Platform');
+  });
+
+  it('drops a repo link from the heading instead of putting it in the name', () => {
+    const projects = parseProjectsSection('Repo Triage Agent | github.com/jordanavery/repo-triage\n• Built it.');
+    expect(projects[0]!.name).toBe('Repo Triage Agent');
+  });
+
+  it('splits degree from school whether they share a line or not', () => {
+    const oneLine = parseEducationSection(
+      'B.Sc. Computer Science - Hochschule Berlin | April 2024 - August 2027 (expected)'
+    );
+    const twoLines = parseEducationSection(
+      'B.Sc. Computer Science April 2024 – Aug 2027 (expected)\nHochschule Berlin 1.6 (German scale)'
+    );
+    for (const entries of [oneLine, twoLines]) {
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.degree).toBe('B.Sc. Computer Science');
+      expect(entries[0]!.school).toBe('Hochschule Berlin');
+      expect(entries[0]!.startDate).toBe('2024');
+      expect(entries[0]!.endDate).toBe('2027');
+    }
+  });
+});
