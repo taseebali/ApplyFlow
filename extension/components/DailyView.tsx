@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   AttachDocumentsMessage,
   AttachDocumentsResponse,
@@ -41,6 +41,7 @@ type FillStatus =
       unrecognized: UnrecognizedField[];
       hostname: string;
     }
+  | { kind: 'page-changed' }
   | { kind: 'error'; message: string };
 
 type DocStatus =
@@ -65,6 +66,19 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
   const [attachState, setAttachState] = useState<Partial<Record<DocumentKind, AttachState>>>({});
   const [attachError, setAttachError] = useState<string | null>(null);
+
+  // A multi-page application swaps the form underneath us. Clear the old
+  // summary so it cannot be mistaken for the current page being done.
+  useEffect(() => {
+    const onMessage = (message: { type?: string }) => {
+      if (message?.type !== 'page-changed') return;
+      setFillStatus((prev) => (prev.kind === 'done' ? { kind: 'page-changed' } : prev));
+      setDocStatus({ kind: 'idle' });
+      setAttachState({});
+    };
+    browser.runtime.onMessage.addListener(onMessage);
+    return () => browser.runtime.onMessage.removeListener(onMessage);
+  }, []);
 
   const handleFillClick = async () => {
     setFillStatus({ kind: 'filling' });
@@ -198,6 +212,9 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
               </span>
             )}
           </>
+        )}
+        {fillStatus.kind === 'page-changed' && (
+          <span className="pill pill-warning">This page changed — fill it too</span>
         )}
         {fillStatus.kind === 'error' && <span className="pill pill-danger">{fillStatus.message}</span>}
       </ActionCard>
