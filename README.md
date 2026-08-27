@@ -6,9 +6,11 @@ Your profile is stored locally (`chrome.storage.local`). Data leaves your comput
 
 - **Log to Notion** sends the job details to Notion's API using a token you provide.
 - **Draft answers**, if you've configured the OpenRouter backend, sends the question, your work history, and your projects to OpenRouter using your own API key. If you configure the Ollama backend instead, drafting runs against a local Ollama install and nothing leaves your computer. Until you configure either backend, drafting is inactive.
+- **Resume import** sends your resume's text to whichever AI backend you configured, for the work history and projects pass only. With no backend configured, or with Ollama, nothing leaves your computer — contact details and links are extracted locally either way.
 
 ## Features
 
+- **Resume import** — start setup by importing a PDF, Word (.docx), or plain text resume instead of typing everything. Contact details and links are extracted with plain pattern matching and need no AI; if an AI backend is configured, work history, education, and projects are extracted too. Everything is shown for review, section by section, before any of it touches your profile.
 - **Autofill** — detects form fields by label/name/id/placeholder (contact info, links, work history, education, work authorization/EEO, logistics, custom Q&A) and fills them from your profile, including React-controlled forms and radio-button groups.
 - **Document attach** — grant access to the folder where you save tailored resumes/cover letters; it matches files by company name and keyword ("resume"/"cv"/"cover letter"), falling back to a generic "Additional Documents" field when a form has no dedicated one.
 - **Notion logging** — captures the job description (even from ATS flows where the description lives on a different page than the application form) and logs the application as a row in your existing Notion tracker database. Setup uses plain-language numbered steps with a "Test connection" button that reports success or an actionable error.
