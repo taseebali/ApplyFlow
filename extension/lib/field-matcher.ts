@@ -61,6 +61,20 @@ function getLabelText(el: FillableElement): string {
   return '';
 }
 
+/**
+ * A stable identifier for one field on one site, used to remember a mapping
+ * the user taught us. Deliberately built from attributes that survive a
+ * reload — never a DOM index, which shifts the moment the page renders
+ * differently.
+ */
+export function fieldSignature(el: FillableElement): string {
+  const name = el.getAttribute('name')?.trim();
+  if (name) return `name:${name}`;
+  if (el.id) return `id:${el.id}`;
+  const label = normalizeText(getDisplayLabel(el));
+  return label ? `label:${label}` : `type:${(el as HTMLInputElement).type ?? el.tagName}`;
+}
+
 /** Best-available raw (non-normalized) label text for display purposes. */
 export function getDisplayLabel(el: FillableElement): string {
   const label = getLabelText(el).trim();
@@ -94,8 +108,15 @@ function getCandidates(el: FillableElement): Array<{ source: string; text: strin
     .filter((c) => c.text.length > 0);
 }
 
-/** Matches every fillable form element on the page to a Profile schema field. */
-export function matchFields(root: ParentNode = document): FieldMatch[] {
+/**
+ * Matches every fillable form element on the page to a Profile schema field.
+ * `overrides` are mappings the user taught us for this site; they are exact
+ * by definition, so they win over any heuristic score.
+ */
+export function matchFields(
+  root: ParentNode = document,
+  overrides: Record<string, string> = {}
+): FieldMatch[] {
   const elements = Array.from(
     root.querySelectorAll<FillableElement>('input, select, textarea')
   ).filter((el) => {
@@ -111,6 +132,12 @@ export function matchFields(root: ParentNode = document): FieldMatch[] {
   const matches: FieldMatch[] = [];
 
   for (const element of elements) {
+    const taught = overrides[fieldSignature(element)];
+    if (taught) {
+      matches.push({ element, path: taught, confidence: 1, label: getDisplayLabel(element) });
+      continue;
+    }
+
     const candidates = getCandidates(element);
     let bestPath: string | null = null;
     let bestScore = 0;
