@@ -39,7 +39,12 @@ export function normalizeText(text: string): string {
 function scoreAgainstAlias(text: string, alias: string): number {
   if (!text) return 0;
   if (text === alias) return 1;
-  if (text.includes(alias) || alias.includes(text)) return 0.85;
+
+  // Scaled by how much of the label the alias actually accounts for. A flat
+  // score here made "Preferred First Name" match the alias "name" as strongly
+  // as "first name", and the more generic field won purely on list order.
+  if (text.includes(alias)) return 0.6 + 0.35 * (alias.length / text.length);
+  if (alias.includes(text)) return 0.6 + 0.35 * (text.length / alias.length);
 
   const textTokens = new Set(text.split(' '));
   const aliasTokens = new Set(alias.split(' '));

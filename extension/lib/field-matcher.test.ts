@@ -69,3 +69,29 @@ describe('findUnrecognizedFields', () => {
     expect(findUnrecognizedFields(document)).toHaveLength(1);
   });
 });
+
+describe('alias specificity', () => {
+  beforeEach(() => setBody(''));
+
+  const pathFor = (label: string, id = 'f') => {
+    setBody(`<label for="${id}">${label}</label><input id="${id}" />`);
+    return matchFields(document)[0]?.path;
+  };
+
+  it('prefers the more specific field over a generic one', () => {
+    // "Preferred First Name" contains both "name" and "first name"; the
+    // longer, more specific alias has to win.
+    expect(pathFor('Preferred First Name')).toBe('contact.firstName');
+    expect(pathFor('Legal Last Name')).toBe('contact.lastName');
+  });
+
+  it('still matches a plain full-name field', () => {
+    expect(pathFor('Full Name')).toBe('contact.fullName');
+  });
+
+  it('keeps matching ordinary labels', () => {
+    expect(pathFor('Email')).toBe('contact.email');
+    expect(pathFor('Phone Number')).toBe('contact.phone');
+    expect(pathFor('City')).toBe('contact.city');
+  });
+});
