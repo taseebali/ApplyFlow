@@ -61,7 +61,10 @@ export interface Profile {
   education: EducationEntry[];
   projects: ProjectEntry[];
   workAuthorization: {
+    /** A yes/no answer, for forms that ask "are you authorised to work here?". */
     authorizedToWorkInCountry: boolean | null;
+    /** The specific status, for forms that offer a list rather than yes/no. */
+    status: string;
     requiresSponsorship: boolean | null;
     veteranStatus: string;
     disabilityStatus: string;
@@ -101,6 +104,7 @@ export const EMPTY_PROFILE: Profile = {
   projects: [],
   workAuthorization: {
     authorizedToWorkInCountry: null,
+    status: '',
     requiresSponsorship: null,
     veteranStatus: '',
     disabilityStatus: '',
@@ -181,6 +185,20 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
   { path: 'links.github', aliases: ['github', 'github url', 'github profile'] },
   { path: 'links.portfolio', aliases: ['portfolio', 'portfolio url', 'portfolio link'] },
   { path: 'links.website', aliases: ['website', 'personal website', 'personal site'] },
+  {
+    // Forms that offer a list ("EU citizen", "Requires sponsorship", …) rather
+    // than yes/no. Listed before the boolean so the specific wording wins.
+    path: 'workAuthorization.status',
+    aliases: [
+      'work authorisation',
+      'work authorization status',
+      'work authorisation status',
+      'visa status',
+      'immigration status',
+      'residency status',
+      'work permit',
+    ],
+  },
   {
     path: 'workAuthorization.authorizedToWorkInCountry',
     aliases: [

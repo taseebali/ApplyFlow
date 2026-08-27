@@ -58,6 +58,15 @@ export function SelectField({
   );
 }
 
+const WORK_AUTH_STATUS_OPTIONS = [
+  'Citizen',
+  'EU citizen',
+  'Permanent resident',
+  'Work visa holder',
+  'Student visa holder',
+  'Requires sponsorship',
+] as const;
+
 const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Decline to self identify'] as const;
 
 const RACE_OPTIONS = [
@@ -356,6 +365,12 @@ export function WorkAuthSection({ profile, onChange }: { profile: Profile; onCha
             <option value="no">No</option>
           </select>
         </label>
+        <SelectField
+          label="Work authorisation status"
+          value={wa.status}
+          options={WORK_AUTH_STATUS_OPTIONS}
+          onChange={(v) => update('status', v)}
+        />
         <SelectField
           label="Veteran status"
           value={wa.veteranStatus}
