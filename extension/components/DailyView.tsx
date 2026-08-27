@@ -558,7 +558,9 @@ interface Draft {
 
 type DraftState =
   | { kind: 'idle' }
-  | { kind: 'loading' }
+  // `done`/`total` because a local model can take a while per question, and
+  // an unchanging spinner is indistinguishable from a hang.
+  | { kind: 'loading'; done?: number; total?: number }
   | { kind: 'not-configured' }
   | { kind: 'no-questions' }
   | { kind: 'error'; message: string }
@@ -606,6 +608,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
       const profile = await getProfile();
       const drafts: Draft[] = [];
       for (const q of found.questions) {
+        setState({ kind: 'loading', done: drafts.length, total: found.questions.length });
         // A saved answer wins over a fresh generation: it is instant, free,
         // and already worded the way the user wants. Require the normalized
         // question to match exactly — a loose prefix/substring match can
@@ -703,7 +706,11 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         onClick={handleDraft}
         disabled={state.kind === 'loading'}
       >
-        {state.kind === 'loading' && <span className="pill pill-neutral">Drafting…</span>}
+        {state.kind === 'loading' && (
+          <span className="pill pill-neutral">
+            {state.total ? `Drafting ${(state.done ?? 0) + 1} of ${state.total}…` : 'Looking for questions…'}
+          </span>
+        )}
         {state.kind === 'not-configured' && (
           <span className="pill pill-neutral">Set up AI drafting in Settings first</span>
         )}

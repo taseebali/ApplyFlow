@@ -10,6 +10,17 @@ export interface DraftContext {
 export class LlmError extends Error {}
 
 /**
+ * A local model on a busy machine can take a while, but never minutes. A cap
+ * means a stalled backend surfaces as a clear failure instead of a spinner
+ * that never resolves.
+ */
+const REQUEST_TIMEOUT_MS = 90_000;
+
+function timeoutSignal(): AbortSignal {
+  return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+}
+
+/**
  * A personal project directory is small (a handful of entries), so the whole
  * of it goes into the prompt directly — no retrieval or embedding step.
  */
@@ -47,6 +58,7 @@ async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: llm.ollamaModel, prompt, stream: false }),
+    signal: timeoutSignal(),
   });
   if (!response.ok) {
     throw new LlmError(
@@ -68,6 +80,7 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
       model: llm.openRouterModel,
       messages: [{ role: 'user', content: prompt }],
     }),
+    signal: timeoutSignal(),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -83,8 +96,21 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
  * live in exactly one place.
  */
 export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
-  if (llm.backend === 'ollama') return runWithOllama(prompt, llm);
-  if (llm.backend === 'openrouter') return runWithOpenRouter(prompt, llm);
+  try {
+    if (llm.backend === 'ollama') return await runWithOllama(prompt, llm);
+    if (llm.backend === 'openrouter') return await runWithOpenRouter(prompt, llm);
+  } catch (err) {
+    if (err instanceof LlmError) throw err;
+    // An aborted request reads as a cryptic DOMException otherwise.
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new LlmError(`The model did not answer within ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    throw new LlmError(
+      llm.backend === 'ollama'
+        ? 'Could not reach Ollama on localhost:11434. Is it running?'
+        : 'Could not reach OpenRouter. Check your connection and API key.'
+    );
+  }
   throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
 }
 
