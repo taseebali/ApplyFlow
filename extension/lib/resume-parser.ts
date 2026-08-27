@@ -21,16 +21,22 @@ const LINKEDIN = /(?:https?:\/\/)?(?:[\w-]+\.)?linkedin\.com\/in\/[\w%-]+/i;
 const GITHUB = /(?:https?:\/\/)?(?:www\.)?github\.com\/[\w-]+/i;
 const URL = /(?:https?:\/\/)[\w.-]+\.[a-z]{2,}(?:\/[\w./#?=&%-]*)?/gi;
 
+type SectionKey = keyof ParsedResume | 'skills' | 'other';
+
 /** Section headers as they appear on real resumes, mapped to the profile area they feed. */
-const SECTION_PATTERNS: Array<{ key: keyof ParsedResume | 'skills'; pattern: RegExp }> = [
+const SECTION_PATTERNS: Array<{ key: SectionKey; pattern: RegExp }> = [
   { key: 'workHistory', pattern: /^(work\s+)?(experience|employment|work history|professional experience)\b/i },
   { key: 'education', pattern: /^education\b/i },
   { key: 'projects', pattern: /^(projects|personal projects|selected projects)\b/i },
-  { key: 'skills', pattern: /^(skills|technical skills|technologies)\b/i },
+  { key: 'skills', pattern: /^(core skills|skills|technical skills|technologies)\b/i },
+  // Not imported, but recognising them keeps their prose out of the header
+  // block, which is the scope contact details are searched in.
+  { key: 'other', pattern: /^(summary|profile|objective|about me)\b/i },
+  { key: 'other', pattern: /^(certifications?|awards|publications|languages|interests|references)\b/i },
 ];
 
 /** A header line is short and matches a known section name — body text rarely is both. */
-function sectionKeyForLine(line: string): (keyof ParsedResume | 'skills') | null {
+function sectionKeyForLine(line: string): SectionKey | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.length > 40) return null;
   return SECTION_PATTERNS.find((s) => s.pattern.test(trimmed))?.key ?? null;
@@ -101,7 +107,154 @@ export function parseResumeHeuristic(text: string): ParsedResume {
     result.contact.lastName = name.lastName;
   }
 
+  const { sections } = splitSections(text);
+  if (sections.projects) result.projects = parseProjectsSection(sections.projects);
+  if (sections.education) result.education = parseEducationSection(sections.education);
+
   return result;
+}
+
+const BULLET = /^\s*[•·▪◦*-]\s+/;
+
+function isBullet(line: string): boolean {
+  return BULLET.test(line);
+}
+
+/** A comma-separated run of short lowercase tokens is a tech list, not prose. */
+function isTechList(line: string): boolean {
+  const parts = line.split(',').map((p) => p.trim());
+  if (parts.length < 2) return false;
+  return parts.every((p) => p.length > 0 && p.length < 30 && !/[.!?]$/.test(p));
+}
+
+/**
+ * Projects are written as a title line, sometimes a technology line, then
+ * bullets describing the work. A new title line is one that is not a bullet
+ * and follows bullet text, which is what separates one project from the next.
+ */
+export function parseProjectsSection(section: string): ProjectEntry[] {
+  const projects: ProjectEntry[] = [];
+  let current: ProjectEntry | null = null;
+  let sawBullet = false;
+
+  const push = () => {
+    if (current?.name) projects.push(current);
+  };
+
+  for (const rawLine of section.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (isBullet(line)) {
+      sawBullet = true;
+      if (current) {
+        const text = line.replace(BULLET, '').trim();
+        current.description = current.description ? `${current.description}\n${text}` : text;
+      }
+      continue;
+    }
+
+    // A bullet that wraps onto a second line looks exactly like a new title
+    // apart from one thing: the line it continues did not finish its sentence.
+    if (current && sawBullet && current.description && !/[.!?]\s*$/.test(current.description)) {
+      current.description = `${current.description} ${line}`.trim();
+      continue;
+    }
+
+    if (!current || sawBullet) {
+      push();
+      // Trailing link words like "GitHub" are anchor text, not part of the name.
+      current = {
+        id: crypto.randomUUID(),
+        name: line.replace(/\s*(github|gitlab|demo|live|repo|link)\s*$/i, '').trim(),
+        role: '',
+        description: '',
+        techStack: '',
+        outcomes: '',
+      };
+      sawBullet = false;
+      continue;
+    }
+
+    if (!current.techStack && isTechList(line)) current.techStack = line;
+    else current.name = `${current.name} ${line}`.trim();
+  }
+
+  push();
+  return projects;
+}
+
+const DEGREE = /\b(b\.?\s?sc|m\.?\s?sc|b\.?\s?a|m\.?\s?a|b\.?\s?eng|bachelor|master|ph\.?d|diploma|abitur)\b/i;
+const SCHOOL = /\b(university|universit(y|ät|e)|college|school|institute|hochschule|academy)\b/i;
+const YEAR = /\b(19|20)\d{2}\b/g;
+/** Where the date part of a degree line starts: a month name, a year, or an open-ended marker. */
+const DATE_START =
+  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{0,4}|\b(19|20)\d{2}\b|\b(present|current|ongoing|expected)\b/i;
+/** A trailing grade such as "1.6 (German scale)" or "GPA 3.8". */
+const TRAILING_GRADE = /\s*(gpa\s*:?\s*)?\d[.,]\d+\s*(\([^)]*\))?\s*$/i;
+
+/**
+ * Education entries pair a degree line with a school line, in either order.
+ * Dates are pulled off the degree line rather than parsed strictly, since
+ * every resume formats them differently.
+ */
+export function parseEducationSection(section: string): EducationEntry[] {
+  const lines = section
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !isBullet(l));
+
+  const entries: EducationEntry[] = [];
+  let current: EducationEntry | null = null;
+
+  const blank = (): EducationEntry => ({
+    id: crypto.randomUUID(),
+    school: '',
+    degree: '',
+    fieldOfStudy: '',
+    startDate: '',
+    endDate: '',
+  });
+
+  for (const line of lines) {
+    const hasDegree = DEGREE.test(line);
+    const hasSchool = SCHOOL.test(line);
+
+    if (hasDegree && (!current || current.degree)) {
+      if (current?.degree || current?.school) entries.push(current);
+      current = blank();
+    }
+    current ??= blank();
+
+    if (hasDegree && !current.degree) {
+      // Cut the line at the date rather than deleting date tokens from it,
+      // which otherwise leaves debris like "April  – Aug (expected)".
+      const dateAt = line.search(DATE_START);
+      current.degree = (dateAt > 0 ? line.slice(0, dateAt) : line)
+        .replace(/[,–—-]\s*$/, '')
+        .trim();
+
+      const years = line.match(YEAR) ?? [];
+      if (years.length) {
+        current.startDate = years[0]!;
+        // Prefer a real end year over words like "expected", which say when
+        // but not what year.
+        if (years.length > 1) current.endDate = years[years.length - 1]!;
+      }
+    } else if (hasSchool && !current.school) {
+      current.school = line.replace(TRAILING_GRADE, '').trim();
+    }
+  }
+
+  if (current?.degree || current?.school) entries.push(current);
+  return entries;
+}
+
+/** Title-cases a word that is entirely upper case, leaving mixed case alone. */
+function fixCaps(word: string): string {
+  if (word !== word.toUpperCase()) return word;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
 /**
@@ -118,7 +271,9 @@ function guessName(header: string, email: string | undefined): { firstName: stri
     const words = line.split(/\s+/).filter((w) => /^[\p{L}'.-]+$/u.test(w));
     if (words.length < 2 || words.length > 4) continue;
 
-    return { firstName: words[0]!, lastName: words[words.length - 1]! };
+    // Resume headers are often set in caps ("JORDAN AVERY"), which is styling,
+    // not how the name should be typed into an application form.
+    return { firstName: fixCaps(words[0]!), lastName: fixCaps(words[words.length - 1]!) };
   }
 
   // Fall back to the local part of an email like "jordan.avery@…".

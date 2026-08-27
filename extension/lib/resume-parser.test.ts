@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseLlmResponse, parseResume, parseResumeHeuristic, splitSections } from './resume-parser';
+import {
+  parseEducationSection,
+  parseLlmResponse,
+  parseProjectsSection,
+  parseResume,
+  parseResumeHeuristic,
+  splitSections,
+} from './resume-parser';
 
 const RESUME = `Jordan Avery
 Munich, Germany
@@ -137,5 +144,57 @@ describe('parseResume', () => {
     const parsed = await parseResume(RESUME, OFF);
     expect(parsed.contact.email).toBe('jordan.avery2@example.com');
     expect(parsed.workHistory).toEqual([]);
+  });
+});
+
+describe('parseProjectsSection', () => {
+  const SECTION = `Real-Time Vision & AI Narration System GitHub
+python, pytorch, yolov8, blip, cuda, docker
+• Built a real-time pipeline (YOLOv8 chained into BLIP captioning and
+text-to-speech) — a full multimodal pipeline, not a single-model demo.
+• Packaged with Docker for reproducible setup.
+Repo Triage Agent — LLM Agent for Automated Issue Triage GitHub
+python, fastapi, anthropic-api
+• Built an evaluation harness scoring an agent against 10 verified fixes.`;
+
+  it('separates projects and keeps their tech stacks', () => {
+    const projects = parseProjectsSection(SECTION);
+    expect(projects).toHaveLength(2);
+    expect(projects[0]!.name).toBe('Real-Time Vision & AI Narration System');
+    expect(projects[0]!.techStack).toBe('python, pytorch, yolov8, blip, cuda, docker');
+    expect(projects[1]!.name).toBe('Repo Triage Agent — LLM Agent for Automated Issue Triage');
+  });
+
+  it('treats a wrapped bullet as continuation, not a new project', () => {
+    const projects = parseProjectsSection(SECTION);
+    expect(projects[0]!.description).toContain('text-to-speech)');
+    expect(projects.map((p) => p.name)).not.toContain(
+      'text-to-speech) — a full multimodal pipeline, not a single-model demo.'
+    );
+  });
+
+  it('strips trailing anchor words from the project name', () => {
+    expect(parseProjectsSection('Some Project GitHub\n• Did a thing.')[0]!.name).toBe('Some Project');
+  });
+});
+
+describe('parseEducationSection', () => {
+  it('splits degree, school, and years without leaving date debris', () => {
+    const entries = parseEducationSection(
+      'B.Sc. Computer Science April 2024 – Aug 2027 (expected)\nHochschule Berlin 1.6 (German scale)'
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.degree).toBe('B.Sc. Computer Science');
+    expect(entries[0]!.school).toBe('Hochschule Berlin');
+    expect(entries[0]!.startDate).toBe('2024');
+    expect(entries[0]!.endDate).toBe('2027');
+  });
+
+  it('handles more than one qualification', () => {
+    const entries = parseEducationSection(
+      'MSc Robotics 2021 - 2023\nTU Munich\nBachelor of Engineering 2017 - 2021\nNUST College'
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries[1]!.school).toBe('NUST College');
   });
 });
