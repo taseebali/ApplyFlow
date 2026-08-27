@@ -2,22 +2,15 @@ body {
   min-width: 0;
 }
 
-.panel .actions-section {
+.panel .daily-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.panel .actions-section .btn {
-  width: 100%;
-}
-
-.panel .status-row {
-  margin: -2px 0 0;
-}
-
 .panel .unmatched-labels {
-  margin: 4px 0 0;
+  display: block;
+  width: 100%;
   font-size: 11.5px;
   color: var(--text-muted);
   line-height: 1.5;
