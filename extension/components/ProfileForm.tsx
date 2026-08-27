@@ -24,6 +24,65 @@ export function TextField({
   );
 }
 
+/**
+ * A dropdown for anything an application form would also present as a
+ * dropdown. Keeping the wording identical to the standard EEO options used by
+ * Greenhouse, Lever and similar means the saved value can be matched against
+ * a form's own options instead of being typed as free text.
+ */
+export function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Not set</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+        {/* A value imported from JSON may predate these options. */}
+        {value && !options.includes(value) && <option value={value}>{value}</option>}
+      </select>
+    </label>
+  );
+}
+
+const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Decline to self identify'] as const;
+
+const RACE_OPTIONS = [
+  'American Indian or Alaska Native',
+  'Asian',
+  'Black or African American',
+  'Hispanic or Latino',
+  'Native Hawaiian or Other Pacific Islander',
+  'White',
+  'Two or More Races',
+  'Decline to self identify',
+] as const;
+
+const VETERAN_OPTIONS = [
+  'I am not a protected veteran',
+  'I identify as one or more of the classifications of a protected veteran',
+  'I decline to self identify',
+] as const;
+
+const DISABILITY_OPTIONS = [
+  'Yes, I have a disability, or have had one in the past',
+  'No, I do not have a disability',
+  'I do not want to answer',
+] as const;
+
 export function ContactSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const c = profile.contact;
   const update = (key: keyof Profile['contact'], value: string) =>
@@ -278,14 +337,30 @@ export function WorkAuthSection({ profile, onChange }: { profile: Profile; onCha
             <option value="no">No</option>
           </select>
         </label>
-        <TextField label="Veteran status" value={wa.veteranStatus} onChange={(v) => update('veteranStatus', v)} />
-        <TextField
+        <SelectField
+          label="Veteran status"
+          value={wa.veteranStatus}
+          options={VETERAN_OPTIONS}
+          onChange={(v) => update('veteranStatus', v)}
+        />
+        <SelectField
           label="Disability status"
           value={wa.disabilityStatus}
+          options={DISABILITY_OPTIONS}
           onChange={(v) => update('disabilityStatus', v)}
         />
-        <TextField label="Race / ethnicity" value={wa.race} onChange={(v) => update('race', v)} />
-        <TextField label="Gender" value={wa.gender} onChange={(v) => update('gender', v)} />
+        <SelectField
+          label="Race / ethnicity"
+          value={wa.race}
+          options={RACE_OPTIONS}
+          onChange={(v) => update('race', v)}
+        />
+        <SelectField
+          label="Gender"
+          value={wa.gender}
+          options={GENDER_OPTIONS}
+          onChange={(v) => update('gender', v)}
+        />
       </div>
     </section>
   );
