@@ -14,6 +14,8 @@
   --success-text: #346538;
   --warning-bg: #fbf3db;
   --warning-text: #956400;
+  --tint-blue-bg: #e1f3fe;
+  --tint-blue-text: #1f6c9f;
 
   color-scheme: light dark;
   font-synthesis: none;
@@ -40,6 +42,8 @@
     --success-text: #8fcf9a;
     --warning-bg: #362e17;
     --warning-text: #e0b856;
+    --tint-blue-bg: #16303f;
+    --tint-blue-text: #86c5ea;
   }
 }
 
@@ -182,4 +186,86 @@ textarea:focus-visible {
 .pill-danger {
   background: var(--danger-bg);
   color: var(--danger-text);
+}
+
+.action-card {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 14px;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.action-card:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.action-card:active:not(:disabled) {
+  transform: scale(0.995);
+}
+
+.action-card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.action-card-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.action-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.action-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.action-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.action-card-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tint-blue .action-card-icon {
+  background: var(--tint-blue-bg);
+  color: var(--tint-blue-text);
+}
+
+.tint-green .action-card-icon {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.tint-amber .action-card-icon {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.tint-neutral .action-card-icon {
+  background: var(--surface-hover);
+  color: var(--text-muted);
 }
