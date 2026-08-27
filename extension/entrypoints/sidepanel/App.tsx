@@ -1,61 +1,52 @@
-import { useRef } from 'react';
-import { DocumentsSection, NotionSettingsSection, ProfileForm } from '@/components/ProfileForm';
-import { useProfileEditor } from '@/components/useProfileEditor';
+import { useEffect, useState } from 'react';
 import { DailyView } from '@/components/DailyView';
+import { SetupView } from '@/components/SetupView';
+import { GearIcon, BackIcon } from '@/components/icons';
+import { getProfile } from '@/lib/storage';
 import './App.css';
 
+type View = { kind: 'loading' } | { kind: 'daily' } | { kind: 'setup'; mode: 'wizard' | 'tabs' };
+
 function App() {
-  const { profile, setProfile, loaded, saveState, save, exportJson, importFile, importError, clearImportError } =
-    useProfileEditor();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [view, setView] = useState<View>({ kind: 'loading' });
 
-  const handleImportClick = () => {
-    clearImportError();
-    fileInputRef.current?.click();
-  };
+  useEffect(() => {
+    // First run (nothing saved yet) opens the guided wizard instead of the daily view.
+    getProfile().then((profile) => {
+      const hasProfile = Boolean(profile.contact.firstName || profile.contact.email);
+      setView(hasProfile ? { kind: 'daily' } : { kind: 'setup', mode: 'wizard' });
+    });
+  }, []);
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file) await importFile(file);
-  };
-
-  if (!loaded) return <div className="loading-state">Loading your profile…</div>;
+  if (view.kind === 'loading') return <div className="loading-state">Loading…</div>;
 
   return (
     <div className="panel">
-      <header>
-        <h1>Job Application Autofiller</h1>
+      <header className="app-header">
+        {view.kind === 'setup' && view.mode === 'tabs' ? (
+          <button type="button" className="icon-btn" onClick={() => setView({ kind: 'daily' })} aria-label="Back">
+            <BackIcon />
+          </button>
+        ) : (
+          <span className="wordmark">ApplyFlow</span>
+        )}
+        {view.kind === 'daily' && (
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setView({ kind: 'setup', mode: 'tabs' })}
+            aria-label="Settings"
+          >
+            <GearIcon />
+          </button>
+        )}
       </header>
 
-      <DailyView onOpenSetup={() => {}} />
-
-      <header className="profile-header">
-        <h2>Your profile</h2>
-        <div className="actions">
-          <button type="button" className="btn" onClick={exportJson}>
-            Export JSON
-          </button>
-          <button type="button" className="btn" onClick={handleImportClick}>
-            Import JSON
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={handleImportFile}
-          />
-          <button type="button" className="btn btn-primary" onClick={save}>
-            {saveState === 'saved' ? 'Saved' : 'Save'}
-          </button>
-        </div>
-      </header>
-      {importError && <p className="error">{importError}</p>}
-
-      <ProfileForm profile={profile} onChange={setProfile} />
-      <DocumentsSection />
-      <NotionSettingsSection />
+      {view.kind === 'daily' ? (
+        <DailyView onOpenSetup={() => setView({ kind: 'setup', mode: 'tabs' })} />
+      ) : (
+        <SetupView mode={view.mode} onDone={() => setView({ kind: 'daily' })} />
+      )}
     </div>
   );
 }

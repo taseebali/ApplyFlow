@@ -21,7 +21,7 @@ export function TextField({
   );
 }
 
-function ContactSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function ContactSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const c = profile.contact;
   const update = (key: keyof Profile['contact'], value: string) =>
     onChange({ ...profile, contact: { ...c, [key]: value } });
@@ -45,7 +45,7 @@ function ContactSection({ profile, onChange }: { profile: Profile; onChange: (p:
   );
 }
 
-function LinksSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function LinksSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const l = profile.links;
   const update = (key: keyof Profile['links'], value: string) =>
     onChange({ ...profile, links: { ...l, [key]: value } });
@@ -63,7 +63,7 @@ function LinksSection({ profile, onChange }: { profile: Profile; onChange: (p: P
   );
 }
 
-function WorkHistorySection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function WorkHistorySection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const update = (id: string, patch: Partial<WorkHistoryEntry>) =>
     onChange({
       ...profile,
@@ -134,7 +134,7 @@ function WorkHistorySection({ profile, onChange }: { profile: Profile; onChange:
   );
 }
 
-function EducationSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function EducationSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const update = (id: string, patch: Partial<EducationEntry>) =>
     onChange({
       ...profile,
@@ -185,7 +185,7 @@ function EducationSection({ profile, onChange }: { profile: Profile; onChange: (
   );
 }
 
-function WorkAuthSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function WorkAuthSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const wa = profile.workAuthorization;
   const update = (key: keyof Profile['workAuthorization'], value: string | boolean | null) =>
     onChange({ ...profile, workAuthorization: { ...wa, [key]: value } });
@@ -232,7 +232,7 @@ function WorkAuthSection({ profile, onChange }: { profile: Profile; onChange: (p
   );
 }
 
-function LogisticsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function LogisticsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const lg = profile.logistics;
   const boolToString = (v: boolean | null) => (v === null ? '' : v ? 'yes' : 'no');
   const stringToBool = (v: string): boolean | null => (v === '' ? null : v === 'yes');
@@ -420,7 +420,7 @@ export function NotionSettingsSection() {
   );
 }
 
-function CustomQASection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+export function CustomQASection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const update = (id: string, patch: Partial<CustomQAEntry>) =>
     onChange({
       ...profile,

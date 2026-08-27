@@ -87,3 +87,124 @@ body {
   letter-spacing: 0.06em;
   color: var(--text-muted);
 }
+
+.panel .app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  margin-bottom: 16px;
+}
+
+.panel .wordmark {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+}
+
+.panel .icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.panel .wizard-progress {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 22px;
+}
+
+.panel .wizard-dot {
+  height: 3px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background-color 0.25s ease;
+}
+
+.panel .wizard-dot-active {
+  background: var(--accent);
+}
+
+.panel .wizard-step {
+  animation: wizard-in 0.2s ease both;
+}
+
+@keyframes wizard-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel .wizard-step {
+    animation: none;
+  }
+}
+
+.panel .wizard-title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.panel .wizard-blurb {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+}
+
+.panel .wizard-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.panel .wizard-nav .btn {
+  flex: 1;
+}
+
+.panel .tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.panel .tab {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 4px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.panel .tab-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.panel .setup-footer {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
