@@ -12,6 +12,8 @@ export interface Settings {
     databaseId: string;
   };
   llm: LlmSettings;
+  /** True once the user has been through setup at least once (even if every step was skipped). */
+  setupCompleted: boolean;
 }
 
 export const EMPTY_SETTINGS: Settings = {
@@ -22,6 +24,7 @@ export const EMPTY_SETTINGS: Settings = {
     openRouterApiKey: '',
     openRouterModel: 'anthropic/claude-3.5-sonnet',
   },
+  setupCompleted: false,
 };
 
 const SETTINGS_KEY = 'settings';
@@ -31,6 +34,7 @@ export function applySettingsDefaults(stored: Partial<Settings>): Settings {
   return {
     notion: { ...EMPTY_SETTINGS.notion, ...stored.notion },
     llm: { ...EMPTY_SETTINGS.llm, ...stored.llm },
+    setupCompleted: stored.setupCompleted ?? EMPTY_SETTINGS.setupCompleted,
   };
 }
 

@@ -13,17 +13,6 @@
   margin-bottom: 24px;
 }
 
-.panel h1 {
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.panel .actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .panel section {
   background: var(--surface);
   border: 1px solid var(--border);

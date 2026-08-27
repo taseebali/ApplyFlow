@@ -16,6 +16,10 @@
   --warning-text: #956400;
   --tint-blue-bg: #e1f3fe;
   --tint-blue-text: #1f6c9f;
+  --tint-green-bg: #e7f3e5;
+  --tint-green-text: #2f6b34;
+  --tint-amber-bg: #faf0d6;
+  --tint-amber-text: #8a5d10;
 
   color-scheme: light dark;
   font-synthesis: none;
@@ -44,6 +48,10 @@
     --warning-text: #e0b856;
     --tint-blue-bg: #16303f;
     --tint-blue-text: #86c5ea;
+    --tint-green-bg: #1e2f1f;
+    --tint-green-text: #9bd3a1;
+    --tint-amber-bg: #332a14;
+    --tint-amber-text: #e6c273;
   }
 }
 
@@ -250,19 +258,34 @@ textarea:focus-visible {
   margin-top: 8px;
 }
 
+.tint-blue {
+  background: color-mix(in srgb, var(--tint-blue-bg) 40%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint-blue-text) 25%, var(--border));
+}
+
 .tint-blue .action-card-icon {
   background: var(--tint-blue-bg);
   color: var(--tint-blue-text);
 }
 
+.tint-green {
+  background: color-mix(in srgb, var(--tint-green-bg) 40%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint-green-text) 25%, var(--border));
+}
+
 .tint-green .action-card-icon {
-  background: var(--success-bg);
-  color: var(--success-text);
+  background: var(--tint-green-bg);
+  color: var(--tint-green-text);
+}
+
+.tint-amber {
+  background: color-mix(in srgb, var(--tint-amber-bg) 40%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint-amber-text) 25%, var(--border));
 }
 
 .tint-amber .action-card-icon {
-  background: var(--warning-bg);
-  color: var(--warning-text);
+  background: var(--tint-amber-bg);
+  color: var(--tint-amber-text);
 }
 
 .tint-neutral .action-card-icon {

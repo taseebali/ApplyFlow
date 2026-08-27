@@ -73,7 +73,7 @@ function dispatchChange(el: HTMLElement) {
  * bypasses that instance patch, so the framework's change tracker correctly
  * sees a diff once we dispatch the input/change events below.
  */
-export function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
+function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
   const prototype =
     el instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype

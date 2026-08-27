@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryEntry } from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
-import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings } from '@/lib/settings';
+import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
+
+export type NotionConfig = Settings['notion'];
 
 export function TextField({
   label,
@@ -383,31 +385,27 @@ export function DocumentsSection() {
   );
 }
 
-export function NotionSettingsSection() {
-  const [token, setToken] = useState('');
-  const [databaseId, setDatabaseId] = useState('');
-  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
-  const [loaded, setLoaded] = useState(false);
+export function NotionSettingsSection({
+  value,
+  onChange,
+}: {
+  value: NotionConfig;
+  onChange: (value: NotionConfig) => void;
+}) {
   const [databases, setDatabases] = useState<NotionDatabaseOption[] | null>(null);
   const [searchState, setSearchState] = useState<'idle' | 'searching' | 'error'>('idle');
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [llm, setLlm] = useState(EMPTY_SETTINGS.llm);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  useEffect(() => {
-    getSettings().then((settings) => {
-      setToken(settings.notion.token);
-      setDatabaseId(settings.notion.databaseId);
-      setLlm(settings.llm);
-      setLoaded(true);
-    });
-  }, []);
+  const { token, databaseId } = value;
 
-  const handleSave = async () => {
-    await setSettings({ notion: { token, databaseId }, llm });
-    setSaveState('saved');
-    setTimeout(() => setSaveState('idle'), 1500);
+  // A "Connected" result describes the exact token/database it was run against,
+  // so any edit to either makes it stale. Drop it rather than leave a green pill
+  // sitting above a configuration that was never tested.
+  const update = (patch: Partial<NotionConfig>) => {
+    setTestResult(null);
+    onChange({ ...value, ...patch });
   };
 
   const handleFindDatabases = async () => {
@@ -422,8 +420,6 @@ export function NotionSettingsSection() {
       setSearchError(err instanceof Error ? err.message : 'Could not search Notion.');
     }
   };
-
-  if (!loaded) return null;
 
   return (
     <section>
@@ -446,7 +442,7 @@ export function NotionSettingsSection() {
       </ol>
       <label className="field">
         <span>Integration token</span>
-        <input type="password" value={token} onChange={(e) => setToken(e.target.value)} />
+        <input type="password" value={token} onChange={(e) => update({ token: e.target.value })} />
       </label>
       <button
         type="button"
@@ -468,7 +464,7 @@ export function NotionSettingsSection() {
               key={db.id}
               type="button"
               className={`btn database-option ${databaseId === db.id ? 'database-option-selected' : ''}`}
-              onClick={() => setDatabaseId(db.id)}
+              onClick={() => update({ databaseId: db.id })}
             >
               {db.title}
             </button>
@@ -477,25 +473,30 @@ export function NotionSettingsSection() {
       )}
       <label className="field" style={{ marginTop: 10 }}>
         <span>Database ID</span>
-        <input type="text" value={databaseId} onChange={(e) => setDatabaseId(e.target.value)} />
+        <input type="text" value={databaseId} onChange={(e) => update({ databaseId: e.target.value })} />
       </label>
-      <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleSave}>
-        {saveState === 'saved' ? 'Saved' : 'Save'}
-      </button>
       <button
         type="button"
         className="btn"
-        style={{ marginTop: 8 }}
+        style={{ marginTop: 12 }}
         disabled={testing}
         onClick={async () => {
           setTesting(true);
-          const result = await testConnection({ token, databaseId });
-          setTestResult(
-            result.ok
-              ? { ok: true, message: `Connected to ${result.databaseTitle}.` }
-              : { ok: false, message: result.message }
-          );
-          setTesting(false);
+          try {
+            const result = await testConnection({ token, databaseId });
+            setTestResult(
+              result.ok
+                ? { ok: true, message: `Connected to ${result.databaseTitle}.` }
+                : { ok: false, message: result.message }
+            );
+          } catch (err) {
+            setTestResult({
+              ok: false,
+              message: err instanceof Error ? err.message : 'Could not reach Notion.',
+            });
+          } finally {
+            setTesting(false);
+          }
         }}
       >
         {testing ? 'Testing…' : 'Test connection'}
@@ -551,22 +552,15 @@ export function CustomQASection({ profile, onChange }: { profile: Profile; onCha
   );
 }
 
-export function LlmSettingsSection() {
-  const [llm, setLlm] = useState<LlmSettings | null>(null);
-  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
-
-  useEffect(() => {
-    getSettings().then((settings) => setLlm(settings.llm));
-  }, []);
-
-  if (!llm) return null;
-
-  const handleSave = async () => {
-    const settings = await getSettings();
-    await setSettings({ ...settings, llm });
-    setSaveState('saved');
-    setTimeout(() => setSaveState('idle'), 1500);
-  };
+export function LlmSettingsSection({
+  value,
+  onChange,
+}: {
+  value: LlmSettings;
+  onChange: (value: LlmSettings) => void;
+}) {
+  const llm = value;
+  const setLlm = onChange;
 
   return (
     <section>
@@ -624,25 +618,6 @@ export function LlmSettingsSection() {
           </label>
         </>
       )}
-
-      <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleSave}>
-        {saveState === 'saved' ? 'Saved' : 'Save'}
-      </button>
     </section>
-  );
-}
-
-/** All profile-editing sections (everything except Documents, which doesn't depend on Profile). */
-export function ProfileForm({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
-  return (
-    <>
-      <ContactSection profile={profile} onChange={onChange} />
-      <LinksSection profile={profile} onChange={onChange} />
-      <WorkHistorySection profile={profile} onChange={onChange} />
-      <EducationSection profile={profile} onChange={onChange} />
-      <WorkAuthSection profile={profile} onChange={onChange} />
-      <LogisticsSection profile={profile} onChange={onChange} />
-      <CustomQASection profile={profile} onChange={onChange} />
-    </>
   );
 }

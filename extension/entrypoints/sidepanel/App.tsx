@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DailyView } from '@/components/DailyView';
 import { SetupView } from '@/components/SetupView';
 import { GearIcon } from '@/components/icons';
-import { getProfile } from '@/lib/storage';
+import { getSettings } from '@/lib/settings';
 import './App.css';
 
 type View = { kind: 'loading' } | { kind: 'daily' } | { kind: 'setup'; mode: 'wizard' | 'tabs' };
@@ -11,10 +11,12 @@ function App() {
   const [view, setView] = useState<View>({ kind: 'loading' });
 
   useEffect(() => {
-    // First run (nothing saved yet) opens the guided wizard instead of the daily view.
-    getProfile().then((profile) => {
-      const hasProfile = Boolean(profile.contact.firstName || profile.contact.email);
-      setView(hasProfile ? { kind: 'daily' } : { kind: 'setup', mode: 'wizard' });
+    // First run opens the guided wizard instead of the daily view. This keys off an
+    // explicit flag rather than whether the profile has content: every wizard step is
+    // skippable, and a user who skipped them all would otherwise be returned to step 1
+    // forever with no way out.
+    getSettings().then((settings) => {
+      setView(settings.setupCompleted ? { kind: 'daily' } : { kind: 'setup', mode: 'wizard' });
     });
   }, []);
 

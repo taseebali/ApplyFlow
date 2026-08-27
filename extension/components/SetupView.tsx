@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ContactSection,
   CustomQASection,
@@ -15,6 +15,7 @@ import {
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
+import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings, type Settings } from '@/lib/settings';
 
 export interface SetupStep {
   id: string;
@@ -29,7 +30,30 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
   const [activeTab, setActiveTab] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!loaded) return <div className="loading-state">Loading your profile…</div>;
+  // The Notion token and the LLM key live here, not inside their sections: the
+  // wizard unmounts a step as soon as you press Next, so section-local state
+  // would be discarded before anything could persist it. Everything on screen
+  // is now saved by the same Save/Finish that saves the profile.
+  const [notion, setNotion] = useState<Settings['notion']>(EMPTY_SETTINGS.notion);
+  const [llm, setLlm] = useState<LlmSettings>(EMPTY_SETTINGS.llm);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    getSettings().then((settings) => {
+      setNotion(settings.notion);
+      setLlm(settings.llm);
+      setSettingsLoaded(true);
+    });
+  }, []);
+
+  // Profile and settings are written together, from one place, so neither half
+  // can clobber the other. Reaching a Save here means setup has been seen, so
+  // the first-run wizard does not reappear even if every step was skipped.
+  const persist = async () => {
+    await Promise.all([save(), setSettings({ notion, llm, setupCompleted: true })]);
+  };
+
+  if (!loaded || !settingsLoaded) return <div className="loading-state">Loading your profile…</div>;
 
   const steps: SetupStep[] = [
     {
@@ -92,13 +116,13 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       id: 'notion',
       title: 'Notion tracker',
       blurb: 'Optional. Connect a Notion database to log every application you send.',
-      render: () => <NotionSettingsSection />,
+      render: () => <NotionSettingsSection value={notion} onChange={setNotion} />,
     },
     {
       id: 'ai',
       title: 'AI answer drafting',
       blurb: 'Optional. Let a local or hosted model draft answers to open-ended questions.',
-      render: () => <LlmSettingsSection />,
+      render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
     },
     {
       id: 'done',
@@ -109,7 +133,7 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
   ];
 
   const handleDone = async () => {
-    await save();
+    await persist();
     onDone();
   };
 
@@ -173,7 +197,7 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
           style={{ display: 'none' }}
           onChange={handleImportFile}
         />
-        <button type="button" className="btn btn-primary" onClick={save}>
+        <button type="button" className="btn btn-primary" onClick={persist}>
           {saveState === 'saved' ? 'Saved' : 'Save'}
         </button>
       </div>

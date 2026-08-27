@@ -20,6 +20,7 @@ import {
   type FolderFile,
 } from '@/lib/document-matcher';
 import { getSettings } from '@/lib/settings';
+import { normalizeQuestion } from '@/lib/question-matching';
 import { logApplicationToNotion } from '@/lib/notion-client';
 import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
@@ -49,10 +50,11 @@ export async function getActiveTabId(): Promise<number> {
   return tab.id;
 }
 
-function FillAndAttachSection() {
+function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [fillStatus, setFillStatus] = useState<FillStatus>({ kind: 'idle' });
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
   const [attachState, setAttachState] = useState<Partial<Record<DocumentKind, AttachState>>>({});
+  const [attachError, setAttachError] = useState<string | null>(null);
 
   const handleFillClick = async () => {
     setFillStatus({ kind: 'filling' });
@@ -72,6 +74,7 @@ function FillAndAttachSection() {
   };
 
   const attachDocuments = async (entries: Array<{ kind: DocumentKind; folderFile: FolderFile }>, tabId: number) => {
+    setAttachError(null);
     setAttachState((prev) => {
       const next = { ...prev };
       for (const e of entries) next[e.kind] = 'pending';
@@ -93,6 +96,10 @@ function FillAndAttachSection() {
         return next;
       });
     } catch {
+      // `sendMessage` rejects outright when no content script is listening — a
+      // chrome:// page, a PDF viewer, or a tab that was already open when the
+      // extension was installed. Say so instead of leaving a dead button.
+      setAttachError('Could not reach this page. Reload the job application tab, then try again.');
       setAttachState((prev) => {
         const next = { ...prev };
         for (const e of entries) next[e.kind] = 'failed';
@@ -104,6 +111,7 @@ function FillAndAttachSection() {
   const handleCheckDocuments = async () => {
     setDocStatus({ kind: 'loading' });
     setAttachState({});
+    setAttachError(null);
     try {
       const handle = await getDocumentsFolderHandle();
       if (!handle) {
@@ -142,8 +150,15 @@ function FillAndAttachSection() {
   };
 
   const handleConfirmAttach = async (kind: DocumentKind, folderFile: FolderFile) => {
-    const tabId = await getActiveTabId();
-    await attachDocuments([{ kind, folderFile }], tabId);
+    setAttachState((prev) => ({ ...prev, [kind]: 'pending' }));
+    setAttachError(null);
+    try {
+      const tabId = await getActiveTabId();
+      await attachDocuments([{ kind, folderFile }], tabId);
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : 'Could not attach that document.');
+      setAttachState((prev) => ({ ...prev, [kind]: 'failed' }));
+    }
   };
 
   return (
@@ -183,11 +198,18 @@ function FillAndAttachSection() {
         onClick={handleCheckDocuments}
         disabled={docStatus.kind === 'loading'}
       >
+        {docStatus.kind === 'loading' && <span className="pill pill-neutral">Checking…</span>}
         {docStatus.kind === 'no-folder' && (
-          <span className="pill pill-neutral">No documents folder linked — see Documents below</span>
+          <span className="pill pill-neutral">No documents folder linked — set it up in Settings</span>
         )}
         {docStatus.kind === 'error' && <span className="pill pill-danger">{docStatus.message}</span>}
       </ActionCard>
+      {docStatus.kind === 'no-folder' && (
+        <button type="button" className="btn-plain" onClick={onOpenSetup}>
+          Open Settings
+        </button>
+      )}
+      {attachError && <span className="pill pill-danger">{attachError}</span>}
       {docStatus.kind === 'ready' && (
         <div className="doc-results">
           {(['resume', 'coverLetter'] as const).map((kind) => {
@@ -270,7 +292,7 @@ function inferSource(jobUrl: string): string {
   return 'Company site';
 }
 
-function LogToNotionSection() {
+function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [status, setStatus] = useState<NotionStatus>({ kind: 'idle' });
 
   const handleStart = async () => {
@@ -333,14 +355,21 @@ function LogToNotionSection() {
         description="Saves this application to your Notion tracker."
         tint="amber"
         onClick={handleStart}
-        disabled={status.kind === 'loading' || status.kind === 'form'}
+        disabled={status.kind === 'loading' || status.kind === 'form' || status.kind === 'logging'}
       >
+        {status.kind === 'loading' && <span className="pill pill-neutral">Reading page…</span>}
+        {status.kind === 'logging' && <span className="pill pill-neutral">Logging…</span>}
         {status.kind === 'no-settings' && (
-          <span className="pill pill-neutral">Add your Notion integration token below first</span>
+          <span className="pill pill-neutral">Add your Notion integration token in Settings first</span>
         )}
         {status.kind === 'error' && <span className="pill pill-danger">{status.message}</span>}
         {status.kind === 'done' && <span className="pill pill-success">Logged to Notion</span>}
       </ActionCard>
+      {status.kind === 'no-settings' && (
+        <button type="button" className="btn-plain" onClick={onOpenSetup}>
+          Open Settings
+        </button>
+      )}
       {status.kind === 'done' && (
         <a href={status.url} target="_blank" rel="noreferrer" className="btn-plain">
           Open row
@@ -395,26 +424,21 @@ interface Draft {
   text: string;
   inserted: boolean;
   saved: boolean;
-  /** Set when this specific question failed to draft or insert; text/textarea is hidden while set. */
+  /** Set when this specific question failed to *draft*; text is empty, so the textarea is hidden while set. */
   error?: string;
-  saveState?: 'saving' | 'saved';
+  /** Set when an *insert* into the page fails after a successful draft. Renders alongside the textarea — the user's edited text must never be discarded. */
+  insertError?: string;
+  saveState?: 'saving' | 'saved' | 'error';
+  saveError?: string;
 }
 
 type DraftState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'not-configured' }
+  | { kind: 'no-questions' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; drafts: Draft[] };
-
-/** Lowercase, collapse whitespace, strip trailing punctuation — for exact-after-normalization comparison only. */
-function normalizeQuestion(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/[.?!:;]+$/, '');
-}
 
 // Serializes profile read-modify-write across concurrent "Save for reuse"
 // clicks so a second save can't clobber the first (both would otherwise read
@@ -434,7 +458,7 @@ function queueProfileSave(question: string, answer: string): Promise<void> {
   return next;
 }
 
-function DraftAnswersCard() {
+function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [state, setState] = useState<DraftState>({ kind: 'idle' });
 
   const handleDraft = async () => {
@@ -451,7 +475,7 @@ function DraftAnswersCard() {
       const found: GetQuestionsResponse = await browser.tabs.sendMessage(tabId, message);
 
       if (found.questions.length === 0) {
-        setState({ kind: 'error', message: 'No open-ended questions found on this page.' });
+        setState({ kind: 'no-questions' });
         return;
       }
 
@@ -507,24 +531,42 @@ function DraftAnswersCard() {
     );
 
   const handleInsert = async (id: string, text: string) => {
-    const tabId = await getActiveTabId();
-    const message: InsertAnswerMessage = { type: 'insert-answer', id, text };
-    const response: InsertAnswerResponse = await browser.tabs.sendMessage(tabId, message);
-    if (response.inserted) {
-      updateDraft(id, { inserted: true });
-    } else {
-      // The content script's element map is empty for this id — most likely
-      // it was re-injected by a page navigation since the draft was made.
+    updateDraft(id, { insertError: undefined });
+    try {
+      const tabId = await getActiveTabId();
+      const message: InsertAnswerMessage = { type: 'insert-answer', id, text };
+      const response: InsertAnswerResponse = await browser.tabs.sendMessage(tabId, message);
+      if (response.inserted) {
+        updateDraft(id, { inserted: true });
+      } else {
+        // The content script's element map is empty for this id — most likely
+        // it was re-injected by a page navigation since the draft was made.
+        updateDraft(id, {
+          insertError: "Couldn't find that field on the page any more — press Draft answers again.",
+        });
+      }
+    } catch (err) {
+      // `sendMessage` rejects outright when no content script is listening —
+      // a chrome:// page, a PDF viewer, or a tab open before install. The
+      // user's edited text must stay on screen either way.
       updateDraft(id, {
-        error: "Couldn't find that field on the page any more — press Draft answers again.",
+        insertError:
+          err instanceof Error ? err.message : 'Could not reach this page. Reload the tab, then try again.',
       });
     }
   };
 
   const handleSaveReusable = async (id: string, question: string, answer: string) => {
-    updateDraft(id, { saveState: 'saving' });
-    await queueProfileSave(question, answer);
-    updateDraft(id, { saveState: 'saved' });
+    updateDraft(id, { saveState: 'saving', saveError: undefined });
+    try {
+      await queueProfileSave(question, answer);
+      updateDraft(id, { saveState: 'saved' });
+    } catch (err) {
+      updateDraft(id, {
+        saveState: 'error',
+        saveError: err instanceof Error ? err.message : 'Could not save this answer.',
+      });
+    }
   };
 
   return (
@@ -541,8 +583,16 @@ function DraftAnswersCard() {
         {state.kind === 'not-configured' && (
           <span className="pill pill-neutral">Set up AI drafting in Settings first</span>
         )}
+        {state.kind === 'no-questions' && (
+          <span className="pill pill-neutral">No open-ended questions found on this page.</span>
+        )}
         {state.kind === 'error' && <span className="pill pill-danger">{state.message}</span>}
       </ActionCard>
+      {state.kind === 'not-configured' && (
+        <button type="button" className="btn-plain" onClick={onOpenSetup}>
+          Open Settings
+        </button>
+      )}
 
       {state.kind === 'ready' && (
         <div className="drafts">
@@ -557,6 +607,10 @@ function DraftAnswersCard() {
               ) : (
                 <>
                   <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
+                  {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
+                  {draft.saveState === 'error' && draft.saveError && (
+                    <span className="pill pill-danger">{draft.saveError}</span>
+                  )}
                   <div className="draft-actions">
                     <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
                       {draft.inserted ? 'Inserted' : 'Insert'}
@@ -570,7 +624,9 @@ function DraftAnswersCard() {
                         ? 'Saved'
                         : draft.saveState === 'saving'
                           ? 'Saving…'
-                          : 'Save for reuse'}
+                          : draft.saveState === 'error'
+                            ? 'Retry save'
+                            : 'Save for reuse'}
                     </button>
                   </div>
                 </>
@@ -584,12 +640,11 @@ function DraftAnswersCard() {
 }
 
 export function DailyView({ onOpenSetup }: { onOpenSetup: () => void }) {
-  void onOpenSetup;
   return (
     <div className="daily-actions">
-      <FillAndAttachSection />
-      <LogToNotionSection />
-      <DraftAnswersCard />
+      <FillAndAttachSection onOpenSetup={onOpenSetup} />
+      <LogToNotionSection onOpenSetup={onOpenSetup} />
+      <DraftAnswersCard onOpenSetup={onOpenSetup} />
     </div>
   );
 }
