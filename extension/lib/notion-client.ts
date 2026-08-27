@@ -144,3 +144,69 @@ export async function testConnection(
     return { ok: false, message: 'Could not reach Notion. Check your internet connection.' };
   }
 }
+
+export interface ExistingApplication {
+  title: string;
+  appliedDate: string | null;
+  status: string | null;
+  url: string;
+}
+
+function readTitle(page: NotionPage): string {
+  const prop = Object.values(page.properties ?? {}).find((p) => p?.type === 'title');
+  return prop?.title?.map((t) => t.plain_text).join('') || 'Untitled';
+}
+
+interface NotionPage {
+  url: string;
+  properties?: Record<
+    string,
+    {
+      type?: string;
+      title?: Array<{ plain_text: string }>;
+      date?: { start?: string } | null;
+      select?: { name?: string } | null;
+    }
+  >;
+}
+
+/**
+ * Looks for applications already logged to the same company, so the user can
+ * be warned before creating a duplicate row. Returns an empty list rather
+ * than throwing — a warning is a nicety and must never block logging.
+ */
+export async function findExistingApplications(
+  notion: Settings['notion'],
+  company: string
+): Promise<ExistingApplication[]> {
+  if (!notion.token || !notion.databaseId || !company.trim()) return [];
+
+  try {
+    const response = await fetch(
+      `https://api.notion.com/v1/databases/${encodeURIComponent(notion.databaseId)}/query`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${notion.token}`,
+          'Notion-Version': NOTION_VERSION,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filter: { property: 'Company', rich_text: { contains: company.trim() } },
+          page_size: 5,
+        }),
+      }
+    );
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as { results?: NotionPage[] };
+    return (data.results ?? []).map((page) => ({
+      title: readTitle(page),
+      appliedDate: page.properties?.['Applied Date']?.date?.start ?? null,
+      status: page.properties?.Status?.select?.name ?? null,
+      url: page.url,
+    }));
+  } catch {
+    return [];
+  }
+}
