@@ -22,6 +22,9 @@ import {
 import { getSettings } from '@/lib/settings';
 import { normalizeQuestion } from '@/lib/question-matching';
 import { findExistingApplications, logApplicationToNotion, type ExistingApplication } from '@/lib/notion-client';
+import { setFieldOverride } from '@/lib/field-overrides';
+import { SCHEMA_FIELDS } from '@/lib/schema';
+import type { UnrecognizedField } from '@/lib/field-matcher';
 import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
 import { ActionCard } from '@/components/ActionCard';
@@ -30,7 +33,14 @@ import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons
 type FillStatus =
   | { kind: 'idle' }
   | { kind: 'filling' }
-  | { kind: 'done'; filledCount: number; unmatchedCount: number; unmatchedLabels: string[] }
+  | {
+      kind: 'done';
+      filledCount: number;
+      unmatchedCount: number;
+      unmatchedLabels: string[];
+      unrecognized: UnrecognizedField[];
+      hostname: string;
+    }
   | { kind: 'error'; message: string };
 
 type DocStatus =
@@ -67,6 +77,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         filledCount: response.filledCount,
         unmatchedCount: response.unmatchedCount,
         unmatchedLabels: response.unmatchedLabels,
+        unrecognized: response.unrecognized,
+        hostname: response.hostname,
       });
     } catch (err) {
       setFillStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not fill this page.' });
@@ -190,6 +202,14 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         {fillStatus.kind === 'error' && <span className="pill pill-danger">{fillStatus.message}</span>}
       </ActionCard>
 
+      {fillStatus.kind === 'done' && fillStatus.unrecognized.length > 0 && (
+        <TeachFieldsPanel
+          fields={fillStatus.unrecognized}
+          hostname={fillStatus.hostname}
+          onTaught={handleFillClick}
+        />
+      )}
+
       <ActionCard
         icon={<AttachIcon />}
         title="Attach documents"
@@ -290,6 +310,73 @@ function inferSource(jobUrl: string): string {
     // Not a valid URL — fall through to the default.
   }
   return 'Company site';
+}
+
+/**
+ * Lets the user say what a field actually was, once, and remembers it for
+ * this site. Fill accuracy then improves with use instead of staying flat.
+ */
+function TeachFieldsPanel({
+  fields,
+  hostname,
+  onTaught,
+}: {
+  fields: UnrecognizedField[];
+  hostname: string;
+  onTaught: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const teach = async (signature: string, path: string) => {
+    if (!path) return;
+    setSaving(signature);
+    try {
+      await setFieldOverride(hostname, signature, path);
+      // Re-fill straight away so the effect is visible rather than promised.
+      onTaught();
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" className="btn-plain teach-toggle" onClick={() => setOpen(true)}>
+        {fields.length} field{fields.length === 1 ? '' : 's'} not recognised — tell ApplyFlow what they are
+      </button>
+    );
+  }
+
+  return (
+    <div className="teach-panel">
+      <p className="teach-intro">
+        Pick what each field is. ApplyFlow remembers it for <strong>{hostname}</strong> only.
+      </p>
+      {fields.map((field) => (
+        <div className="teach-row" key={field.signature}>
+          <span className="teach-label" title={field.signature}>
+            {field.label}
+          </span>
+          <select
+            defaultValue=""
+            disabled={saving === field.signature}
+            onChange={(e) => teach(field.signature, e.target.value)}
+          >
+            <option value="">Skip</option>
+            {SCHEMA_FIELDS.map((f) => (
+              <option key={f.path} value={f.path}>
+                {f.path}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+      <button type="button" className="btn-plain" onClick={() => setOpen(false)}>
+        Done
+      </button>
+    </div>
+  );
 }
 
 function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
