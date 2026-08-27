@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DailyView } from '@/components/DailyView';
 import { SetupView } from '@/components/SetupView';
-import { GearIcon, BackIcon } from '@/components/icons';
+import { GearIcon } from '@/components/icons';
 import { getProfile } from '@/lib/storage';
 import './App.css';
 
@@ -20,27 +20,25 @@ function App() {
 
   if (view.kind === 'loading') return <div className="loading-state">Loading…</div>;
 
+  const isTabsSetup = view.kind === 'setup' && view.mode === 'tabs';
+
   return (
     <div className="panel">
-      <header className="app-header">
-        {view.kind === 'setup' && view.mode === 'tabs' ? (
-          <button type="button" className="icon-btn" onClick={() => setView({ kind: 'daily' })} aria-label="Back">
-            <BackIcon />
-          </button>
-        ) : (
+      {!isTabsSetup && (
+        <header className="app-header">
           <span className="wordmark">ApplyFlow</span>
-        )}
-        {view.kind === 'daily' && (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setView({ kind: 'setup', mode: 'tabs' })}
-            aria-label="Settings"
-          >
-            <GearIcon />
-          </button>
-        )}
-      </header>
+          {view.kind === 'daily' && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setView({ kind: 'setup', mode: 'tabs' })}
+              aria-label="Settings"
+            >
+              <GearIcon />
+            </button>
+          )}
+        </header>
+      )}
 
       {view.kind === 'daily' ? (
         <DailyView onOpenSetup={() => setView({ kind: 'setup', mode: 'tabs' })} />

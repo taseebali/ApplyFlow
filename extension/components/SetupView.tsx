@@ -12,6 +12,7 @@ import {
 } from './ProfileForm';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
+import { BackIcon } from './icons';
 
 export interface SetupStep {
   id: string;
@@ -126,6 +127,13 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
 
   return (
     <div className="setup-tabs">
+      <div className="app-header">
+        <button type="button" className="icon-btn" onClick={handleDone} aria-label="Back">
+          <BackIcon />
+        </button>
+        <span className="wordmark">Setup</span>
+      </div>
+
       <div className="tab-bar">
         {tabs.map((tab, i) => (
           <button
