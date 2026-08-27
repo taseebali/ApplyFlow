@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CustomQAEntry, EducationEntry, Profile, WorkHistoryEntry } from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
-import { getSettings, setSettings } from '@/lib/settings';
+import { EMPTY_SETTINGS, getSettings, setSettings } from '@/lib/settings';
 import { searchDatabases, type NotionDatabaseOption } from '@/lib/notion-client';
 
 export function TextField({
@@ -335,17 +335,19 @@ export function NotionSettingsSection() {
   const [databases, setDatabases] = useState<NotionDatabaseOption[] | null>(null);
   const [searchState, setSearchState] = useState<'idle' | 'searching' | 'error'>('idle');
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [llm, setLlm] = useState(EMPTY_SETTINGS.llm);
 
   useEffect(() => {
     getSettings().then((settings) => {
       setToken(settings.notion.token);
       setDatabaseId(settings.notion.databaseId);
+      setLlm(settings.llm);
       setLoaded(true);
     });
   }, []);
 
   const handleSave = async () => {
-    await setSettings({ notion: { token, databaseId } });
+    await setSettings({ notion: { token, databaseId }, llm });
     setSaveState('saved');
     setTimeout(() => setSaveState('idle'), 1500);
   };

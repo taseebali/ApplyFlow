@@ -24,6 +24,15 @@ export interface CustomQAEntry {
   answer: string;
 }
 
+export interface ProjectEntry {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  techStack: string;
+  outcomes: string;
+}
+
 export interface Profile {
   contact: {
     firstName: string;
@@ -45,6 +54,7 @@ export interface Profile {
   };
   workHistory: WorkHistoryEntry[];
   education: EducationEntry[];
+  projects: ProjectEntry[];
   workAuthorization: {
     authorizedToWorkInCountry: boolean | null;
     requiresSponsorship: boolean | null;
@@ -83,6 +93,7 @@ export const EMPTY_PROFILE: Profile = {
   },
   workHistory: [],
   education: [],
+  projects: [],
   workAuthorization: {
     authorizedToWorkInCountry: null,
     requiresSponsorship: null,
@@ -107,6 +118,7 @@ export function isProfile(value: unknown): value is Profile {
     typeof v.links === 'object' &&
     Array.isArray(v.workHistory) &&
     Array.isArray(v.education) &&
+    Array.isArray(v.projects) &&
     typeof v.workAuthorization === 'object' &&
     typeof v.logistics === 'object' &&
     Array.isArray(v.customQA)
