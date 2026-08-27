@@ -389,12 +389,50 @@ function LogToNotionSection() {
   );
 }
 
+interface Draft {
+  id: string;
+  question: string;
+  text: string;
+  inserted: boolean;
+  saved: boolean;
+  /** Set when this specific question failed to draft or insert; text/textarea is hidden while set. */
+  error?: string;
+  saveState?: 'saving' | 'saved';
+}
+
 type DraftState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'not-configured' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; drafts: Array<{ id: string; question: string; text: string; inserted: boolean }> };
+  | { kind: 'ready'; drafts: Draft[] };
+
+/** Lowercase, collapse whitespace, strip trailing punctuation — for exact-after-normalization comparison only. */
+function normalizeQuestion(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[.?!:;]+$/, '');
+}
+
+// Serializes profile read-modify-write across concurrent "Save for reuse"
+// clicks so a second save can't clobber the first (both would otherwise read
+// the same stale profile and the second write would drop the first's entry).
+let saveQueue: Promise<void> = Promise.resolve();
+
+function queueProfileSave(question: string, answer: string): Promise<void> {
+  const next = saveQueue.then(async () => {
+    const profile = await getProfile();
+    await setProfile({
+      ...profile,
+      customQA: [...profile.customQA, { id: crypto.randomUUID(), question, answer }],
+    });
+  });
+  // Keep the chain alive even if this save fails, so later saves still run.
+  saveQueue = next.catch(() => undefined);
+  return next;
+}
 
 function DraftAnswersCard() {
   const [state, setState] = useState<DraftState>({ kind: 'idle' });
@@ -418,20 +456,39 @@ function DraftAnswersCard() {
       }
 
       const profile = await getProfile();
-      const drafts = [];
+      const drafts: Draft[] = [];
       for (const q of found.questions) {
         // A saved answer wins over a fresh generation: it is instant, free,
-        // and already worded the way the user wants.
-        const saved = profile.customQA.find((entry) =>
-          entry.question.toLowerCase().includes(q.question.toLowerCase().slice(0, 25))
+        // and already worded the way the user wants. Require the normalized
+        // question to match exactly — a loose prefix/substring match can
+        // silently reuse the wrong saved answer for a similarly-worded
+        // question, putting wrong text into a real application.
+        const saved = profile.customQA.find(
+          (entry) => normalizeQuestion(entry.question) === normalizeQuestion(q.question)
         );
-        const text = saved
-          ? saved.answer
-          : await draftAnswer(
-              { question: q.question, jobDescription: found.jobDescription, profile },
-              settings.llm
-            );
-        drafts.push({ id: q.id, question: q.question, text, inserted: false });
+        if (saved) {
+          drafts.push({ id: q.id, question: q.question, text: saved.answer, inserted: false, saved: true });
+          continue;
+        }
+        // A failure on one question must not discard drafts already
+        // generated for other questions, and must not force re-billing
+        // every question on a retry.
+        try {
+          const text = await draftAnswer(
+            { question: q.question, jobDescription: found.jobDescription, profile },
+            settings.llm
+          );
+          drafts.push({ id: q.id, question: q.question, text, inserted: false, saved: false });
+        } catch (err) {
+          drafts.push({
+            id: q.id,
+            question: q.question,
+            text: '',
+            inserted: false,
+            saved: false,
+            error: err instanceof Error ? err.message : 'Could not draft this answer.',
+          });
+        }
       }
       setState({ kind: 'ready', drafts });
     } catch (err) {
@@ -442,7 +499,7 @@ function DraftAnswersCard() {
     }
   };
 
-  const updateDraft = (id: string, patch: Partial<{ text: string; inserted: boolean }>) =>
+  const updateDraft = (id: string, patch: Partial<Draft>) =>
     setState((prev) =>
       prev.kind === 'ready'
         ? { kind: 'ready', drafts: prev.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }
@@ -453,15 +510,21 @@ function DraftAnswersCard() {
     const tabId = await getActiveTabId();
     const message: InsertAnswerMessage = { type: 'insert-answer', id, text };
     const response: InsertAnswerResponse = await browser.tabs.sendMessage(tabId, message);
-    if (response.inserted) updateDraft(id, { inserted: true });
+    if (response.inserted) {
+      updateDraft(id, { inserted: true });
+    } else {
+      // The content script's element map is empty for this id — most likely
+      // it was re-injected by a page navigation since the draft was made.
+      updateDraft(id, {
+        error: "Couldn't find that field on the page any more — press Draft answers again.",
+      });
+    }
   };
 
-  const handleSaveReusable = async (question: string, answer: string) => {
-    const profile = await getProfile();
-    await setProfile({
-      ...profile,
-      customQA: [...profile.customQA, { id: crypto.randomUUID(), question, answer }],
-    });
+  const handleSaveReusable = async (id: string, question: string, answer: string) => {
+    updateDraft(id, { saveState: 'saving' });
+    await queueProfileSave(question, answer);
+    updateDraft(id, { saveState: 'saved' });
   };
 
   return (
@@ -485,16 +548,33 @@ function DraftAnswersCard() {
         <div className="drafts">
           {state.drafts.map((draft) => (
             <div className="draft" key={draft.id}>
-              <p className="draft-question">{draft.question}</p>
-              <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
-              <div className="draft-actions">
-                <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
-                  {draft.inserted ? 'Inserted' : 'Insert'}
-                </button>
-                <button className="btn" onClick={() => handleSaveReusable(draft.question, draft.text)}>
-                  Save for reuse
-                </button>
-              </div>
+              <p className="draft-question">
+                {draft.question}
+                {draft.saved && <span className="pill pill-neutral">saved answer</span>}
+              </p>
+              {draft.error ? (
+                <span className="pill pill-danger">{draft.error}</span>
+              ) : (
+                <>
+                  <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
+                  <div className="draft-actions">
+                    <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
+                      {draft.inserted ? 'Inserted' : 'Insert'}
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => handleSaveReusable(draft.id, draft.question, draft.text)}
+                      disabled={draft.saveState === 'saving'}
+                    >
+                      {draft.saveState === 'saved'
+                        ? 'Saved'
+                        : draft.saveState === 'saving'
+                          ? 'Saving…'
+                          : 'Save for reuse'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>

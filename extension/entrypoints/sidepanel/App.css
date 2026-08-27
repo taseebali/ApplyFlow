@@ -226,6 +226,9 @@ body {
   font-size: 12px;
   font-weight: 600;
   margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .panel .draft textarea {
