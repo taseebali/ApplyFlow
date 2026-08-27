@@ -141,9 +141,20 @@ describe('parseResume', () => {
   const OFF = { backend: null, ollamaModel: '', openRouterApiKey: '', openRouterModel: '' } as const;
 
   it('still imports contact details with no AI backend configured', async () => {
-    const parsed = await parseResume(RESUME, OFF);
-    expect(parsed.contact.email).toBe('jordan.avery2@example.com');
-    expect(parsed.workHistory).toEqual([]);
+    const outcome = await parseResume(RESUME, OFF);
+    expect(outcome.ai).toBe('off');
+    expect(outcome.parsed.contact.email).toBe('jordan.avery2@example.com');
+    expect(outcome.parsed.education).toHaveLength(1);
+  });
+
+  it('reports an AI failure instead of silently returning a thin result', async () => {
+    const broken = { ...OFF, backend: 'openrouter' as const, openRouterApiKey: 'bad' };
+    const outcome = await parseResume(RESUME, broken);
+    expect(outcome.ai).toBe('failed');
+    expect(outcome.aiError).toBeTruthy();
+    // The heuristic result still comes through — a model failure must not
+    // throw away everything that was parsed locally.
+    expect(outcome.parsed.contact.email).toBe('jordan.avery2@example.com');
   });
 });
 

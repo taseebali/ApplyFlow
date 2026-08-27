@@ -8,7 +8,7 @@ type ImportState =
   | { kind: 'idle' }
   | { kind: 'working'; note: string }
   | { kind: 'error'; message: string }
-  | { kind: 'review'; parsed: ParsedResume; fileName: string }
+  | { kind: 'review'; parsed: ParsedResume; fileName: string; aiError?: string }
   | { kind: 'applied'; summary: string };
 
 /** Which parts of a parsed resume the user has chosen to keep. */
@@ -97,8 +97,13 @@ export function ResumeImportSection({
         kind: 'working',
         note: llm.backend ? 'Pulling out your details with AI…' : 'Pulling out your details…',
       });
-      const parsed = await parseResume(text, llm);
-      setState({ kind: 'review', parsed, fileName: file.name });
+      const outcome = await parseResume(text, llm);
+      setState({
+        kind: 'review',
+        parsed: outcome.parsed,
+        fileName: file.name,
+        aiError: outcome.ai === 'failed' ? outcome.aiError : undefined,
+      });
     } catch (err) {
       setState({ kind: 'error', message: err instanceof Error ? err.message : 'Could not read that file.' });
     }
@@ -172,6 +177,13 @@ export function ResumeImportSection({
           <p className="hint" style={{ marginBottom: 10 }}>
             Found in <strong>{state.fileName}</strong>. Untick anything you would rather fill in yourself.
           </p>
+          {state.aiError && (
+            <p className="status-row" style={{ marginBottom: 10 }}>
+              <span className="pill pill-warning">
+                AI pass failed, so this is pattern matching only — {state.aiError}
+              </span>
+            </p>
+          )}
 
           {SECTION_LABELS.map(({ key, label, unit }) => {
             const found = countFound(state.parsed)[key];

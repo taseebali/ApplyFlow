@@ -382,20 +382,41 @@ export async function parseResumeWithLlm(
   return parseLlmResponse(await runPrompt(`${LLM_PROMPT_HEADER}\n${text}`, llm));
 }
 
+export interface ParseOutcome {
+  parsed: ParsedResume;
+  /** Whether the AI pass ran, so the UI can explain a thin result honestly. */
+  ai: 'off' | 'used' | 'failed';
+  aiError?: string;
+}
+
 /**
  * Heuristics always run and own contact details and links, where regex beats a
- * model. The LLM owns the structured sections, where resume layouts vary too
- * much for regex. A model failure degrades to the heuristic result rather than
- * failing the whole import.
+ * model. The LLM refines the structured sections, where layouts vary too much
+ * for regex alone. A model failure degrades to the heuristic result rather
+ * than failing the whole import — but it is reported, never swallowed.
  */
-export async function parseResume(text: string, llm: LlmSettings): Promise<ParsedResume> {
+export async function parseResume(text: string, llm: LlmSettings): Promise<ParseOutcome> {
   const heuristic = parseResumeHeuristic(text);
-  if (llm.backend === null) return heuristic;
+  if (llm.backend === null) return { parsed: heuristic, ai: 'off' };
 
   try {
     const structured = await parseResumeWithLlm(text, llm);
-    return { ...heuristic, ...structured };
-  } catch {
-    return heuristic;
+    // Keep whichever pass actually found something: the model is better at
+    // messy layouts, but it sometimes returns nothing at all.
+    return {
+      parsed: {
+        ...heuristic,
+        workHistory: structured.workHistory.length ? structured.workHistory : heuristic.workHistory,
+        education: structured.education.length ? structured.education : heuristic.education,
+        projects: structured.projects.length ? structured.projects : heuristic.projects,
+      },
+      ai: 'used',
+    };
+  } catch (err) {
+    return {
+      parsed: heuristic,
+      ai: 'failed',
+      aiError: err instanceof Error ? err.message : 'The AI backend did not respond.',
+    };
   }
 }
