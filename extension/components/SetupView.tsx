@@ -65,6 +65,13 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       render: () => null,
     },
     {
+      id: 'ai',
+      title: 'AI answer drafting',
+      blurb:
+        'Optional, and it comes first because it also makes the next step better: with AI set up, importing a resume pulls out work history and projects, not just contact details.',
+      render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
+    },
+    {
       id: 'import',
       title: 'Start from your resume',
       blurb: 'Optional, but it saves most of the typing ahead. You review everything before it is used.',
@@ -124,12 +131,6 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       title: 'Notion tracker',
       blurb: 'Optional. Connect a Notion database to log every application you send.',
       render: () => <NotionSettingsSection value={notion} onChange={setNotion} />,
-    },
-    {
-      id: 'ai',
-      title: 'AI answer drafting',
-      blurb: 'Optional. Let a local or hosted model draft answers to open-ended questions.',
-      render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
     },
     {
       id: 'done',
