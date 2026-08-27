@@ -21,7 +21,7 @@ import {
 } from '@/lib/document-matcher';
 import { getSettings } from '@/lib/settings';
 import { normalizeQuestion } from '@/lib/question-matching';
-import { logApplicationToNotion } from '@/lib/notion-client';
+import { findExistingApplications, logApplicationToNotion, type ExistingApplication } from '@/lib/notion-client';
 import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
 import { ActionCard } from '@/components/ActionCard';
@@ -276,7 +276,7 @@ type NotionStatus =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'no-settings' }
-  | { kind: 'form'; form: LogForm }
+  | { kind: 'form'; form: LogForm; duplicates?: ExistingApplication[] }
   | { kind: 'logging' }
   | { kind: 'done'; url: string }
   | { kind: 'error'; message: string };
@@ -308,16 +308,21 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       const message: GetJobInfoMessage = { type: 'get-job-info' };
       const jobInfo: GetJobInfoResponse = await browser.tabs.sendMessage(tabId, message);
 
-      setStatus({
-        kind: 'form',
-        form: {
-          title: jobInfo.jobTitle ?? '',
-          company: jobInfo.companyName ?? '',
-          jobUrl: jobInfo.jobUrl,
-          source: inferSource(jobInfo.jobUrl),
-          jobDescription: jobInfo.jobDescription ?? '',
-        },
-      });
+      const form: LogForm = {
+        title: jobInfo.jobTitle ?? '',
+        company: jobInfo.companyName ?? '',
+        jobUrl: jobInfo.jobUrl,
+        source: inferSource(jobInfo.jobUrl),
+        jobDescription: jobInfo.jobDescription ?? '',
+      };
+      setStatus({ kind: 'form', form });
+
+      // Checked after the form is already up: a duplicate warning is a
+      // convenience, so it must never delay or block logging.
+      const duplicates = await findExistingApplications(settings.notion, form.company);
+      if (duplicates.length) {
+        setStatus((prev) => (prev.kind === 'form' ? { ...prev, duplicates } : prev));
+      }
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not read this page.' });
     }
@@ -377,6 +382,21 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       )}
       {status.kind === 'form' && (
         <div className="log-form">
+          {status.duplicates?.length ? (
+            <div className="duplicate-warning">
+              <span className="pill pill-warning">
+                Already logged {status.duplicates.length === 1 ? 'once' : `${status.duplicates.length} times`} for
+                this company
+              </span>
+              {status.duplicates.map((d) => (
+                <a key={d.url} href={d.url} target="_blank" rel="noreferrer" className="duplicate-row">
+                  {d.title}
+                  {d.appliedDate ? ` — ${d.appliedDate}` : ''}
+                  {d.status ? ` (${d.status})` : ''}
+                </a>
+              ))}
+            </div>
+          ) : null}
           <label className="field">
             <span>Title</span>
             <input type="text" value={status.form.title} onChange={(e) => updateForm({ title: e.target.value })} />

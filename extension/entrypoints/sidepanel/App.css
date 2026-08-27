@@ -236,3 +236,24 @@ body {
 .panel .draft-actions .btn {
   flex: 1;
 }
+
+.panel .duplicate-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 10px;
+}
+
+.panel .duplicate-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.panel .duplicate-row:hover {
+  color: var(--text);
+}
