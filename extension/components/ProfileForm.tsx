@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryEntry } from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
 import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings } from '@/lib/settings';
-import { searchDatabases, type NotionDatabaseOption } from '@/lib/notion-client';
+import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 
 export function TextField({
   label,
@@ -392,6 +392,8 @@ export function NotionSettingsSection() {
   const [searchState, setSearchState] = useState<'idle' | 'searching' | 'error'>('idle');
   const [searchError, setSearchError] = useState<string | null>(null);
   const [llm, setLlm] = useState(EMPTY_SETTINGS.llm);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -426,14 +428,22 @@ export function NotionSettingsSection() {
   return (
     <section>
       <h2>Notion tracker</h2>
-      <p className="hint">
-        Logging an application creates a row in your existing "Job Application Tracker" Notion database. Create a{' '}
-        <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer">
-          Notion internal integration
-        </a>
-        , share your tracker database with it, paste the token below, then click "Find my databases" to pick it from
-        a list instead of copying its ID by hand.
-      </p>
+      <p className="hint">Log every application you send to a Notion database. Optional — everything else works without it.</p>
+      <ol className="setup-steps">
+        <li>
+          Open{' '}
+          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer">
+            Notion integrations
+          </a>{' '}
+          and press <strong>New integration</strong>. Give it any name.
+        </li>
+        <li>Copy the secret it shows you, and paste it below.</li>
+        <li>
+          In Notion, open the database you want to log to, click the <strong>•••</strong> menu at the top right,
+          choose <strong>Connections</strong>, and pick the integration you just made.
+        </li>
+        <li>Press <strong>Find my databases</strong> below and choose it from the list.</li>
+      </ol>
       <label className="field">
         <span>Integration token</span>
         <input type="password" value={token} onChange={(e) => setToken(e.target.value)} />
@@ -472,6 +482,29 @@ export function NotionSettingsSection() {
       <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleSave}>
         {saveState === 'saved' ? 'Saved' : 'Save'}
       </button>
+      <button
+        type="button"
+        className="btn"
+        style={{ marginTop: 8 }}
+        disabled={testing}
+        onClick={async () => {
+          setTesting(true);
+          const result = await testConnection({ token, databaseId });
+          setTestResult(
+            result.ok
+              ? { ok: true, message: `Connected to ${result.databaseTitle}.` }
+              : { ok: false, message: result.message }
+          );
+          setTesting(false);
+        }}
+      >
+        {testing ? 'Testing…' : 'Test connection'}
+      </button>
+      {testResult && (
+        <p className="status-row" style={{ marginTop: 8 }}>
+          <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>{testResult.message}</span>
+        </p>
+      )}
     </section>
   );
 }

@@ -106,3 +106,41 @@ export async function logApplicationToNotion(
   const created = (await response.json()) as { url: string };
   return { url: created.url };
 }
+
+/** Confirms the token and database id actually work, so setup gives a yes/no answer instead of failing later. */
+export async function testConnection(
+  notion: Settings['notion']
+): Promise<{ ok: true; databaseTitle: string } | { ok: false; message: string }> {
+  if (!notion.token) return { ok: false, message: 'Add your integration token first.' };
+  if (!notion.databaseId) return { ok: false, message: 'Choose which database to log to.' };
+
+  try {
+    const response = await fetch(`https://api.notion.com/v1/databases/${notion.databaseId}`, {
+      headers: {
+        Authorization: `Bearer ${notion.token}`,
+        'Notion-Version': NOTION_VERSION,
+      },
+    });
+
+    if (response.status === 401) {
+      return { ok: false, message: "That token wasn't accepted. Check you copied all of it." };
+    }
+    if (response.status === 404) {
+      return {
+        ok: false,
+        message: "Notion can't see that database. In Notion, open it, click the ••• menu, and share it with your integration.",
+      };
+    }
+    if (!response.ok) {
+      return { ok: false, message: `Notion returned an error (${response.status}).` };
+    }
+
+    const data = (await response.json()) as { title?: Array<{ plain_text: string }> };
+    return {
+      ok: true,
+      databaseTitle: data.title?.map((t) => t.plain_text).join('') || 'your database',
+    };
+  } catch {
+    return { ok: false, message: 'Could not reach Notion. Check your internet connection.' };
+  }
+}
