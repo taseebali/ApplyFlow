@@ -742,6 +742,36 @@ export function LlmSettingsSection({
           </label>
         </>
       )}
+
+      {llm.backend && (
+        <>
+          <label className="field" style={{ marginTop: 12 }}>
+            <span>If that fails, fall back to</span>
+            <select
+              value={llm.fallbackBackend ?? ''}
+              onChange={(e) =>
+                setLlm({ ...llm, fallbackBackend: (e.target.value || null) as LlmSettings['fallbackBackend'] })
+              }
+            >
+              <option value="">Nothing — report the failure</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="ollama">Ollama, if it is running</option>
+            </select>
+          </label>
+          {llm.fallbackBackend === llm.backend ? (
+            <p className="hint" style={{ marginTop: 8 }}>
+              That is the same as the primary, so it cannot help. Pick the other one, or none.
+            </p>
+          ) : (
+            llm.fallbackBackend && (
+              <p className="hint" style={{ marginTop: 8 }}>
+                Used when the primary is rate-limited, offline, or slow. Its model and key need filling in too —
+                switch the dropdown above to configure it, then switch back.
+              </p>
+            )
+          )}
+        </>
+      )}
     </section>
   );
 }

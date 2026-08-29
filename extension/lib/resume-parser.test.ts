@@ -138,7 +138,13 @@ describe('parseLlmResponse', () => {
 });
 
 describe('parseResume', () => {
-  const OFF = { backend: null, ollamaModel: '', openRouterApiKey: '', openRouterModel: '' } as const;
+  const OFF = {
+    backend: null,
+    fallbackBackend: null,
+    ollamaModel: '',
+    openRouterApiKey: '',
+    openRouterModel: '',
+  } as const;
 
   it('still imports contact details with no AI backend configured', async () => {
     const outcome = await parseResume(RESUME, OFF);

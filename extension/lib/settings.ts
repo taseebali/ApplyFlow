@@ -1,6 +1,12 @@
 export interface LlmSettings {
   /** null means "not configured" — the drafting feature stays inactive. */
   backend: 'ollama' | 'openrouter' | null;
+  /**
+   * Tried when the primary backend fails. Both can be configured at once so a
+   * hosted model can do the work while a local one covers an outage, a rate
+   * limit, or being offline.
+   */
+  fallbackBackend: 'ollama' | 'openrouter' | null;
   ollamaModel: string;
   openRouterApiKey: string;
   openRouterModel: string;
@@ -20,6 +26,7 @@ export const EMPTY_SETTINGS: Settings = {
   notion: { token: '', databaseId: '' },
   llm: {
     backend: null,
+    fallbackBackend: null,
     ollamaModel: 'llama3.1',
     openRouterApiKey: '',
     // Deliberately a small, cheap model: this workload is structured

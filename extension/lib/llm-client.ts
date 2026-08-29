@@ -118,23 +118,47 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
  * text. Every LLM feature goes through here so the fetch and error handling
  * live in exactly one place.
  */
-export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
+async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
   try {
-    if (llm.backend === 'ollama') return await runWithOllama(prompt, llm);
-    if (llm.backend === 'openrouter') return await runWithOpenRouter(prompt, llm);
+    return backend === 'ollama' ? await runWithOllama(prompt, llm) : await runWithOpenRouter(prompt, llm);
   } catch (err) {
     if (err instanceof LlmError) throw err;
     // An aborted request reads as a cryptic DOMException otherwise.
     if (err instanceof Error && err.name === 'TimeoutError') {
-      throw new LlmError(`The model did not answer within ${REQUEST_TIMEOUT_MS / 1000}s.`);
+      throw new LlmError(`${backend} did not answer within ${REQUEST_TIMEOUT_MS / 1000}s.`);
     }
     throw new LlmError(
-      llm.backend === 'ollama'
+      backend === 'ollama'
         ? 'Could not reach Ollama on localhost:11434. Is it running?'
         : 'Could not reach OpenRouter. Check your connection and API key.'
     );
   }
-  throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
+}
+
+/**
+ * Sends a prompt to whichever backend the user configured and returns the raw
+ * text. When a fallback is set it takes over if the primary fails, so a rate
+ * limit, an outage, or being offline degrades to the other backend instead of
+ * failing the run.
+ */
+export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
+  if (!llm.backend) throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
+
+  try {
+    return await runWith(llm.backend, prompt, llm);
+  } catch (primaryError) {
+    if (!llm.fallbackBackend || llm.fallbackBackend === llm.backend) throw primaryError;
+
+    try {
+      return await runWith(llm.fallbackBackend, prompt, llm);
+    } catch (fallbackError) {
+      // Report both, since "it failed" is not actionable when two backends
+      // were tried and each stopped for its own reason.
+      const primary = primaryError instanceof Error ? primaryError.message : String(primaryError);
+      const secondary = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new LlmError(`${llm.backend} failed (${primary}); ${llm.fallbackBackend} also failed (${secondary}).`);
+    }
+  }
 }
 
 export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<string> {
