@@ -16,10 +16,19 @@ function findJobPostingJsonLd(doc: Document): Record<string, unknown> | null {
   return null;
 }
 
+/**
+ * A JobPosting description is third-party HTML: on a real ATS it is written by
+ * whoever posted the job, and it commonly carries markup the ATS strips when
+ * rendering but re-emits verbatim into its JSON-LD block. Parsing it with
+ * `innerHTML` would run that markup against this page's document — a detached
+ * node still fetches subresources and still fires `onerror` — turning an inert
+ * injection into script execution in the ATS's own origin. DOMParser produces
+ * an inert document with no browsing context, so nothing loads and nothing
+ * fires. Only the text is wanted here in any case.
+ */
 function htmlToText(html: string): string {
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  return (container.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.body.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** Largest non-form text block in a plausibly-named container — a best-effort fallback when no JSON-LD exists. */
@@ -69,13 +78,21 @@ function relatedPageCandidates(): string[] {
   if (strippedApply !== location.href) candidates.add(strippedApply);
 
   document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
-    if (
-      a.href.startsWith(location.origin) &&
-      a.href !== location.href &&
-      location.href.startsWith(a.href.replace(/\/$/, ''))
-    ) {
-      candidates.add(a.href);
+    // A real origin comparison, not a prefix test: `location.origin` is a
+    // prefix of `https://example.com.evil.test` too, and this list decides
+    // which URLs get fetched.
+    let url: URL;
+    try {
+      url = new URL(a.href);
+    } catch {
+      return;
     }
+    if (url.origin !== location.origin) return;
+    if (url.href === location.href) return;
+    // Only pages the current one sits underneath, i.e. a "back to the posting"
+    // link rather than an arbitrary link somewhere else on the site.
+    if (!location.href.startsWith(url.href.replace(/\/$/, ''))) return;
+    candidates.add(url.href);
   });
 
   return Array.from(candidates);
