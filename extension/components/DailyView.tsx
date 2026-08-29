@@ -454,6 +454,15 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   // null until settings are read, so the card does not flash into view for
   // someone who has skipped the tracker.
   const [skipped, setSkipped] = useState<boolean | null>(null);
+  // Whether this application was already logged belongs to its tab: coming back
+  // to it later must not invite logging the same row twice.
+  const { tabId, state: tabState } = useTabState();
+  const loggedUrl = tabState.notion?.loggedUrl;
+
+  // A form half-filled for one application means nothing on another.
+  useEffect(() => {
+    setStatus({ kind: 'idle' });
+  }, [tabId]);
 
   useEffect(() => {
     const refresh = () => void getSettings().then((s) => setSkipped(s.notion.skipped));
@@ -514,10 +523,15 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         jobDescription: form.jobDescription || null,
       });
       setStatus({ kind: 'done', url });
+      if (tabId !== null) await patchTabState(tabId, { notion: { loggedUrl: url } });
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not log to Notion.' });
     }
   };
+
+  // The freshly-logged URL is used directly, so the link appears even before the
+  // stored copy comes back through the storage listener.
+  const rowUrl = status.kind === 'done' ? status.url : loggedUrl;
 
   if (skipped !== false) return null;
 
@@ -537,15 +551,17 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           <span className="pill pill-neutral">Add your Notion integration token in Settings first</span>
         )}
         {status.kind === 'error' && <span className="pill pill-danger">{status.message}</span>}
-        {status.kind === 'done' && <span className="pill pill-success">Logged to Notion</span>}
+        {(status.kind === 'done' || (status.kind === 'idle' && loggedUrl)) && (
+          <span className="pill pill-success">Logged to Notion</span>
+        )}
       </ActionCard>
       {status.kind === 'no-settings' && (
         <button type="button" className="btn-plain" onClick={onOpenSetup}>
           Open Settings
         </button>
       )}
-      {status.kind === 'done' && (
-        <a href={status.url} target="_blank" rel="noreferrer" className="btn-plain">
+      {rowUrl && (
+        <a href={rowUrl} target="_blank" rel="noreferrer" className="btn-plain">
           Open row
         </a>
       )}
