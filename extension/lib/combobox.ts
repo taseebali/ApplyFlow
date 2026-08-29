@@ -41,10 +41,10 @@ function wait(ms: number): Promise<void> {
  * How long a framework takes to open a dropdown varies with the page, and a
  * fixed delay either wastes time or misses the menu entirely.
  */
-async function waitForOptions(timeoutMs = 900): Promise<HTMLElement[]> {
+async function waitForOptions(input: HTMLInputElement, timeoutMs = 900): Promise<HTMLElement[]> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const options = visibleOptions();
+    const options = visibleOptions(input);
     if (options.length) return options;
     if (Date.now() > deadline) return [];
     await wait(80);
@@ -82,11 +82,32 @@ async function enumerateByKeyboard(input: HTMLInputElement, limit = 40): Promise
   return seen;
 }
 
-function visibleOptions(): HTMLElement[] {
-  const selector = '[role="option"], [class*="select__option"], [class*="-option"]';
-  return Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(
-    (el) => el.offsetParent !== null || el.getClientRects().length > 0
-  );
+const OPTION_SELECTOR = '[role="option"], [class*="select__option"], [class*="-option"]';
+
+/**
+ * The menu of a portalled combobox genuinely can render outside the input's
+ * subtree, which is why this once searched the whole document — but a
+ * document-wide search lets the page decide what gets clicked. A hidden
+ * `<button type="submit" role="option">Berlin</button>` anywhere on the page
+ * would match a saved city and turn "fill" into "submit".
+ *
+ * So: prefer the menu the widget itself points at, then its own container, and
+ * only fall back to the document when neither exists — and in every case never
+ * activate something that navigates or submits.
+ */
+function optionRoot(input: HTMLInputElement): ParentNode {
+  const owned = input.getAttribute('aria-controls') ?? input.getAttribute('aria-owns');
+  const ownedEl = owned ? document.getElementById(owned) : null;
+  if (ownedEl) return ownedEl;
+
+  const container = input.closest('[class*="select__container"], [class*="select__control"], [class*="-container"]');
+  return container?.parentElement ?? document;
+}
+
+export function visibleOptions(input: HTMLInputElement): HTMLElement[] {
+  return Array.from(optionRoot(input).querySelectorAll<HTMLElement>(OPTION_SELECTOR))
+    .filter((el) => !el.closest('a[href], button[type="submit"], input[type="submit"], form button:not([type])'))
+    .filter((el) => el.offsetParent !== null || el.getClientRects().length > 0);
 }
 
 const sortedWords = (text: string) => text.split(' ').filter(Boolean).sort().join(' ');
@@ -171,11 +192,11 @@ export async function fillCombobox(
   input.focus();
   dispatchMouse(control, ['pointerdown', 'mousedown', 'mouseup', 'click']);
 
-  let options = await waitForOptions();
+  let options = await waitForOptions(input);
   if (!options.length) {
     // Typing both filters long lists and opens widgets that ignored the click.
     setNativeFieldValue(input, value);
-    options = await waitForOptions();
+    options = await waitForOptions(input);
   }
 
   if (!options.length) {

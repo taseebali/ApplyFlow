@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { isCombobox, pickOptionText } from './combobox';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { isCombobox, pickOptionText, visibleOptions } from './combobox';
 
 function setBody(html: string) {
   document.body.innerHTML = html;
@@ -93,5 +93,64 @@ describe('pickOptionText with synonyms', () => {
 
   it('still refuses an unrelated option', () => {
     expect(pickOptionText(['EU citizen', 'Permanent resident'], 'Bachelor of Science')).toBe(-1);
+  });
+});
+
+// The option list decides what the extension clicks, and a click activates
+// links and submit buttons for real. A page must not be able to aim it.
+describe('visibleOptions', () => {
+  // jsdom does no layout, so every element reads as invisible. Give them all a
+  // box; visibility is not what these tests are about.
+  const original = Element.prototype.getClientRects;
+  beforeEach(() => {
+    Element.prototype.getClientRects = function () {
+      return [{ width: 10, height: 10 }] as unknown as DOMRectList;
+    };
+  });
+  afterEach(() => {
+    Element.prototype.getClientRects = original;
+  });
+
+  it('only looks inside the menu the widget points at', () => {
+    setBody(`
+      <div class="select__container">
+        <input role="combobox" aria-controls="menu-1" />
+      </div>
+      <div id="menu-1"><div role="option">Berlin</div><div role="option">Munich</div></div>
+      <div id="elsewhere"><div role="option">Hamburg</div></div>
+    `);
+    const texts = visibleOptions(first()).map((el) => el.textContent);
+    expect(texts).toEqual(['Berlin', 'Munich']);
+  });
+
+  it('refuses to treat a submit button as a selectable option', () => {
+    setBody(`
+      <div class="select__container">
+        <input role="combobox" aria-controls="menu-1" />
+      </div>
+      <div id="menu-1">
+        <button type="submit" role="option">Berlin</button>
+        <div role="option">Munich</div>
+      </div>
+    `);
+    expect(visibleOptions(first()).map((el) => el.textContent)).toEqual(['Munich']);
+  });
+
+  it('refuses to treat a link as a selectable option', () => {
+    setBody(`
+      <div class="select__container">
+        <input role="combobox" aria-controls="menu-1" />
+      </div>
+      <div id="menu-1"><a href="https://evil.test" role="option">Berlin</a><div role="option">Munich</div></div>
+    `);
+    expect(visibleOptions(first()).map((el) => el.textContent)).toEqual(['Munich']);
+  });
+
+  it('still finds a portalled menu when the widget names no owner', () => {
+    setBody(`
+      <div class="select__container"><input role="combobox" /></div>
+      <div class="select__menu"><div class="select__option">Berlin</div></div>
+    `);
+    expect(visibleOptions(first()).map((el) => el.textContent)).toEqual(['Berlin']);
   });
 });
