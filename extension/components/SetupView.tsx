@@ -19,6 +19,7 @@ import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
 import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings, type Settings } from '@/lib/settings';
+import { missingRequiredFields, REQUIRED_FIELDS } from '@/lib/profile-completeness';
 
 export interface SetupStep {
   id: string;
@@ -175,6 +176,9 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
     if (file) await importFile(file);
   };
 
+  const missing = missingRequiredFields(profile);
+  const filledCount = REQUIRED_FIELDS.length - missing.length;
+
   return (
     <div className="setup-tabs">
       <div className="app-header">
@@ -199,6 +203,13 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
 
       {importError && <p className="error">{importError}</p>}
       {active?.render()}
+
+      <p className="status-row completeness">
+        <span className={`pill ${missing.length ? 'pill-warning' : 'pill-success'}`}>
+          {filledCount}/{REQUIRED_FIELDS.length} required fields
+        </span>
+        {missing.length > 0 && <span className="hint">Still missing: {missing.map((f) => f.label).join(', ')}</span>}
+      </p>
 
       <div className="setup-footer">
         <button type="button" className="btn" onClick={exportJson}>

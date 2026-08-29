@@ -185,6 +185,18 @@ body {
   color: var(--accent-text);
 }
 
+.panel .completeness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.panel .completeness .hint {
+  margin: 0;
+}
+
 .panel .setup-footer {
   display: flex;
   gap: 8px;
