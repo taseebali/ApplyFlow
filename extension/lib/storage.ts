@@ -15,6 +15,7 @@ export function applyProfileDefaults(stored: Partial<Profile>): Profile {
       current: entry.current ?? false,
     })),
     projects: stored.projects ?? EMPTY_PROFILE.projects,
+    languages: stored.languages ?? EMPTY_PROFILE.languages,
     workAuthorization: { ...EMPTY_PROFILE.workAuthorization, ...stored.workAuthorization },
     logistics: { ...EMPTY_PROFILE.logistics, ...stored.logistics },
     customQA: stored.customQA ?? EMPTY_PROFILE.customQA,

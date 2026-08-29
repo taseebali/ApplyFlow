@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { CustomQAEntry, EducationEntry, Profile, ProjectEntry, WorkHistoryEntry } from '@/lib/schema';
+import {
+  LANGUAGE_LEVELS,
+  type CustomQAEntry,
+  type EducationEntry,
+  type LanguageEntry,
+  type Profile,
+  type ProjectEntry,
+  type WorkHistoryEntry,
+} from '@/lib/schema';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
 import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
@@ -784,6 +792,56 @@ export function FieldMappingsSection() {
           </div>
         ))
       )}
+    </section>
+  );
+}
+
+export function LanguagesSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+  const update = (id: string, patch: Partial<LanguageEntry>) =>
+    onChange({
+      ...profile,
+      languages: profile.languages.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+    });
+
+  const add = () =>
+    onChange({
+      ...profile,
+      languages: [...profile.languages, { id: crypto.randomUUID(), language: '', level: '' }],
+    });
+
+  const remove = (id: string) =>
+    onChange({ ...profile, languages: profile.languages.filter((entry) => entry.id !== id) });
+
+  return (
+    <section>
+      <h2>Languages</h2>
+      <p className="hint">
+        Forms ask for these on the CEFR scale, so that is what is stored — A1/A2 basic, B1/B2 intermediate,
+        C1/C2 advanced or fluent.
+      </p>
+      {profile.languages.map((entry) => (
+        <div className="entry" key={entry.id}>
+          <div className="grid">
+            <TextField
+              label="Language"
+              value={entry.language}
+              onChange={(v) => update(entry.id, { language: v })}
+            />
+            <SelectField
+              label="Level"
+              value={entry.level}
+              options={LANGUAGE_LEVELS}
+              onChange={(v) => update(entry.id, { level: v })}
+            />
+          </div>
+          <button type="button" className="btn btn-danger remove" onClick={() => remove(entry.id)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn" onClick={add}>
+        + Add language
+      </button>
     </section>
   );
 }

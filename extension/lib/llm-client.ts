@@ -35,6 +35,21 @@ export function buildPrompt(context: DraftContext): string {
     .map((p) => `- ${p.name} (${p.role}) — ${p.description}. Tech: ${p.techStack}. Outcome: ${p.outcomes}`)
     .join('\n');
 
+  // Education and languages were missing, which is why a question about
+  // studies or language level had nothing to draw on.
+  const education = profile.education
+    .map(
+      (e) =>
+        `- ${e.degree} in ${e.fieldOfStudy || 'n/a'}, ${e.school} (${e.startDate}–${
+          e.current ? `${e.endDate} expected` : e.endDate
+        })`
+    )
+    .join('\n');
+
+  const languages = profile.languages.map((l) => `- ${l.language}: ${l.level}`).join('\n');
+
+  const location = [profile.contact.city, profile.contact.country].filter(Boolean).join(', ');
+
   return [
     'You are helping a candidate answer a job application question in their own voice.',
     'Write a concise, specific, first-person answer. Use only the facts given below — never invent experience, employers, dates, or metrics.',
@@ -50,6 +65,14 @@ export function buildPrompt(context: DraftContext): string {
     '',
     'CANDIDATE PROJECTS:',
     projects || '(none provided)',
+    '',
+    'CANDIDATE EDUCATION:',
+    education || '(none provided)',
+    '',
+    'CANDIDATE LANGUAGES:',
+    languages || '(none provided)',
+    '',
+    `CANDIDATE LOCATION: ${location || '(not provided)'}`,
   ].join('\n');
 }
 

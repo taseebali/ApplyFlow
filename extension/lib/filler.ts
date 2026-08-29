@@ -59,6 +59,15 @@ function resolveText(profile: Profile, path: string): string | undefined {
   if (path === 'logistics.hearAboutUs') {
     return profile.logistics.hearAboutUsPreferences[0];
   }
+  if (path === 'languages.list') {
+    return profile.languages.map((l) => l.language).filter(Boolean).join(', ') || undefined;
+  }
+  if (path === 'languages.german') {
+    // Forms ask for one language's level at a time; answer with the level
+    // rather than the language name.
+    const german = profile.languages.find((l) => /german|deutsch/i.test(l.language));
+    return german?.level || undefined;
+  }
   if (path.startsWith('education.')) {
     const entry = primaryEducation(profile);
     if (!entry) return undefined;

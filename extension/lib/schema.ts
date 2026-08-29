@@ -29,6 +29,23 @@ export interface CustomQAEntry {
   answer: string;
 }
 
+/** CEFR is what application forms ask for, so it is what we store. */
+export const LANGUAGE_LEVELS = [
+  'A1 (Basic)',
+  'A2 (Basic)',
+  'B1 (Intermediate)',
+  'B2 (Intermediate)',
+  'C1 (Advanced)',
+  'C2 (Fluent)',
+  'Native',
+] as const;
+
+export interface LanguageEntry {
+  id: string;
+  language: string;
+  level: string;
+}
+
 export interface ProjectEntry {
   id: string;
   name: string;
@@ -60,6 +77,7 @@ export interface Profile {
   workHistory: WorkHistoryEntry[];
   education: EducationEntry[];
   projects: ProjectEntry[];
+  languages: LanguageEntry[];
   workAuthorization: {
     /** A yes/no answer, for forms that ask "are you authorised to work here?". */
     authorizedToWorkInCountry: boolean | null;
@@ -102,6 +120,7 @@ export const EMPTY_PROFILE: Profile = {
   workHistory: [],
   education: [],
   projects: [],
+  languages: [],
   workAuthorization: {
     authorizedToWorkInCountry: null,
     status: '',
@@ -128,6 +147,7 @@ export function isProfile(value: unknown): value is Profile {
     Array.isArray(v.workHistory) &&
     Array.isArray(v.education) &&
     Array.isArray(v.projects) &&
+    Array.isArray(v.languages) &&
     typeof v.workAuthorization === 'object' &&
     typeof v.logistics === 'object' &&
     Array.isArray(v.customQA)
@@ -180,6 +200,14 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
   },
   { path: 'education.school', aliases: ['university', 'college', 'school', 'institution'] },
   { path: 'education.degree', aliases: ['degree', 'qualification'] },
+  {
+    path: 'languages.list',
+    aliases: ['which languages', 'languages you speak', 'languages', 'spoken languages'],
+  },
+  {
+    path: 'languages.german',
+    aliases: ['german level', 'current german level', 'level of german', 'deutsch'],
+  },
   { path: 'education.fieldOfStudy', aliases: ['field of study', 'major', 'course of study', 'subject'] },
   { path: 'links.linkedin', aliases: ['linkedin', 'linkedin url', 'linkedin profile'] },
   { path: 'links.github', aliases: ['github', 'github url', 'github profile'] },
