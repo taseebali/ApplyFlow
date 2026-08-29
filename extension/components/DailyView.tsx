@@ -655,7 +655,14 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
     setStarting(true);
     try {
       const message: StartDraftMessage = { type: 'start-draft', tabId };
-      await browser.runtime.sendMessage(message);
+      const response = (await browser.runtime.sendMessage(message)) as { started?: boolean } | undefined;
+      // The worker refuses a request that did not come from this panel. That
+      // should be unreachable from here, so say so rather than sitting idle.
+      if (!response?.started) {
+        await patchTabState(tabId, {
+          draft: { status: 'error', done: 0, total: 0, entries: [], message: 'Could not start drafting.' },
+        });
+      }
     } finally {
       setStarting(false);
     }

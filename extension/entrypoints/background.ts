@@ -93,8 +93,23 @@ export default defineBackground(() => {
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('Failed to set side panel behavior', err));
 
-  browser.runtime.onMessage.addListener((message: StartDraftMessage, _sender, sendResponse) => {
+  browser.runtime.onMessage.addListener((message: StartDraftMessage, sender, sendResponse) => {
     if (message?.type !== 'start-draft') return undefined;
+
+    // Drafting reads the whole profile, sends it to the configured provider on
+    // the user's own API key, and writes another tab's state. Only this
+    // extension's own pages may ask for it: a side-panel page has no
+    // `sender.tab`, a content script always does.
+    const fromExtensionPage =
+      sender.id === browser.runtime.id &&
+      sender.tab === undefined &&
+      (sender.url?.startsWith(browser.runtime.getURL('/')) ?? false);
+
+    if (!fromExtensionPage || !Number.isInteger(message.tabId)) {
+      sendResponse({ started: false });
+      return true;
+    }
+
     // Deliberately not awaited: the panel gets an immediate acknowledgement
     // and follows progress through the tab's stored state.
     void runDraft(message.tabId);
