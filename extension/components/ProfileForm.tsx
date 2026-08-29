@@ -12,6 +12,7 @@ import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/docum
 import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
+import { LocationFields } from './LocationFields';
 
 export type NotionConfig = Settings['notion'];
 
@@ -115,11 +116,14 @@ export function ContactSection({ profile, onChange }: { profile: Profile; onChan
         <TextField label="Phone" value={c.phone} onChange={(v) => update('phone', v)} />
         <TextField label="Address line 1" value={c.addressLine1} onChange={(v) => update('addressLine1', v)} />
         <TextField label="Address line 2" value={c.addressLine2} onChange={(v) => update('addressLine2', v)} />
-        <TextField label="City" value={c.city} onChange={(v) => update('city', v)} />
-        <TextField label="State" value={c.state} onChange={(v) => update('state', v)} />
         <TextField label="Postal code" value={c.postalCode} onChange={(v) => update('postalCode', v)} />
-        <TextField label="Country" value={c.country} onChange={(v) => update('country', v)} />
       </div>
+      <LocationFields
+        country={c.country}
+        state={c.state}
+        city={c.city}
+        onChange={(patch) => onChange({ ...profile, contact: { ...c, ...patch } })}
+      />
     </section>
   );
 }
