@@ -27,6 +27,9 @@ import { SCHEMA_FIELDS } from '@/lib/schema';
 import type { UnrecognizedField } from '@/lib/field-matcher';
 import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
+import type { StartDraftMessage } from '@/entrypoints/background';
+import type { DraftEntry } from '@/lib/tab-state';
+import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
 
@@ -549,30 +552,6 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   );
 }
 
-interface Draft {
-  id: string;
-  question: string;
-  text: string;
-  inserted: boolean;
-  saved: boolean;
-  /** Set when this specific question failed to *draft*; text is empty, so the textarea is hidden while set. */
-  error?: string;
-  /** Set when an *insert* into the page fails after a successful draft. Renders alongside the textarea — the user's edited text must never be discarded. */
-  insertError?: string;
-  saveState?: 'saving' | 'saved' | 'error';
-  saveError?: string;
-}
-
-type DraftState =
-  | { kind: 'idle' }
-  // `done`/`total` because a local model can take a while per question, and
-  // an unchanging spinner is indistinguishable from a hang.
-  | { kind: 'loading'; done?: number; total?: number }
-  | { kind: 'not-configured' }
-  | { kind: 'no-questions' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; drafts: Draft[] };
-
 // Serializes profile read-modify-write across concurrent "Save for reuse"
 // clicks so a second save can't clobber the first (both would otherwise read
 // the same stale profile and the second write would drop the first's entry).
@@ -592,77 +571,31 @@ function queueProfileSave(question: string, answer: string): Promise<void> {
 }
 
 function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
-  const [state, setState] = useState<DraftState>({ kind: 'idle' });
+  // Drafts live in the tab's own state, written by the background worker.
+  // The panel is a view onto that run rather than its owner, so switching to
+  // another application and back shows this one's answers — finished, or
+  // still arriving.
+  const { tabId, state: tabState, patch } = useTabState();
+  const run = tabState.draft;
+  const [starting, setStarting] = useState(false);
 
   const handleDraft = async () => {
-    setState({ kind: 'loading' });
+    if (tabId === null) return;
+    setStarting(true);
     try {
-      const settings = await getSettings();
-      if (!settings.llm.backend) {
-        setState({ kind: 'not-configured' });
-        return;
-      }
-
-      const tabId = await getActiveTabId();
-      const message: GetQuestionsMessage = { type: 'get-questions' };
-      const found: GetQuestionsResponse = await browser.tabs.sendMessage(tabId, message);
-
-      if (found.questions.length === 0) {
-        setState({ kind: 'no-questions' });
-        return;
-      }
-
-      const profile = await getProfile();
-      const drafts: Draft[] = [];
-      for (const q of found.questions) {
-        setState({ kind: 'loading', done: drafts.length, total: found.questions.length });
-        // A saved answer wins over a fresh generation: it is instant, free,
-        // and already worded the way the user wants. Require the normalized
-        // question to match exactly — a loose prefix/substring match can
-        // silently reuse the wrong saved answer for a similarly-worded
-        // question, putting wrong text into a real application.
-        const saved = profile.customQA.find(
-          (entry) => normalizeQuestion(entry.question) === normalizeQuestion(q.question)
-        );
-        if (saved) {
-          drafts.push({ id: q.id, question: q.question, text: saved.answer, inserted: false, saved: true });
-          continue;
-        }
-        // A failure on one question must not discard drafts already
-        // generated for other questions, and must not force re-billing
-        // every question on a retry.
-        try {
-          const text = await draftAnswer(
-            { question: q.question, jobDescription: found.jobDescription, profile },
-            settings.llm
-          );
-          drafts.push({ id: q.id, question: q.question, text, inserted: false, saved: false });
-        } catch (err) {
-          drafts.push({
-            id: q.id,
-            question: q.question,
-            text: '',
-            inserted: false,
-            saved: false,
-            error: err instanceof Error ? err.message : 'Could not draft this answer.',
-          });
-        }
-      }
-      setState({ kind: 'ready', drafts });
-    } catch (err) {
-      setState({
-        kind: 'error',
-        message: err instanceof Error ? err.message : 'Could not draft answers.',
-      });
+      const message: StartDraftMessage = { type: 'start-draft', tabId };
+      await browser.runtime.sendMessage(message);
+    } finally {
+      setStarting(false);
     }
   };
 
-  const updateDraft = (id: string, patch: Partial<Draft>) =>
-    setState((prev) =>
-      prev.kind === 'ready'
-        ? { kind: 'ready', drafts: prev.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }
-        : prev
-    );
+  const updateDraft = (id: string, updates: Partial<DraftEntry>) => {
+    if (!run) return;
+    void patch({
+      draft: { ...run, entries: run.entries.map((e) => (e.id === id ? { ...e, ...updates } : e)) },
+    });
+  };
 
   const handleInsert = async (id: string, text: string) => {
     updateDraft(id, { insertError: undefined });
@@ -691,17 +624,19 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   };
 
   const handleSaveReusable = async (id: string, question: string, answer: string) => {
-    updateDraft(id, { saveState: 'saving', saveError: undefined });
+    updateDraft(id, { insertError: undefined });
     try {
       await queueProfileSave(question, answer);
-      updateDraft(id, { saveState: 'saved' });
+      updateDraft(id, { saved: true });
     } catch (err) {
       updateDraft(id, {
-        saveState: 'error',
-        saveError: err instanceof Error ? err.message : 'Could not save this answer.',
+        insertError: err instanceof Error ? err.message : 'Could not save this answer.',
       });
     }
   };
+
+  const running = starting || run?.status === 'running';
+  const needsSetup = run?.status === 'error' && /Settings/i.test(run.message ?? '');
 
   return (
     <>
@@ -711,30 +646,27 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         description="Drafts replies to open-ended questions. You review before anything is entered."
         tint="neutral"
         onClick={handleDraft}
-        disabled={state.kind === 'loading'}
+        disabled={running}
       >
-        {state.kind === 'loading' && (
+        {running && (
           <span className="pill pill-neutral">
-            {state.total ? `Drafting ${(state.done ?? 0) + 1} of ${state.total}…` : 'Looking for questions…'}
+            {run?.total
+              ? `Drafting ${Math.min(run.done + 1, run.total)} of ${run.total}…`
+              : 'Looking for questions…'}
           </span>
         )}
-        {state.kind === 'not-configured' && (
-          <span className="pill pill-neutral">Set up AI drafting in Settings first</span>
-        )}
-        {state.kind === 'no-questions' && (
-          <span className="pill pill-neutral">No open-ended questions found on this page.</span>
-        )}
-        {state.kind === 'error' && <span className="pill pill-danger">{state.message}</span>}
+        {run?.status === 'done' && <span className="pill pill-success">{run.entries.length} drafted</span>}
+        {run?.status === 'error' && <span className="pill pill-danger">{run.message}</span>}
       </ActionCard>
-      {state.kind === 'not-configured' && (
+      {needsSetup && (
         <button type="button" className="btn-plain" onClick={onOpenSetup}>
           Open Settings
         </button>
       )}
 
-      {state.kind === 'ready' && (
+      {run && run.entries.length > 0 && (
         <div className="drafts">
-          {state.drafts.map((draft) => (
+          {run.entries.map((draft) => (
             <div className="draft" key={draft.id}>
               <p className="draft-question">
                 {draft.question}
@@ -746,9 +678,6 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                 <>
                   <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
                   {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
-                  {draft.saveState === 'error' && draft.saveError && (
-                    <span className="pill pill-danger">{draft.saveError}</span>
-                  )}
                   <div className="draft-actions">
                     <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
                       {draft.inserted ? 'Inserted' : 'Insert'}
@@ -756,15 +685,8 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                     <button
                       className="btn"
                       onClick={() => handleSaveReusable(draft.id, draft.question, draft.text)}
-                      disabled={draft.saveState === 'saving'}
                     >
-                      {draft.saveState === 'saved'
-                        ? 'Saved'
-                        : draft.saveState === 'saving'
-                          ? 'Saving…'
-                          : draft.saveState === 'error'
-                            ? 'Retry save'
-                            : 'Save for reuse'}
+                      {draft.saved ? 'Saved' : 'Save for reuse'}
                     </button>
                   </div>
                 </>
