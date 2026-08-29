@@ -111,6 +111,13 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           unmatchedCount: response.unmatchedCount,
           unmatchedLabels: response.unmatchedLabels,
           unrecognized: response.unrecognized,
+          // Everything written into the form that the user did not type
+          // themselves, so they can check it before submitting. An AI-chosen
+          // dropdown especially: the option text came from the page.
+          autoAnswered: [
+            ...response.inferred.map((a) => ({ ...a, source: 'profile' as const })),
+            ...response.aiChoices.map((a) => ({ ...a, source: 'ai' as const })),
+          ],
           hostname: response.hostname,
         },
       });
@@ -260,6 +267,22 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         )}
         {!filling && fill?.status === 'error' && <span className="pill pill-danger">{fill.message}</span>}
       </ActionCard>
+
+      {fill?.status === 'done' && !fill.stale && fill.autoAnswered.length > 0 && (
+        <div className="auto-answered">
+          <p className="teach-intro">Answered for you — worth a look before you submit:</p>
+          {fill.autoAnswered.map((answer) => (
+            <div className="teach-row" key={`${answer.source}:${answer.label}`}>
+              <span className="teach-label" title={answer.label}>
+                {answer.label}
+              </span>
+              <span className={`pill ${answer.source === 'ai' ? 'pill-warning' : 'pill-neutral'}`}>
+                {answer.answer}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
         <TeachFieldsPanel fields={fill.unrecognized} hostname={fill.hostname} onTaught={handleFillClick} />

@@ -30,6 +30,7 @@ const doneFill = {
   unmatchedCount: 0,
   unmatchedLabels: [],
   unrecognized: [],
+  autoAnswered: [],
   hostname: 'boards.greenhouse.io',
 } satisfies FillResult;
 

@@ -185,6 +185,16 @@ body {
   color: var(--accent-text);
 }
 
+.panel .auto-answered {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
 .panel .completeness {
   display: flex;
   flex-wrap: wrap;

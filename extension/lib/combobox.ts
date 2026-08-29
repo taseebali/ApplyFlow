@@ -174,6 +174,12 @@ function hasSelection(input: HTMLInputElement): boolean {
 export interface ComboboxResult {
   ok: boolean;
   /**
+   * Set when the option was picked by the model rather than by deterministic
+   * matching. The user is shown these so a model's choice is never committed
+   * to a real application without them seeing what it was.
+   */
+  chosenByAi?: string;
+  /**
    * Why a fill failed, in words worth showing the user. Filling these widgets
    * cannot be tested outside a real browser, so when it fails it has to say
    * where it got to rather than just reporting nothing happened.
@@ -230,11 +236,15 @@ export async function fillCombobox(
 
   const optionTexts = options.map((o) => (o.textContent ?? '').trim());
   let option = pickOption(options, value);
+  let chosenByAi: string | undefined;
 
   if (!option && aiFallback) {
     // Deterministic matching has run out; ask which option means this.
     const index = await aiFallback(labelFor(input), optionTexts, value);
-    if (index >= 0) option = options[index];
+    if (index >= 0) {
+      option = options[index];
+      chosenByAi = optionTexts[index];
+    }
   }
 
   if (!option) {
@@ -246,7 +256,7 @@ export async function fillCombobox(
   dispatchMouse(option, ['pointerdown', 'mousedown', 'mouseup', 'click']);
   await wait(120);
 
-  if (hasSelection(input)) return { ok: true };
+  if (hasSelection(input)) return { ok: true, chosenByAi };
 
   // Clicking did not take; let the widget commit its highlighted option.
   for (const type of ['keydown', 'keyup']) {
@@ -256,7 +266,7 @@ export async function fillCombobox(
   }
   await wait(120);
 
-  if (hasSelection(input)) return { ok: true };
+  if (hasSelection(input)) return { ok: true, chosenByAi };
   await abandon(input);
   return { ok: false, reason: `found "${value}" in the list but the choice did not stick` };
 }

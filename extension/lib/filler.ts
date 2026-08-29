@@ -9,6 +9,8 @@ export interface FillResult {
   skippedCount: number;
   /** Labels of fields we recognized but couldn't fill (usually: no data for that field yet). */
   skippedLabels: string[];
+  /** Dropdowns where the model, not deterministic matching, picked the option. */
+  aiChoices: Array<{ label: string; answer: string }>;
 }
 
 function getValueKind(path: string): 'text' | 'boolean' | 'preference' {
@@ -124,6 +126,13 @@ let lastComboboxReason: string | undefined;
  */
 let aiOptionFallback: ((question: string, options: string[], value: string) => Promise<number>) | undefined;
 
+/**
+ * The option a model chose during the current field, if any. Collected the
+ * same way `lastComboboxReason` is, so every fill entry point can report it
+ * without threading a return value through each helper.
+ */
+let lastAiChoice: string | undefined;
+
 function setNativeChecked(el: HTMLInputElement, checked: boolean) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
   if (setter) setter.call(el, checked);
@@ -154,6 +163,7 @@ async function fillTextField(el: FieldMatch['element'], text: string): Promise<b
   if (isCombobox(el)) {
     const result = await fillCombobox(el, text, aiOptionFallback);
     if (!result.ok) lastComboboxReason = result.reason;
+    lastAiChoice = result.chosenByAi;
     return result.ok;
   }
   return fillPlainTextField(el, text);
@@ -176,6 +186,7 @@ async function fillBooleanField(el: FieldMatch['element'], value: boolean): Prom
   if (isCombobox(el)) {
     const result = await fillCombobox(el, value ? 'Yes' : 'No', aiOptionFallback);
     if (!result.ok) lastComboboxReason = result.reason;
+    lastAiChoice = result.chosenByAi;
     return result.ok;
   }
   if (el instanceof HTMLInputElement && el.type === 'checkbox') {
@@ -220,12 +231,14 @@ export async function fillFields(
   aiOptionFallback = options.aiOptionFallback;
   let filledCount = 0;
   const skippedLabels: string[] = [];
+  const aiChoices: FillResult['aiChoices'] = [];
 
   for (const match of matches) {
     const kind = getValueKind(match.path);
     let didFill = false;
 
     lastComboboxReason = undefined;
+    lastAiChoice = undefined;
     if (kind === 'boolean') {
       const value = resolveBoolean(profile, match.path);
       if (value !== null) didFill = await fillBooleanField(match.element, value);
@@ -236,12 +249,17 @@ export async function fillFields(
       if (text) didFill = await fillTextField(match.element, text);
     }
 
-    if (didFill) filledCount += 1;
-    else skippedLabels.push(lastComboboxReason ? `${match.label} — ${lastComboboxReason}` : match.label);
+    if (didFill) {
+      filledCount += 1;
+      if (lastAiChoice) aiChoices.push({ label: match.label, answer: lastAiChoice });
+    } else {
+      skippedLabels.push(lastComboboxReason ? `${match.label} — ${lastComboboxReason}` : match.label);
+    }
     lastComboboxReason = undefined;
+    lastAiChoice = undefined;
   }
 
-  return { filledCount, skippedCount: skippedLabels.length, skippedLabels };
+  return { filledCount, skippedCount: skippedLabels.length, skippedLabels, aiChoices };
 }
 
 /**
@@ -254,19 +272,23 @@ export async function fillInferredFields(
   fields: Array<{ element: FieldMatch['element']; label: string }>,
   profile: Profile,
   options: { aiOptionFallback?: typeof aiOptionFallback } = {}
-): Promise<{ filled: Array<{ label: string; answer: string }> }> {
+): Promise<{ filled: Array<{ label: string; answer: string }>; aiChoices: FillResult['aiChoices'] }> {
   aiOptionFallback = options.aiOptionFallback;
   const filled: Array<{ label: string; answer: string }> = [];
+  const aiChoices: FillResult['aiChoices'] = [];
 
   for (const field of fields) {
     const answer = inferAnswer(field.label, profile);
     if (!answer) continue;
+    lastAiChoice = undefined;
     if (await fillTextField(field.element, answer)) {
       filled.push({ label: field.label, answer });
+      if (lastAiChoice) aiChoices.push({ label: field.label, answer: lastAiChoice });
     }
+    lastAiChoice = undefined;
   }
 
-  return { filled };
+  return { filled, aiChoices };
 }
 
 /** Fills radio-button groups matched by matchRadioGroups. */
@@ -302,5 +324,7 @@ export function fillRadioGroups(groups: RadioGroupMatch[], profile: Profile): Fi
     else skippedLabels.push(group.label);
   }
 
-  return { filledCount, skippedCount: skippedLabels.length, skippedLabels };
+  // Radio groups are native elements matched deterministically — the model is
+  // never consulted for them.
+  return { filledCount, skippedCount: skippedLabels.length, skippedLabels, aiChoices: [] };
 }

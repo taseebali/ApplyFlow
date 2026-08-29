@@ -26,7 +26,10 @@ export interface FillPageResponse {
   /** Fields we could fill but could not identify — the panel offers to learn these. */
   unrecognized: UnrecognizedField[];
   /** Questions answered from the profile rather than a matched field. */
+  /** Questions the profile settled on its own, so the user can check them. */
   inferred: Array<{ label: string; answer: string }>;
+  /** Dropdowns where a model picked the option rather than exact matching. */
+  aiChoices: Array<{ label: string; answer: string }>;
   hostname: string;
 }
 
@@ -258,6 +261,7 @@ export default defineContentScript({
               .filter((f) => !inferredLabels.has(f.label))
               .map(({ label, signature }) => ({ label, signature })),
             inferred: inferred.filled,
+            aiChoices: [...fieldResult.aiChoices, ...inferred.aiChoices],
             hostname: location.hostname,
           };
           sendResponse(response);

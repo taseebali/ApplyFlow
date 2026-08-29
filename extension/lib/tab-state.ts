@@ -14,6 +14,8 @@ export type FillResult =
       unmatchedCount: number;
       unmatchedLabels: string[];
       unrecognized: UnrecognizedField[];
+      /** Answers written without the user typing them, shown so they can be checked. */
+      autoAnswered: Array<{ label: string; answer: string; source: 'profile' | 'ai' }>;
       hostname: string;
       /** Set once the page navigated or swapped its form after this fill, so
        * the summary is not mistaken for describing what is on screen now. */
