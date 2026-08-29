@@ -123,6 +123,12 @@ export function setNativeFieldValue(
  */
 let lastComboboxReason: string | undefined;
 
+/**
+ * Set for the duration of one fill so the dropdown layer can escalate to the
+ * model without every helper having to thread settings through.
+ */
+let aiOptionFallback: ((question: string, options: string[], value: string) => Promise<number>) | undefined;
+
 function setNativeChecked(el: HTMLInputElement, checked: boolean) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
   if (setter) setter.call(el, checked);
@@ -151,7 +157,7 @@ async function fillTextField(el: FieldMatch['element'], text: string): Promise<b
   // A scripted dropdown looks like a text input but ignores a plain value
   // assignment, so it has to be opened and chosen from instead.
   if (isCombobox(el)) {
-    const result = await fillCombobox(el, text);
+    const result = await fillCombobox(el, text, aiOptionFallback);
     if (!result.ok) lastComboboxReason = result.reason;
     return result.ok;
   }
@@ -173,7 +179,7 @@ async function fillBooleanField(el: FieldMatch['element'], value: boolean): Prom
     return setSelectByPredicate(el, (t) => matchesBooleanAnswer(t, value));
   }
   if (isCombobox(el)) {
-    const result = await fillCombobox(el, value ? 'Yes' : 'No');
+    const result = await fillCombobox(el, value ? 'Yes' : 'No', aiOptionFallback);
     if (!result.ok) lastComboboxReason = result.reason;
     return result.ok;
   }
@@ -200,7 +206,7 @@ async function fillPreferenceField(
   if (isCombobox(el)) {
     // Try each acceptable answer in order; the form may offer only some.
     for (const pref of preferences) {
-      const result = await fillCombobox(el, pref);
+      const result = await fillCombobox(el, pref, aiOptionFallback);
       if (result.ok) return true;
       lastComboboxReason = result.reason;
     }
@@ -211,7 +217,12 @@ async function fillPreferenceField(
 }
 
 /** Fills text/select/textarea/checkbox fields matched by matchFields. */
-export async function fillFields(matches: FieldMatch[], profile: Profile): Promise<FillResult> {
+export async function fillFields(
+  matches: FieldMatch[],
+  profile: Profile,
+  options: { aiOptionFallback?: typeof aiOptionFallback } = {}
+): Promise<FillResult> {
+  aiOptionFallback = options.aiOptionFallback;
   let filledCount = 0;
   const skippedLabels: string[] = [];
 

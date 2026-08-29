@@ -8,6 +8,8 @@ import {
   type UnrecognizedField,
 } from '@/lib/field-matcher';
 import { getOverridesForHost } from '@/lib/field-overrides';
+import { getSettings } from '@/lib/settings';
+import { chooseOptionWithAi } from '@/lib/option-ai';
 import { getProfile } from '@/lib/storage';
 import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
@@ -214,8 +216,15 @@ export default defineContentScript({
           const profile = await getProfile();
           const overrides = await getOverridesForHost(location.hostname);
 
+          const settings = await getSettings();
           const fieldMatches = matchFields(document, overrides);
-          const fieldResult = await fillFields(fieldMatches, profile);
+          const fieldResult = await fillFields(fieldMatches, profile, {
+            // Only consulted when exact, word-set and synonym matching have
+            // all failed, so an ordinary form makes no model calls at all.
+            aiOptionFallback: settings.llm.backend
+              ? (question, options, value) => chooseOptionWithAi(question, options, value, settings.llm)
+              : undefined,
+          });
 
           const radioGroupMatches = matchRadioGroups(document);
           const radioResult = fillRadioGroups(radioGroupMatches, profile);

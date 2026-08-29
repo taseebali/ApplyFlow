@@ -1,4 +1,4 @@
-import { normalizeText } from './field-matcher';
+import { getDisplayLabel, normalizeText } from './field-matcher';
 import { meansTheSame } from './option-synonyms';
 import { setNativeFieldValue } from './filler';
 
@@ -132,6 +132,11 @@ function pickOption(options: HTMLElement[], value: string): HTMLElement | undefi
   return index === -1 ? undefined : options[index];
 }
 
+/** The question this dropdown is asking, so an AI fallback has the context. */
+function labelFor(input: HTMLInputElement): string {
+  return getDisplayLabel(input);
+}
+
 /** Whether the widget now displays a chosen value rather than its placeholder. */
 function hasSelection(input: HTMLInputElement): boolean {
   const container = input.closest('[class*="select__container"], [class*="select-shell"]') ?? controlFor(input);
@@ -155,7 +160,12 @@ export interface ComboboxResult {
   reason?: string;
 }
 
-export async function fillCombobox(input: HTMLInputElement, value: string): Promise<ComboboxResult> {
+export async function fillCombobox(
+  input: HTMLInputElement,
+  value: string,
+  /** Used only when nothing deterministic matched, so a normal form costs nothing. */
+  aiFallback?: (question: string, options: string[], value: string) => Promise<number>
+): Promise<ComboboxResult> {
   const control = controlFor(input);
 
   input.focus();
@@ -197,13 +207,17 @@ export async function fillCombobox(input: HTMLInputElement, value: string): Prom
     return { ok: false, reason: 'the dropdown did not open' };
   }
 
-  const option = pickOption(options, value);
+  const optionTexts = options.map((o) => (o.textContent ?? '').trim());
+  let option = pickOption(options, value);
+
+  if (!option && aiFallback) {
+    // Deterministic matching has run out; ask which option means this.
+    const index = await aiFallback(labelFor(input), optionTexts, value);
+    if (index >= 0) option = options[index];
+  }
+
   if (!option) {
-    const sample = options
-      .slice(0, 4)
-      .map((o) => (o.textContent ?? '').trim())
-      .filter(Boolean)
-      .join(', ');
+    const sample = optionTexts.filter(Boolean).slice(0, 4).join(', ');
     await abandon(input);
     return { ok: false, reason: `no option matched "${value}" (offered: ${sample})` };
   }
