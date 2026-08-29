@@ -51,6 +51,22 @@ const SYNONYM_GROUPS: string[][] = [
   ],
 ];
 
+const BOOLEAN_ANSWER_WORDS: Record<'true' | 'false', string[]> = {
+  true: ['yes', 'y', 'true'],
+  false: ['no', 'n', 'false'],
+};
+
+/**
+ * Real-world options are often full sentences ("Yes, I would be willing to
+ * move to Munich.") rather than a bare "Yes"/"No", so match on the leading
+ * word instead of requiring the whole normalized text to equal it.
+ */
+export function matchesBooleanAnswer(normalizedOptionText: string, value: boolean): boolean {
+  const answers = BOOLEAN_ANSWER_WORDS[value ? 'true' : 'false'];
+  const firstWord = normalizedOptionText.split(' ')[0] ?? '';
+  return answers.includes(normalizedOptionText) || answers.includes(firstWord);
+}
+
 /** Every wording that means the same as `value`, including `value` itself. */
 export function synonymsFor(value: string): string[] {
   const target = normalizeText(value);

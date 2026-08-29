@@ -9,13 +9,12 @@ import {
   type UnrecognizedField,
 } from '@/lib/field-matcher';
 import { getOverridesForHost } from '@/lib/field-overrides';
-import { getSettings } from '@/lib/settings';
-import { chooseOptionWithAi } from '@/lib/option-ai';
 import { getProfile } from '@/lib/storage';
 import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
 import type { DocumentKind } from '@/lib/document-matcher';
 import { detectQuestions } from '@/lib/question-detector';
+import type { ChooseOptionMessage } from '@/entrypoints/background';
 
 export interface FillPageMessage {
   type: 'fill-page';
@@ -219,15 +218,26 @@ export default defineContentScript({
           const profile = await getProfile();
           const overrides = await getOverridesForHost(location.hostname);
 
-          const settings = await getSettings();
+          // This script never reads settings at all. Reading them here would
+          // pull the whole stored blob — Notion token and OpenRouter key
+          // included — into a script that runs on every page the user visits,
+          // just to learn one boolean. The worker holds the secrets, decides
+          // whether AI escalation is even configured, and answers with an
+          // option index and nothing else.
+          const aiOptionFallback = async (question: string, options: string[], value: string) => {
+            const response = (await browser.runtime.sendMessage({
+              type: 'choose-option',
+              question,
+              options,
+              value,
+            } satisfies ChooseOptionMessage)) as { index?: number } | undefined;
+            return response?.index ?? -1;
+          };
+
           const fieldMatches = matchFields(document, overrides);
-          const fieldResult = await fillFields(fieldMatches, profile, {
-            // Only consulted when exact, word-set and synonym matching have
-            // all failed, so an ordinary form makes no model calls at all.
-            aiOptionFallback: settings.llm.backend
-              ? (question, options, value) => chooseOptionWithAi(question, options, value, settings.llm)
-              : undefined,
-          });
+          // Only consulted when exact, word-set and synonym matching have all
+          // failed, so an ordinary form makes no model calls at all.
+          const fieldResult = await fillFields(fieldMatches, profile, { aiOptionFallback });
 
           const radioGroupMatches = matchRadioGroups(document);
           const radioResult = fillRadioGroups(radioGroupMatches, profile);
@@ -235,11 +245,7 @@ export default defineContentScript({
           // Questions the profile already settles — "are you still studying?",
           // "are you based in Berlin?" — answered without asking the user again.
           const unrecognized = findUnrecognizedElements(document, overrides);
-          const inferred = await fillInferredFields(unrecognized, profile, {
-            aiOptionFallback: settings.llm.backend
-              ? (question, options, value) => chooseOptionWithAi(question, options, value, settings.llm)
-              : undefined,
-          });
+          const inferred = await fillInferredFields(unrecognized, profile, { aiOptionFallback });
           const inferredLabels = new Set(inferred.filled.map((f) => f.label));
 
           const response: FillPageResponse = {

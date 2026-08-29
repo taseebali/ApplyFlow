@@ -1,9 +1,17 @@
 import { getSettings } from '@/lib/settings';
+import { chooseOptionWithAi } from '@/lib/option-ai';
 import { getProfile } from '@/lib/storage';
 import { draftAnswer } from '@/lib/llm-client';
 import { normalizeQuestion } from '@/lib/question-matching';
 import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/lib/tab-state';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
+
+export interface ChooseOptionMessage {
+  type: 'choose-option';
+  question: string;
+  options: string[];
+  value: string;
+}
 
 export interface StartDraftMessage {
   type: 'start-draft';
@@ -135,6 +143,29 @@ export default defineBackground(() => {
     if (changeInfo.status !== 'loading' || !changeInfo.url) return;
     markFillStale(tabId);
   });
+
+  // The content script asks here rather than calling the provider itself: the
+  // API key must not be readable from a script that runs on every page, and the
+  // keyed request belongs in a trusted context with the extension's own host
+  // permissions rather than in the page's network context.
+  browser.runtime.onMessage.addListener(
+    (message: ChooseOptionMessage, sender, sendResponse: (response: { index: number }) => void) => {
+      if (message?.type !== 'choose-option') return undefined;
+      // Must come from this extension's content script in a real tab.
+      if (sender.id !== browser.runtime.id || sender.tab?.id === undefined) return undefined;
+
+      (async () => {
+        try {
+          const { llm } = await getSettings();
+          const index = await chooseOptionWithAi(message.question, message.options, message.value, llm);
+          sendResponse({ index });
+        } catch {
+          sendResponse({ index: -1 });
+        }
+      })();
+      return true;
+    }
+  );
 
   // Sent by the content script when a multi-step application swaps the form
   // without a navigation.

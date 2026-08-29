@@ -1,6 +1,7 @@
 import { getRadioOptionLabel, normalizeText, type FieldMatch, type RadioGroupMatch } from './field-matcher';
 import { fillCombobox, isCombobox } from './combobox';
 import { inferAnswer } from './inference';
+import { matchesBooleanAnswer } from './option-synonyms';
 import { SCHEMA_FIELDS, type Profile } from './schema';
 
 export interface FillResult {
@@ -8,22 +9,6 @@ export interface FillResult {
   skippedCount: number;
   /** Labels of fields we recognized but couldn't fill (usually: no data for that field yet). */
   skippedLabels: string[];
-}
-
-const BOOLEAN_ANSWER_WORDS: Record<'true' | 'false', string[]> = {
-  true: ['yes', 'y', 'true'],
-  false: ['no', 'n', 'false'],
-};
-
-/**
- * Real-world options are often full sentences ("Yes, I would be willing to
- * move to Munich.") rather than a bare "Yes"/"No", so match on the leading
- * word instead of requiring the whole normalized text to equal it.
- */
-function matchesBooleanAnswer(normalizedOptionText: string, value: boolean): boolean {
-  const answers = BOOLEAN_ANSWER_WORDS[value ? 'true' : 'false'];
-  const firstWord = normalizedOptionText.split(' ')[0] ?? '';
-  return answers.includes(normalizedOptionText) || answers.includes(firstWord);
 }
 
 function getValueKind(path: string): 'text' | 'boolean' | 'preference' {
