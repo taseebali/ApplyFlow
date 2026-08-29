@@ -1,0 +1,66 @@
+name: Release
+
+# Cutting a release is a tag away: `git tag v1.0.0 && git push --tags`.
+# The zip attached to the GitHub Release is what people download and load —
+# nobody needs to clone the repo or run a build to use ApplyFlow.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install
+        working-directory: extension
+        run: npm ci
+
+      # A tagged build that does not typecheck or pass its tests must not ship.
+      - name: Check
+        working-directory: extension
+        run: |
+          npm run compile
+          npm test
+
+      # The tag is the source of truth for the version; a mismatch means the
+      # manifest users install would disagree with the release they downloaded.
+      - name: Verify the tag matches the manifest version
+        working-directory: extension
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$manifest" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $manifest" >&2
+            exit 1
+          fi
+        if: startsWith(github.ref, 'refs/tags/v')
+
+      - name: Build and zip
+        working-directory: extension
+        run: npm run zip
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extension/.output/*.zip
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            1. Download `applyflow-*-chrome.zip` below and unzip it.
+            2. Open `chrome://extensions` (or `brave://extensions`) and turn on **Developer mode**.
+            3. Click **Load unpacked** and pick the unzipped folder.
+
+            Your profile stays on your own machine. Nothing is sent anywhere
+            unless you set up Notion logging or AI drafting yourself.
