@@ -285,7 +285,8 @@ export default defineContentScript({
       if (message?.type === 'get-questions') {
         (async () => {
           detectedQuestions.clear();
-          const found = detectQuestions(document);
+          const profile = await getProfile();
+          const found = detectQuestions(document, profile);
           const questions = found.map((q, i) => {
             const id = `q${i}`;
             detectedQuestions.set(id, q.element);

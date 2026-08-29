@@ -1,4 +1,7 @@
 import { getDisplayLabel, matchFields } from './field-matcher';
+import { isCombobox } from './combobox';
+import { inferAnswer } from './inference';
+import type { Profile } from './schema';
 
 export interface DetectedQuestion {
   element: HTMLTextAreaElement | HTMLInputElement;
@@ -13,7 +16,7 @@ const MIN_QUESTION_LABEL_LENGTH = 15;
  * matching did NOT already claim, and that look like prose prompts rather
  * than short data entry fields.
  */
-export function detectQuestions(root: ParentNode = document): DetectedQuestion[] {
+export function detectQuestions(root: ParentNode = document, profile?: Profile): DetectedQuestion[] {
   const claimed = new Set(matchFields(root).map((m) => m.element));
   const questions: DetectedQuestion[] = [];
 
@@ -24,8 +27,18 @@ export function detectQuestions(root: ParentNode = document): DetectedQuestion[]
   for (const element of candidates) {
     if (claimed.has(element)) continue;
 
+    // A scripted dropdown is also an `input[type=text]` with a long label, so
+    // without this "What is your work authorisation in Germany?" gets sent to
+    // the model as an essay question. It has a fixed list of answers and
+    // belongs to the fill path, not to drafting.
+    if (isCombobox(element)) continue;
+
     const question = getDisplayLabel(element).trim();
     if (!question) continue;
+
+    // Nor is it a question worth paying a model for if the profile already
+    // settles it.
+    if (profile && inferAnswer(question, profile)) continue;
 
     // A textarea is inherently open-ended; a text input only counts when its
     // label is long enough to read as an actual question.

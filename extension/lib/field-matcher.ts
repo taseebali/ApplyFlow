@@ -80,6 +80,15 @@ export function fieldSignature(el: FillableElement): string {
   return label ? `label:${label}` : `type:${(el as HTMLInputElement).type ?? el.tagName}`;
 }
 
+/**
+ * A label phrased as a yes/no question. Such a field wants an answer, never a
+ * value copied out of the profile — filling "Are you enrolled at a
+ * university?" with the name of a university is the failure this prevents.
+ */
+export function isYesNoQuestion(label: string): boolean {
+  return /^\s*(are|do|did|does|have|has|can|could|will|would|is|was)\s+you?\b/i.test(label);
+}
+
 /** Best-available raw (non-normalized) label text for display purposes. */
 export function getDisplayLabel(el: FillableElement): string {
   const label = getLabelText(el).trim();
@@ -195,6 +204,11 @@ export function matchFields(
       continue;
     }
 
+    // "Are you currently enrolled at a German university?" wants yes or no,
+    // but contains "university" and so matches the school-name field. A
+    // yes/no question can only ever be answered by a yes/no field.
+    const wantsYesNo = isYesNoQuestion(getDisplayLabel(element));
+
     const candidates = getCandidates(element);
     let bestPath: string | null = null;
     let bestScore = 0;
@@ -202,6 +216,7 @@ export function matchFields(
     for (const candidate of candidates) {
       const weight = SOURCE_WEIGHTS[candidate.source] ?? 0.5;
       for (const field of SCHEMA_FIELDS) {
+        if (wantsYesNo && field.valueKind !== 'boolean') continue;
         for (const alias of field.aliases) {
           const score = scoreAgainstAlias(candidate.text, alias) * weight;
           if (score > bestScore) {

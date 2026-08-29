@@ -95,3 +95,25 @@ describe('alias specificity', () => {
     expect(pathFor('City')).toBe('contact.city');
   });
 });
+
+describe('yes/no questions', () => {
+  beforeEach(() => setBody(''));
+
+  it('does not fill a yes/no question with a name from the profile', () => {
+    // Contains "university", which is a school-name alias — but the question
+    // wants yes or no, not the name of a school.
+    setBody('<label for="q">Are you currently enrolled at a German university/college?</label><input id="q" />');
+    const matched = matchFields(document);
+    expect(matched.map((m) => m.path)).not.toContain('education.school');
+  });
+
+  it('still lets a yes/no question match a yes/no field', () => {
+    setBody('<label for="q">Are you legally authorized to work in this country?</label><input id="q" />');
+    expect(matchFields(document)[0]?.path).toBe('workAuthorization.authorizedToWorkInCountry');
+  });
+
+  it('leaves ordinary value fields alone', () => {
+    setBody('<label for="q">University</label><input id="q" />');
+    expect(matchFields(document)[0]?.path).toBe('education.school');
+  });
+});
