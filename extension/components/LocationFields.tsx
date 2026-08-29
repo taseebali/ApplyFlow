@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FieldLabel } from './ProfileForm';
 
 interface Option {
   name: string;
@@ -94,7 +95,7 @@ export function LocationFields({
   return (
     <div className="grid">
       <label className="field">
-        <span>Country</span>
+        <FieldLabel label="Country" required />
         <select
           value={country}
           onChange={(e) => onChange({ country: e.target.value, state: '', city: '' })}
@@ -112,7 +113,7 @@ export function LocationFields({
       </label>
 
       <label className="field">
-        <span>State / province</span>
+        <FieldLabel label="State / province" />
         <select
           value={state}
           disabled={!countryCode || states.length === 0}
@@ -131,7 +132,7 @@ export function LocationFields({
       </label>
 
       <label className="field">
-        <span>City</span>
+        <FieldLabel label="City" required />
         <select value={city} disabled={!countryCode} onChange={(e) => onChange({ city: e.target.value })}>
           <option value="">Not set</option>
           {withCurrent(cities, city).map((name) => (

@@ -55,6 +55,25 @@
   font-weight: 500;
 }
 
+.panel .field > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Reuses the warning tokens rather than introducing a colour of its own, so
+   the tag reads the same as the incomplete-profile warning on the Fill card. */
+.panel .required-tag {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .panel .field.checkbox {
   flex-direction: row;
   align-items: center;

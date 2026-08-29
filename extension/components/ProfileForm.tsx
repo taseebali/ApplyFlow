@@ -16,18 +16,34 @@ import { LocationFields } from './LocationFields';
 
 export type NotionConfig = Settings['notion'];
 
+/**
+ * Marks a field an application cannot be filled without. Empty ones are also
+ * counted up on the Fill card, so the warning and the tag agree on what
+ * "required" means: see `lib/profile-completeness.ts`.
+ */
+export function FieldLabel({ label, required }: { label: string; required?: boolean }) {
+  return (
+    <span>
+      {label}
+      {required && <span className="required-tag">Required</span>}
+    </span>
+  );
+}
+
 export function TextField({
   label,
   value,
   onChange,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
 }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <FieldLabel label={label} required={required} />
       <input type="text" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
@@ -44,15 +60,17 @@ export function SelectField({
   value,
   options,
   onChange,
+  required,
 }: {
   label: string;
   value: string;
   options: readonly string[];
   onChange: (value: string) => void;
+  required?: boolean;
 }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <FieldLabel label={label} required={required} />
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Not set</option>
         {options.map((option) => (
@@ -110,10 +128,10 @@ export function ContactSection({ profile, onChange }: { profile: Profile; onChan
     <section>
       <h2>Contact</h2>
       <div className="grid">
-        <TextField label="First name" value={c.firstName} onChange={(v) => update('firstName', v)} />
-        <TextField label="Last name" value={c.lastName} onChange={(v) => update('lastName', v)} />
-        <TextField label="Email" value={c.email} onChange={(v) => update('email', v)} />
-        <TextField label="Phone" value={c.phone} onChange={(v) => update('phone', v)} />
+        <TextField label="First name" required value={c.firstName} onChange={(v) => update('firstName', v)} />
+        <TextField label="Last name" required value={c.lastName} onChange={(v) => update('lastName', v)} />
+        <TextField label="Email" required value={c.email} onChange={(v) => update('email', v)} />
+        <TextField label="Phone" required value={c.phone} onChange={(v) => update('phone', v)} />
         <TextField label="Address line 1" value={c.addressLine1} onChange={(v) => update('addressLine1', v)} />
         <TextField label="Address line 2" value={c.addressLine2} onChange={(v) => update('addressLine2', v)} />
         <TextField label="Postal code" value={c.postalCode} onChange={(v) => update('postalCode', v)} />
@@ -356,7 +374,7 @@ export function WorkAuthSection({ profile, onChange }: { profile: Profile; onCha
       <h2>Work authorization / EEO</h2>
       <div className="grid">
         <label className="field">
-          <span>Authorized to work in country?</span>
+          <FieldLabel label="Authorized to work in country?" required />
           <select
             value={boolToString(wa.authorizedToWorkInCountry)}
             onChange={(e) => update('authorizedToWorkInCountry', stringToBool(e.target.value))}

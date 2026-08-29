@@ -27,6 +27,7 @@ import { SCHEMA_FIELDS } from '@/lib/schema';
 import type { UnrecognizedField } from '@/lib/field-matcher';
 import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
+import { missingRequiredFields, type RequiredField } from '@/lib/profile-completeness';
 import type { StartDraftMessage } from '@/entrypoints/background';
 import type { DraftEntry } from '@/lib/tab-state';
 import { useTabState } from '@/components/useTabState';
@@ -69,6 +70,18 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
   const [attachState, setAttachState] = useState<Partial<Record<DocumentKind, AttachState>>>({});
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<RequiredField[]>([]);
+
+  // Filling with an incomplete profile leaves required boxes blank, which the
+  // user would otherwise only discover when the application refuses to submit.
+  // Re-read on storage changes so finishing setup clears the warning without a
+  // panel reload.
+  useEffect(() => {
+    const refresh = () => void getProfile().then((p) => setMissing(missingRequiredFields(p)));
+    refresh();
+    browser.storage.local.onChanged.addListener(refresh);
+    return () => browser.storage.local.onChanged.removeListener(refresh);
+  }, []);
 
   // A multi-page application swaps the form underneath us. Clear the old
   // summary so it cannot be mistaken for the current page being done.
@@ -199,6 +212,17 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   return (
     <>
+      {missing.length > 0 && (
+        <div className="notice notice-warning">
+          <p>
+            Missing from your profile: <strong>{missing.map((f) => f.label).join(', ')}</strong>. Applications
+            almost always require these.
+          </p>
+          <button type="button" className="btn" onClick={onOpenSetup}>
+            Complete profile
+          </button>
+        </div>
+      )}
       <ActionCard
         icon={<FillIcon />}
         title="Fill this page"
