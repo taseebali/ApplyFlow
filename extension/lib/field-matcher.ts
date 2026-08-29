@@ -135,6 +135,26 @@ export interface UnrecognizedField {
  * Fields we could fill but could not identify. These are what the user can
  * teach us — distinct from a field we recognised but had no data for.
  */
+/** Same as `findUnrecognizedFields`, but keeps the elements so they can be filled. */
+export function findUnrecognizedElements(
+  root: ParentNode = document,
+  overrides: Record<string, string> = {}
+): Array<UnrecognizedField & { element: FillableElement }> {
+  const recognized = new Set(matchFields(root, overrides).map((m) => m.element));
+  const seen = new Set<string>();
+  const fields: Array<UnrecognizedField & { element: FillableElement }> = [];
+
+  for (const element of fillableElements(root)) {
+    if (recognized.has(element)) continue;
+    const signature = fieldSignature(element);
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    fields.push({ element, label: getDisplayLabel(element), signature });
+  }
+
+  return fields;
+}
+
 export function findUnrecognizedFields(
   root: ParentNode = document,
   overrides: Record<string, string> = {}

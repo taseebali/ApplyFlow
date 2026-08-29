@@ -1,5 +1,6 @@
 import { getRadioOptionLabel, normalizeText, type FieldMatch, type RadioGroupMatch } from './field-matcher';
 import { fillCombobox, isCombobox } from './combobox';
+import { inferAnswer } from './inference';
 import { SCHEMA_FIELDS, type Profile } from './schema';
 
 export interface FillResult {
@@ -247,6 +248,31 @@ export async function fillFields(
   }
 
   return { filledCount, skippedCount: skippedLabels.length, skippedLabels };
+}
+
+/**
+ * Fills fields the schema could not place but whose answer already follows
+ * from the profile — "are you currently enrolled?", "are you based in Berlin?".
+ * Runs after normal matching, so a field with a real profile field behind it
+ * always wins over an inferred answer.
+ */
+export async function fillInferredFields(
+  fields: Array<{ element: FieldMatch['element']; label: string }>,
+  profile: Profile,
+  options: { aiOptionFallback?: typeof aiOptionFallback } = {}
+): Promise<{ filled: Array<{ label: string; answer: string }> }> {
+  aiOptionFallback = options.aiOptionFallback;
+  const filled: Array<{ label: string; answer: string }> = [];
+
+  for (const field of fields) {
+    const answer = inferAnswer(field.label, profile);
+    if (!answer) continue;
+    if (await fillTextField(field.element, answer)) {
+      filled.push({ label: field.label, answer });
+    }
+  }
+
+  return { filled };
 }
 
 /** Fills radio-button groups matched by matchRadioGroups. */

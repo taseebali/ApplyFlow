@@ -1,5 +1,6 @@
-import { fillFields, fillRadioGroups, setNativeFieldValue } from '@/lib/filler';
+import { fillFields, fillInferredFields, fillRadioGroups, setNativeFieldValue } from '@/lib/filler';
 import {
+  findUnrecognizedElements,
   findUnrecognizedFields,
   matchFields,
   matchFileInputs,
@@ -25,6 +26,8 @@ export interface FillPageResponse {
   unmatchedLabels: string[];
   /** Fields we could fill but could not identify — the panel offers to learn these. */
   unrecognized: UnrecognizedField[];
+  /** Questions answered from the profile rather than a matched field. */
+  inferred: Array<{ label: string; answer: string }>;
   hostname: string;
 }
 
@@ -229,11 +232,26 @@ export default defineContentScript({
           const radioGroupMatches = matchRadioGroups(document);
           const radioResult = fillRadioGroups(radioGroupMatches, profile);
 
+          // Questions the profile already settles — "are you still studying?",
+          // "are you based in Berlin?" — answered without asking the user again.
+          const unrecognized = findUnrecognizedElements(document, overrides);
+          const inferred = await fillInferredFields(unrecognized, profile, {
+            aiOptionFallback: settings.llm.backend
+              ? (question, options, value) => chooseOptionWithAi(question, options, value, settings.llm)
+              : undefined,
+          });
+          const inferredLabels = new Set(inferred.filled.map((f) => f.label));
+
           const response: FillPageResponse = {
-            filledCount: fieldResult.filledCount + radioResult.filledCount,
+            filledCount: fieldResult.filledCount + radioResult.filledCount + inferred.filled.length,
             unmatchedCount: fieldResult.skippedCount + radioResult.skippedCount,
             unmatchedLabels: [...fieldResult.skippedLabels, ...radioResult.skippedLabels],
-            unrecognized: findUnrecognizedFields(document, overrides),
+            // Anything just answered by inference is no longer something the
+            // user needs to teach us.
+            unrecognized: unrecognized
+              .filter((f) => !inferredLabels.has(f.label))
+              .map(({ label, signature }) => ({ label, signature })),
+            inferred: inferred.filled,
             hostname: location.hostname,
           };
           sendResponse(response);
