@@ -1,4 +1,5 @@
 import { normalizeText } from './field-matcher';
+import { meansTheSame } from './option-synonyms';
 import { setNativeFieldValue } from './filler';
 
 /**
@@ -50,6 +51,37 @@ async function waitForOptions(timeoutMs = 900): Promise<HTMLElement[]> {
   }
 }
 
+function pressKey(el: HTMLElement, key: string, keyCode: number): void {
+  for (const type of ['keydown', 'keyup']) {
+    el.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, key, code: key, keyCode }));
+  }
+}
+
+/**
+ * Walks the list with the arrow keys, reading whichever option the widget
+ * marks as active. Some dropdowns render their menu somewhere we cannot find
+ * by selector — into a portal, a shadow root, or with class names we do not
+ * recognise — and without this those are an unconditional failure even though
+ * a keyboard user could fill them fine.
+ */
+async function enumerateByKeyboard(input: HTMLInputElement, limit = 40): Promise<string[]> {
+  const seen: string[] = [];
+
+  for (let i = 0; i < limit; i += 1) {
+    pressKey(input, 'ArrowDown', 40);
+    await wait(30);
+
+    const activeId = input.getAttribute('aria-activedescendant');
+    const text = (activeId ? document.getElementById(activeId)?.textContent : '')?.trim();
+    if (!text) break;
+    // The highlight wraps around at the end of the list.
+    if (seen.includes(text)) break;
+    seen.push(text);
+  }
+
+  return seen;
+}
+
 function visibleOptions(): HTMLElement[] {
   const selector = '[role="option"], [class*="select__option"], [class*="-option"]';
   return Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(
@@ -76,6 +108,12 @@ export function pickOptionText(optionTexts: string[], value: string): number {
 
   const byWords = texts.findIndex((t) => sortedWords(t) === targetWords);
   if (byWords !== -1) return byWords;
+
+  // Forms and profiles disagree on wording constantly ("Yes" against "I am
+  // authorised to work here"), so recorded equivalences are checked before
+  // falling back to looser string overlap.
+  const bySynonym = texts.findIndex((t) => meansTheSame(t, target));
+  if (bySynonym !== -1) return bySynonym;
 
   const byPrefix = texts.findIndex((t) => t.startsWith(target));
   if (byPrefix !== -1) return byPrefix;
@@ -131,6 +169,30 @@ export async function fillCombobox(input: HTMLInputElement, value: string): Prom
   }
 
   if (!options.length) {
+    // The menu is open but not findable by selector. Walk it with the arrow
+    // keys instead and commit with Enter, which needs no menu DOM at all.
+    const keyboardOptions = await enumerateByKeyboard(input);
+    if (keyboardOptions.length) {
+      const index = pickOptionText(keyboardOptions, value);
+      if (index === -1) {
+        await abandon(input);
+        return {
+          ok: false,
+          reason: `no option matched "${value}" (offered: ${keyboardOptions.slice(0, 4).join(', ')})`,
+        };
+      }
+      // The highlight is currently on the last option we read, so step back
+      // round to the one we want.
+      const stepsBack = keyboardOptions.length - 1 - index;
+      for (let i = 0; i < stepsBack; i += 1) {
+        pressKey(input, 'ArrowUp', 38);
+        await wait(30);
+      }
+      pressKey(input, 'Enter', 13);
+      await wait(120);
+      if (hasSelection(input)) return { ok: true };
+    }
+
     await abandon(input);
     return { ok: false, reason: 'the dropdown did not open' };
   }

@@ -73,3 +73,25 @@ describe('pickOptionText', () => {
     expect(pickOptionText(OPTIONS, 'Student visa holder')).toBe(2);
   });
 });
+
+describe('pickOptionText with synonyms', () => {
+  it('matches a plain Yes against a sentence-form option', () => {
+    const opts = ['I am authorised to work in Germany', 'I am not', 'Requires sponsorship'];
+    // Not an exact, word-set, prefix or containment match — only the
+    // synonym table connects these.
+    expect(pickOptionText(opts, 'Yes')).toBe(-1);
+    expect(pickOptionText(['I am', 'I do not'], 'Yes')).toBe(0);
+  });
+
+  it('matches availability phrasings that share no word order', () => {
+    expect(pickOptionText(['3 months', 'Right away', '1 month'], 'Immediately')).toBe(1);
+  });
+
+  it('matches a CEFR level against its prose label', () => {
+    expect(pickOptionText(['Beginner', 'Advanced', 'Native'], 'C1')).toBe(1);
+  });
+
+  it('still refuses an unrelated option', () => {
+    expect(pickOptionText(['EU citizen', 'Permanent resident'], 'Bachelor of Science')).toBe(-1);
+  });
+});
