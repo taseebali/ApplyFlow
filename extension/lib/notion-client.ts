@@ -1,5 +1,11 @@
 import type { Settings } from './settings';
 
+/**
+ * Only the two fields an API call actually needs. Taking the whole settings
+ * object would drag UI-only state (such as `skipped`) into the client.
+ */
+export type NotionCredentials = Pick<Settings['notion'], 'token' | 'databaseId'>;
+
 const NOTION_VERSION = '2022-06-28';
 const MAX_RICH_TEXT_LENGTH = 2000;
 
@@ -74,7 +80,7 @@ export async function searchDatabases(token: string): Promise<NotionDatabaseOpti
 
 /** Creates a row in the user's Job Application Tracker database, with the JD as page body content. */
 export async function logApplicationToNotion(
-  notion: Settings['notion'],
+  notion: NotionCredentials,
   entry: NotionLogEntry
 ): Promise<{ url: string }> {
   const response = await fetch('https://api.notion.com/v1/pages', {
@@ -109,7 +115,7 @@ export async function logApplicationToNotion(
 
 /** Confirms the token and database id actually work, so setup gives a yes/no answer instead of failing later. */
 export async function testConnection(
-  notion: Settings['notion']
+  notion: NotionCredentials
 ): Promise<{ ok: true; databaseTitle: string } | { ok: false; message: string }> {
   if (!notion.token) return { ok: false, message: 'Add your integration token first.' };
   if (!notion.databaseId) return { ok: false, message: 'Choose which database to log to.' };
@@ -176,7 +182,7 @@ interface NotionPage {
  * than throwing — a warning is a nicety and must never block logging.
  */
 export async function findExistingApplications(
-  notion: Settings['notion'],
+  notion: NotionCredentials,
   company: string
 ): Promise<ExistingApplication[]> {
   if (!notion.token || !notion.databaseId || !company.trim()) return [];

@@ -432,6 +432,16 @@ function TeachFieldsPanel({
 
 function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [status, setStatus] = useState<NotionStatus>({ kind: 'idle' });
+  // null until settings are read, so the card does not flash into view for
+  // someone who has skipped the tracker.
+  const [skipped, setSkipped] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const refresh = () => void getSettings().then((s) => setSkipped(s.notion.skipped));
+    refresh();
+    browser.storage.local.onChanged.addListener(refresh);
+    return () => browser.storage.local.onChanged.removeListener(refresh);
+  }, []);
 
   const handleStart = async () => {
     setStatus({ kind: 'loading' });
@@ -489,6 +499,8 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not log to Notion.' });
     }
   };
+
+  if (skipped !== false) return null;
 
   return (
     <>

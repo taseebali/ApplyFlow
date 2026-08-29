@@ -538,7 +538,7 @@ export function NotionSettingsSection({
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  const { token, databaseId } = value;
+  const { token, databaseId, skipped } = value;
 
   // A "Connected" result describes the exact token/database it was run against,
   // so any edit to either makes it stale. Drop it rather than leave a green pill
@@ -560,6 +560,18 @@ export function NotionSettingsSection({
       setSearchError(err instanceof Error ? err.message : 'Could not search Notion.');
     }
   };
+
+  if (skipped) {
+    return (
+      <section>
+        <h2>Notion tracker</h2>
+        <p className="hint">Skipped — the Log to Notion card stays hidden. Everything else works as normal.</p>
+        <button type="button" className="btn" onClick={() => onChange({ ...value, skipped: false })}>
+          Set up Notion after all
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -646,6 +658,17 @@ export function NotionSettingsSection({
           <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>{testResult.message}</span>
         </p>
       )}
+      <p className="hint" style={{ marginTop: 16 }}>
+        Not using Notion? Skipping clears anything entered here and hides the tracker entirely, so the step never
+        sits half-finished.
+      </p>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => onChange({ token: '', databaseId: '', skipped: true })}
+      >
+        Skip — I don't use Notion
+      </button>
     </section>
   );
 }

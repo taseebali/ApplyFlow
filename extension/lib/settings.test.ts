@@ -14,3 +14,13 @@ describe('applySettingsDefaults', () => {
     expect(applySettingsDefaults(stored).llm.backend).toBe('ollama');
   });
 });
+
+describe('notion skip', () => {
+  it('defaults to not skipped for settings saved before the flag existed', () => {
+    expect(applySettingsDefaults({ notion: { token: 't', databaseId: 'd' } }).notion.skipped).toBe(false);
+  });
+
+  it('keeps a stored skip', () => {
+    expect(applySettingsDefaults({ notion: { skipped: true } }).notion.skipped).toBe(true);
+  });
+});

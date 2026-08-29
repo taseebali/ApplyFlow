@@ -16,6 +16,12 @@ export interface Settings {
   notion: {
     token: string;
     databaseId: string;
+    /**
+     * Set when the user has said they do not use Notion. Distinct from simply
+     * having no token: an unconfigured tracker keeps nagging, a skipped one
+     * gets out of the way until the user asks for it back.
+     */
+    skipped: boolean;
   };
   llm: LlmSettings;
   /** True once the user has been through setup at least once (even if every step was skipped). */
@@ -23,7 +29,7 @@ export interface Settings {
 }
 
 export const EMPTY_SETTINGS: Settings = {
-  notion: { token: '', databaseId: '' },
+  notion: { token: '', databaseId: '', skipped: false },
   llm: {
     backend: null,
     fallbackBackend: null,
@@ -39,7 +45,11 @@ export const EMPTY_SETTINGS: Settings = {
 const SETTINGS_KEY = 'settings';
 
 /** Backfills any sections added to Settings after a user's data was last saved. */
-export function applySettingsDefaults(stored: Partial<Settings>): Settings {
+type StoredSettings = {
+  [K in keyof Settings]?: Settings[K] extends object ? Partial<Settings[K]> : Settings[K];
+};
+
+export function applySettingsDefaults(stored: StoredSettings): Settings {
   return {
     notion: { ...EMPTY_SETTINGS.notion, ...stored.notion },
     llm: { ...EMPTY_SETTINGS.llm, ...stored.llm },
