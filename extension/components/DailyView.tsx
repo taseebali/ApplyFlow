@@ -199,20 +199,12 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       const files = await listFolderFiles(handle);
       const resume = findBestMatch(files, 'resume', jobInfo.companyName);
       const coverLetter = findBestMatch(files, 'coverLetter', jobInfo.companyName);
+      // Matches are only ever proposed. Nothing is attached until the user
+      // presses the button on a row naming the file: the company name driving
+      // the match is scraped from the page being applied to, so letting a
+      // confident match skip confirmation would let that page choose which
+      // file of the user's leaves the folder.
       setDocStatus({ kind: 'ready', resume, coverLetter });
-
-      const autoAttachEntries = (
-        [
-          ['resume', resume],
-          ['coverLetter', coverLetter],
-        ] as const
-      )
-        .filter(([, result]) => result.matchedBy === 'company' && result.file)
-        .map(([kind, result]) => ({ kind, folderFile: result.file! }));
-
-      if (autoAttachEntries.length > 0) {
-        await attachDocuments(autoAttachEntries, target);
-      }
     } catch (err) {
       setDocStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not check documents.' });
     }
@@ -276,7 +268,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       <ActionCard
         icon={<AttachIcon />}
         title="Attach documents"
-        description="Finds and attaches your resume and cover letter."
+        description="Finds your resume and cover letter, ready for you to attach."
         tint="green"
         onClick={handleCheckDocuments}
         disabled={docStatus.kind === 'loading'}
@@ -325,24 +317,17 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
                 </div>
               );
             }
-            if (result.matchedBy === 'company') {
-              return (
-                <div key={kind} className="doc-row">
-                  <span className="doc-row-label" title={result.file.name}>
-                    {label} — {result.file.name}
-                  </span>
-                  <span className={`pill ${state === 'failed' ? 'pill-danger' : 'pill-neutral'}`}>
-                    {state === 'failed' ? 'failed' : 'attaching…'}
-                  </span>
-                </div>
-              );
-            }
             return (
               <div key={kind} className="doc-row">
                 <span className="doc-row-label" title={result.file.name}>
-                  {label} — {result.file.name} <span className="pill pill-warning">best guess</span>
+                  {label} — {result.file.name}{' '}
+                  {result.matchedBy === 'most-recent' && <span className="pill pill-warning">best guess</span>}
                 </span>
-                <button className="btn" onClick={() => handleConfirmAttach(kind, result.file!)} disabled={state === 'pending'}>
+                <button
+                  className="btn"
+                  onClick={() => handleConfirmAttach(kind, result.file!)}
+                  disabled={state === 'pending'}
+                >
                   {state === 'pending' ? 'Attaching…' : state === 'failed' ? 'Retry' : 'Attach'}
                 </button>
               </div>
