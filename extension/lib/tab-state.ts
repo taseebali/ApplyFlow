@@ -7,17 +7,31 @@ import type { UnrecognizedField } from './field-matcher';
  * panel: switching tabs must show that application's own state, and work
  * started on one must survive looking at another.
  */
+export type FillResult =
+  | {
+      status: 'done';
+      filledCount: number;
+      unmatchedCount: number;
+      unmatchedLabels: string[];
+      unrecognized: UnrecognizedField[];
+      hostname: string;
+      /** Set once the page navigated or swapped its form after this fill, so
+       * the summary is not mistaken for describing what is on screen now. */
+      stale?: boolean;
+    }
+  | { status: 'error'; message: string };
+
+export interface AttachOutcome {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface TabState {
-  fill?: {
-    filledCount: number;
-    unmatchedCount: number;
-    unmatchedLabels: string[];
-    unrecognized: UnrecognizedField[];
-    hostname: string;
-    stale?: boolean;
-  };
+  fill?: FillResult;
   attach?: {
-    results: Partial<Record<DocumentKind, { ok: boolean; reason?: string }>>;
+    results: Partial<Record<DocumentKind, AttachOutcome>>;
+    /** A failure that belongs to the attempt rather than to one document. */
+    error?: string;
   };
   draft?: DraftRun;
   notion?: { loggedUrl: string };

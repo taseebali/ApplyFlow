@@ -29,24 +29,10 @@ import { draftAnswer } from '@/lib/llm-client';
 import { getProfile, setProfile } from '@/lib/storage';
 import { missingRequiredFields, type RequiredField } from '@/lib/profile-completeness';
 import type { StartDraftMessage } from '@/entrypoints/background';
-import type { DraftEntry } from '@/lib/tab-state';
+import { getTabState, patchTabState, type AttachOutcome, type DraftEntry } from '@/lib/tab-state';
 import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
-
-type FillStatus =
-  | { kind: 'idle' }
-  | { kind: 'filling' }
-  | {
-      kind: 'done';
-      filledCount: number;
-      unmatchedCount: number;
-      unmatchedLabels: string[];
-      unrecognized: UnrecognizedField[];
-      hostname: string;
-    }
-  | { kind: 'page-changed' }
-  | { kind: 'error'; message: string };
 
 type DocStatus =
   | { kind: 'idle' }
@@ -54,8 +40,6 @@ type DocStatus =
   | { kind: 'no-folder' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; resume: DocumentMatchResult; coverLetter: DocumentMatchResult };
-
-type AttachState = 'pending' | 'attached' | 'failed';
 
 const DOC_LABELS: Record<DocumentKind, string> = { resume: 'Resume', coverLetter: 'Cover letter' };
 
@@ -66,11 +50,27 @@ export async function getActiveTabId(): Promise<number> {
 }
 
 function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
-  const [fillStatus, setFillStatus] = useState<FillStatus>({ kind: 'idle' });
+  // Results live with the tab, not with the panel: each application has its own
+  // tab, and the panel is shared between them. Only work that is in flight
+  // right now stays local, since a request cannot be resumed after a switch.
+  const { tabId, state: tabState } = useTabState();
+  const [busyTab, setBusyTab] = useState<number | null>(null);
+  const [pending, setPending] = useState<Partial<Record<DocumentKind, true>>>({});
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
-  const [attachState, setAttachState] = useState<Partial<Record<DocumentKind, AttachState>>>({});
-  const [attachError, setAttachError] = useState<string | null>(null);
   const [missing, setMissing] = useState<RequiredField[]>([]);
+
+  const fill = tabState.fill;
+  const attachResults = tabState.attach?.results ?? {};
+  const attachError = tabState.attach?.error ?? null;
+  const filling = busyTab !== null && busyTab === tabId;
+
+  // The matched files carry live file handles, which cannot be stored, so the
+  // scan is component-local and re-run per tab. It is cheap, and the outcome of
+  // an actual attach - the part worth keeping - lives in tab state.
+  useEffect(() => {
+    setDocStatus({ kind: 'idle' });
+    setPending({});
+  }, [tabId]);
 
   // Filling with an incomplete profile leaves required boxes blank, which the
   // user would otherwise only discover when the application refuses to submit.
@@ -83,43 +83,59 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
     return () => browser.storage.local.onChanged.removeListener(refresh);
   }, []);
 
-  // A multi-page application swaps the form underneath us. Clear the old
-  // summary so it cannot be mistaken for the current page being done.
+  // A multi-page application swaps the form underneath us. The background
+  // worker marks the stored fill stale; the panel only has to drop its scan of
+  // a page that is no longer showing.
   useEffect(() => {
     const onMessage = (message: { type?: string }) => {
       if (message?.type !== 'page-changed') return;
-      setFillStatus((prev) => (prev.kind === 'done' ? { kind: 'page-changed' } : prev));
       setDocStatus({ kind: 'idle' });
-      setAttachState({});
+      setPending({});
     };
     browser.runtime.onMessage.addListener(onMessage);
     return () => browser.runtime.onMessage.removeListener(onMessage);
   }, []);
 
   const handleFillClick = async () => {
-    setFillStatus({ kind: 'filling' });
+    // Resolved once and written back explicitly: if the user switches tabs while
+    // this runs, the result must still land on the tab that was filled.
+    const target = await getActiveTabId();
+    setBusyTab(target);
     try {
-      const tabId = await getActiveTabId();
       const message: FillPageMessage = { type: 'fill-page' };
-      const response: FillPageResponse = await browser.tabs.sendMessage(tabId, message);
-      setFillStatus({
-        kind: 'done',
-        filledCount: response.filledCount,
-        unmatchedCount: response.unmatchedCount,
-        unmatchedLabels: response.unmatchedLabels,
-        unrecognized: response.unrecognized,
-        hostname: response.hostname,
+      const response: FillPageResponse = await browser.tabs.sendMessage(target, message);
+      await patchTabState(target, {
+        fill: {
+          status: 'done',
+          filledCount: response.filledCount,
+          unmatchedCount: response.unmatchedCount,
+          unmatchedLabels: response.unmatchedLabels,
+          unrecognized: response.unrecognized,
+          hostname: response.hostname,
+        },
       });
     } catch (err) {
-      setFillStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not fill this page.' });
+      await patchTabState(target, {
+        fill: { status: 'error', message: err instanceof Error ? err.message : 'Could not fill this page.' },
+      });
+    } finally {
+      setBusyTab((prev) => (prev === target ? null : prev));
     }
   };
 
-  const attachDocuments = async (entries: Array<{ kind: DocumentKind; folderFile: FolderFile }>, tabId: number) => {
-    setAttachError(null);
-    setAttachState((prev) => {
+  const recordAttach = async (
+    target: number,
+    outcomes: Partial<Record<DocumentKind, AttachOutcome>>,
+    error?: string
+  ) => {
+    const existing = (await getTabState(target)).attach?.results ?? {};
+    await patchTabState(target, { attach: { results: { ...existing, ...outcomes }, error } });
+  };
+
+  const attachDocuments = async (entries: Array<{ kind: DocumentKind; folderFile: FolderFile }>, target: number) => {
+    setPending((prev) => {
       const next = { ...prev };
-      for (const e of entries) next[e.kind] = 'pending';
+      for (const e of entries) next[e.kind] = true;
       return next;
     });
     try {
@@ -131,27 +147,32 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         })
       );
       const message: AttachDocumentsMessage = { type: 'attach-documents', files };
-      const response: AttachDocumentsResponse = await browser.tabs.sendMessage(tabId, message);
-      setAttachState((prev) => {
-        const next = { ...prev };
-        for (const e of entries) next[e.kind] = response.attached[e.kind]?.ok ? 'attached' : 'failed';
-        return next;
-      });
+      const response: AttachDocumentsResponse = await browser.tabs.sendMessage(target, message);
+
+      const outcomes: Partial<Record<DocumentKind, AttachOutcome>> = {};
+      for (const e of entries) outcomes[e.kind] = response.attached[e.kind] ?? { ok: false };
 
       // Say why, not just that it failed — attaching cannot be tested outside
       // a real browser, so the reason is what makes a miss diagnosable.
       const failure = entries
         .map((e) => response.attached[e.kind])
         .find((outcome) => outcome && !outcome.ok && outcome.reason);
-      if (failure?.reason) setAttachError(failure.reason);
+      await recordAttach(target, outcomes, failure?.reason);
     } catch {
       // `sendMessage` rejects outright when no content script is listening — a
       // chrome:// page, a PDF viewer, or a tab that was already open when the
       // extension was installed. Say so instead of leaving a dead button.
-      setAttachError('Could not reach this page. Reload the job application tab, then try again.');
-      setAttachState((prev) => {
+      const outcomes: Partial<Record<DocumentKind, AttachOutcome>> = {};
+      for (const e of entries) outcomes[e.kind] = { ok: false };
+      await recordAttach(
+        target,
+        outcomes,
+        'Could not reach this page. Reload the job application tab, then try again.'
+      );
+    } finally {
+      setPending((prev) => {
         const next = { ...prev };
-        for (const e of entries) next[e.kind] = 'failed';
+        for (const e of entries) delete next[e.kind];
         return next;
       });
     }
@@ -159,8 +180,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   const handleCheckDocuments = async () => {
     setDocStatus({ kind: 'loading' });
-    setAttachState({});
-    setAttachError(null);
+    const target = await getActiveTabId();
+    await patchTabState(target, { attach: undefined });
     try {
       const handle = await getDocumentsFolderHandle();
       if (!handle) {
@@ -172,9 +193,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         return;
       }
 
-      const tabId = await getActiveTabId();
       const jobInfoMessage: GetJobInfoMessage = { type: 'get-job-info' };
-      const jobInfo: GetJobInfoResponse = await browser.tabs.sendMessage(tabId, jobInfoMessage);
+      const jobInfo: GetJobInfoResponse = await browser.tabs.sendMessage(target, jobInfoMessage);
 
       const files = await listFolderFiles(handle);
       const resume = findBestMatch(files, 'resume', jobInfo.companyName);
@@ -191,7 +211,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         .map(([kind, result]) => ({ kind, folderFile: result.file! }));
 
       if (autoAttachEntries.length > 0) {
-        await attachDocuments(autoAttachEntries, tabId);
+        await attachDocuments(autoAttachEntries, target);
       }
     } catch (err) {
       setDocStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not check documents.' });
@@ -199,15 +219,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   };
 
   const handleConfirmAttach = async (kind: DocumentKind, folderFile: FolderFile) => {
-    setAttachState((prev) => ({ ...prev, [kind]: 'pending' }));
-    setAttachError(null);
-    try {
-      const tabId = await getActiveTabId();
-      await attachDocuments([{ kind, folderFile }], tabId);
-    } catch (err) {
-      setAttachError(err instanceof Error ? err.message : 'Could not attach that document.');
-      setAttachState((prev) => ({ ...prev, [kind]: 'failed' }));
-    }
+    const target = await getActiveTabId();
+    await attachDocuments([{ kind, folderFile }], target);
   };
 
   return (
@@ -229,36 +242,35 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         description="Fills the form from your saved profile."
         tint="blue"
         onClick={handleFillClick}
-        disabled={fillStatus.kind === 'filling'}
+        disabled={filling}
       >
-        {fillStatus.kind === 'filling' && <span className="pill pill-neutral">Filling…</span>}
-        {fillStatus.kind === 'done' && (
+        {filling && <span className="pill pill-neutral">Filling…</span>}
+        {!filling && fill?.status === 'done' && (
           <>
-            <span className={`pill ${fillStatus.unmatchedCount > 0 ? 'pill-warning' : 'pill-success'}`}>
-              {fillStatus.filledCount} filled
-            </span>
-            {fillStatus.unmatchedCount > 0 && (
-              <span className="pill pill-neutral">{fillStatus.unmatchedCount} need attention</span>
-            )}
-            {fillStatus.unmatchedLabels.length > 0 && (
-              <span className="unmatched-labels" title="Recognized but has no data in your profile yet">
-                {fillStatus.unmatchedLabels.join(' · ')}
-              </span>
+            {fill.stale ? (
+              <span className="pill pill-warning">This page changed — fill it too</span>
+            ) : (
+              <>
+                <span className={`pill ${fill.unmatchedCount > 0 ? 'pill-warning' : 'pill-success'}`}>
+                  {fill.filledCount} filled
+                </span>
+                {fill.unmatchedCount > 0 && (
+                  <span className="pill pill-neutral">{fill.unmatchedCount} need attention</span>
+                )}
+                {fill.unmatchedLabels.length > 0 && (
+                  <span className="unmatched-labels" title="Recognized but has no data in your profile yet">
+                    {fill.unmatchedLabels.join(' · ')}
+                  </span>
+                )}
+              </>
             )}
           </>
         )}
-        {fillStatus.kind === 'page-changed' && (
-          <span className="pill pill-warning">This page changed — fill it too</span>
-        )}
-        {fillStatus.kind === 'error' && <span className="pill pill-danger">{fillStatus.message}</span>}
+        {!filling && fill?.status === 'error' && <span className="pill pill-danger">{fill.message}</span>}
       </ActionCard>
 
-      {fillStatus.kind === 'done' && fillStatus.unrecognized.length > 0 && (
-        <TeachFieldsPanel
-          fields={fillStatus.unrecognized}
-          hostname={fillStatus.hostname}
-          onTaught={handleFillClick}
-        />
+      {fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
+        <TeachFieldsPanel fields={fill.unrecognized} hostname={fill.hostname} onTaught={handleFillClick} />
       )}
 
       <ActionCard
@@ -285,7 +297,14 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         <div className="doc-results">
           {(['resume', 'coverLetter'] as const).map((kind) => {
             const result = kind === 'resume' ? docStatus.resume : docStatus.coverLetter;
-            const state = attachState[kind];
+            const outcome = attachResults[kind];
+            const state = pending[kind]
+              ? 'pending'
+              : outcome === undefined
+                ? undefined
+                : outcome.ok
+                  ? 'attached'
+                  : 'failed';
             const label = DOC_LABELS[kind];
 
             if (!result.file) {

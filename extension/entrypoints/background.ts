@@ -107,12 +107,24 @@ export default defineBackground(() => {
     void clearTabState(tabId);
   });
 
-  // A full navigation replaces the form, so the stored results describe a page
-  // that no longer exists.
+  // A navigation, or an in-page step change, replaces the form — so the stored
+  // results describe a page that no longer exists. Marked here rather than in
+  // the panel because the panel is often closed when it happens.
+  const markFillStale = (tabId: number) =>
+    void getTabState(tabId).then((state) => {
+      if (state.fill?.status !== 'done' || state.fill.stale) return;
+      void patchTabState(tabId, { fill: { ...state.fill, stale: true }, attach: undefined });
+    });
+
   browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading' || !changeInfo.url) return;
-    void getTabState(tabId).then((state) => {
-      if (state.fill) void patchTabState(tabId, { fill: { ...state.fill, stale: true } });
-    });
+    markFillStale(tabId);
+  });
+
+  // Sent by the content script when a multi-step application swaps the form
+  // without a navigation.
+  browser.runtime.onMessage.addListener((message: { type?: string }, sender) => {
+    if (message?.type === 'page-changed' && sender.tab?.id !== undefined) markFillStale(sender.tab.id);
+    return undefined;
   });
 });
