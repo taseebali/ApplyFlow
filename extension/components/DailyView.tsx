@@ -99,7 +99,12 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const handleFillClick = async () => {
     // Resolved once and written back explicitly: if the user switches tabs while
     // this runs, the result must still land on the tab that was filled.
-    const target = await getActiveTabId();
+    await refill(await getActiveTabId());
+  };
+
+  /** Fills one specific tab. Every result is written back against that tab id. */
+  const refill = async (target: number | null) => {
+    if (target === null) return;
     setBusyTab(target);
     try {
       const message: FillPageMessage = { type: 'fill-page' };
@@ -285,7 +290,11 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       )}
 
       {fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
-        <TeachFieldsPanel fields={fill.unrecognized} hostname={fill.hostname} onTaught={handleFillClick} />
+        <TeachFieldsPanel
+          fields={fill.unrecognized}
+          hostname={fill.hostname}
+          onTaught={() => void refill(tabId)}
+        />
       )}
 
       <ActionCard

@@ -80,13 +80,31 @@ export async function setTabState(tabId: number, state: TabState): Promise<void>
   await area().set({ [keyFor(tabId)]: state });
 }
 
+/**
+ * Serialized per tab. The background worker writes draft progress after every
+ * question while the panel writes fill and attach results, and an unserialized
+ * read-modify-write would let the slower of two overlapping writes drop the
+ * other's section entirely.
+ */
+const writeQueues = new Map<number, Promise<unknown>>();
+
 /** Read-modify-write against one tab's slice, leaving the others untouched. */
-export async function patchTabState(tabId: number, patch: Partial<TabState>): Promise<TabState> {
-  const next = { ...(await getTabState(tabId)), ...patch };
-  await setTabState(tabId, next);
+export function patchTabState(tabId: number, patch: Partial<TabState>): Promise<TabState> {
+  const previous = writeQueues.get(tabId) ?? Promise.resolve();
+  const next = previous.then(async () => {
+    const merged = { ...(await getTabState(tabId)), ...patch };
+    await setTabState(tabId, merged);
+    return merged;
+  });
+  // Keep the chain alive even if this write fails, so later writes still run.
+  writeQueues.set(
+    tabId,
+    next.catch(() => undefined)
+  );
   return next;
 }
 
 export async function clearTabState(tabId: number): Promise<void> {
+  writeQueues.delete(tabId);
   await area().remove(keyFor(tabId));
 }

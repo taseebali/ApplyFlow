@@ -75,3 +75,18 @@ describe('tab state', () => {
     expect((await getTabState(2)).fill).toEqual(doneFill);
   });
 });
+
+describe('concurrent writes', () => {
+  it('does not let overlapping patches drop each other', async () => {
+    await Promise.all([
+      patchTabState(1, { fill: doneFill }),
+      patchTabState(1, { attach: { results: { resume: { ok: true } } } }),
+      patchTabState(1, { draft: { status: 'done', done: 1, total: 1, entries: [] } }),
+    ]);
+
+    const state = await getTabState(1);
+    expect(state.fill).toBeDefined();
+    expect(state.attach).toBeDefined();
+    expect(state.draft).toBeDefined();
+  });
+});

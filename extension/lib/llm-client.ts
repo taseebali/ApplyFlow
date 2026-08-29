@@ -10,6 +10,14 @@ export interface DraftContext {
 export class LlmError extends Error {}
 
 /**
+ * The job description is scraped from the page and goes into the prompt next
+ * to our instructions. Capping it means a posting padded with thousands of
+ * words of its own direction cannot dominate the context by volume — and
+ * keeps a runaway page from burning the user's tokens.
+ */
+const MAX_JOB_DESCRIPTION_CHARS = 12_000;
+
+/**
  * A local model on a busy machine can take a while, but never minutes. A cap
  * means a stalled backend surfaces as a clear failure instead of a spinner
  * that never resolves.
@@ -58,7 +66,7 @@ export function buildPrompt(context: DraftContext): string {
     `QUESTION: ${question}`,
     '',
     'JOB DESCRIPTION:',
-    jobDescription || '(not available)',
+    jobDescription ? jobDescription.slice(0, MAX_JOB_DESCRIPTION_CHARS) : '(not available)',
     '',
     'CANDIDATE WORK HISTORY:',
     work || '(none provided)',
