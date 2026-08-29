@@ -48,8 +48,13 @@ export interface AttachDocumentsMessage {
     data: ArrayBuffer;
   }>;
 }
+export interface AttachOutcome {
+  ok: boolean;
+  /** Why an attach failed, in words worth showing the user. */
+  reason?: string;
+}
 export interface AttachDocumentsResponse {
-  attached: Partial<Record<DocumentKind, boolean>>;
+  attached: Partial<Record<DocumentKind, AttachOutcome>>;
 }
 
 export interface GetQuestionsMessage {
@@ -87,7 +92,9 @@ const detectedQuestions = new Map<string, HTMLTextAreaElement | HTMLInputElement
  * cover letter end up sharing the same field, both files need to land in a
  * single DataTransfer — setting `.files` twice would overwrite the first.
  */
-function attachDocuments(entries: Array<{ kind: DocumentKind; file: File }>): Partial<Record<DocumentKind, boolean>> {
+function attachDocuments(
+  entries: Array<{ kind: DocumentKind; file: File }>
+): Partial<Record<DocumentKind, AttachOutcome>> {
   const matches = matchFileInputs(document);
   const dedicated: Record<DocumentKind, FileInputMatch | undefined> = {
     resume: matches.find((m) => m.kind === 'resume'),
@@ -95,19 +102,20 @@ function attachDocuments(entries: Array<{ kind: DocumentKind; file: File }>): Pa
   };
   const fallback = matches.find((m) => m.kind === 'additional');
 
-  const result: Partial<Record<DocumentKind, boolean>> = {};
+  const result: Partial<Record<DocumentKind, AttachOutcome>> = {};
   const filesByElement = new Map<HTMLInputElement, File[]>();
+  const targetByKind = new Map<DocumentKind, HTMLInputElement>();
 
   for (const entry of entries) {
     const target = dedicated[entry.kind] ?? fallback;
     if (!target) {
-      result[entry.kind] = false;
+      result[entry.kind] = { ok: false, reason: 'no upload field for this document on the page' };
       continue;
     }
     const list = filesByElement.get(target.element) ?? [];
     list.push(entry.file);
     filesByElement.set(target.element, list);
-    result[entry.kind] = true;
+    targetByKind.set(entry.kind, target.element);
   }
 
   for (const [element, files] of filesByElement) {
@@ -118,9 +126,26 @@ function attachDocuments(entries: Array<{ kind: DocumentKind; file: File }>): Pa
       Array.from(element.files ?? []).forEach((f) => dataTransfer.items.add(f));
     }
     files.forEach((f) => dataTransfer.items.add(f));
-    element.files = dataTransfer.files;
+    try {
+      element.files = dataTransfer.files;
+    } catch {
+      // Some uploaders make `files` non-writable; that is a real failure and
+      // the verification below reports it rather than assuming success.
+    }
     element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Verify rather than assume. Finding a field is not the same as the file
+  // being accepted, and reporting "attached" for a document the form never
+  // received is worse than reporting nothing at all.
+  for (const entry of entries) {
+    if (result[entry.kind]) continue;
+    const element = targetByKind.get(entry.kind);
+    const landed = Array.from(element?.files ?? []).some((f) => f.name === entry.file.name);
+    result[entry.kind] = landed
+      ? { ok: true }
+      : { ok: false, reason: 'the upload field did not accept the file' };
   }
 
   return result;

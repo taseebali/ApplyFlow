@@ -118,9 +118,16 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       const response: AttachDocumentsResponse = await browser.tabs.sendMessage(tabId, message);
       setAttachState((prev) => {
         const next = { ...prev };
-        for (const e of entries) next[e.kind] = response.attached[e.kind] ? 'attached' : 'failed';
+        for (const e of entries) next[e.kind] = response.attached[e.kind]?.ok ? 'attached' : 'failed';
         return next;
       });
+
+      // Say why, not just that it failed — attaching cannot be tested outside
+      // a real browser, so the reason is what makes a miss diagnosable.
+      const failure = entries
+        .map((e) => response.attached[e.kind])
+        .find((outcome) => outcome && !outcome.ok && outcome.reason);
+      if (failure?.reason) setAttachError(failure.reason);
     } catch {
       // `sendMessage` rejects outright when no content script is listening — a
       // chrome:// page, a PDF viewer, or a tab that was already open when the
