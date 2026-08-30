@@ -21,10 +21,12 @@ export default defineConfig({
       'https://api.groq.com/*',
       'http://localhost:11434/*',
     ],
-    // A self-hosted or less common endpoint cannot be listed ahead of time.
-    // Rather than ship broad access to everyone, the host is requested at the
-    // moment the user configures it, and only that host.
-    optional_host_permissions: ['https://*/*', 'http://*/*'],
+    // Chrome only grants an origin at runtime if it was declared here first,
+    // so supporting a self-hosted endpoint needs a pattern. HTTPS only, and
+    // deliberately not `http://*/*`: a custom endpoint carries an API key, and
+    // there is no version of sending one in plaintext that is acceptable.
+    // Nothing is granted until the user presses the button for their own host.
+    optional_host_permissions: ['https://*/*'],
     action: {
       default_title: 'ApplyFlow',
     },

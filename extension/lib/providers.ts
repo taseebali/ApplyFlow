@@ -98,7 +98,7 @@ export const PROVIDERS: ProviderSpec[] = [
     needsKey: true,
     defaultModel: '',
     catalogue: 'authenticated',
-    note: 'Any endpoint that speaks OpenAI’s /chat/completions. Needs permission for the host, which you will be asked for once.',
+    note: 'Any HTTPS endpoint that speaks OpenAI’s /chat/completions. Needs permission for the host, which you will be asked for once. HTTPS only — the request carries your API key.',
   },
 ];
 
@@ -115,6 +115,9 @@ export function joinUrl(base: string, path: string): string {
 export function originPatternFor(baseUrl: string): string | null {
   try {
     const url = new URL(baseUrl);
+    // Only HTTPS can be granted, matching the manifest. A key must never go
+    // over plaintext, so an http:// endpoint is refused rather than requested.
+    if (url.protocol !== 'https:') return null;
     return `${url.protocol}//${url.host}/*`;
   } catch {
     return null;

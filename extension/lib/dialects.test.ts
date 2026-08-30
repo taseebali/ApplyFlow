@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRequest, describeFailure, readResponse } from './dialects';
-import { providerById } from './providers';
+import { originPatternFor, providerById } from './providers';
 
 const anthropic = providerById('anthropic');
 const openai = providerById('openai');
@@ -106,5 +106,21 @@ describe('failure messages', () => {
 
   it('does not echo an unbounded response body', () => {
     expect(describeFailure(openai, 400, 'x'.repeat(5000)).length).toBeLessThan(400);
+  });
+});
+
+describe('custom endpoint permissions', () => {
+  it('builds an origin pattern for an https endpoint', () => {
+    expect(originPatternFor('https://api.example.com/v1')).toBe('https://api.example.com/*');
+  });
+
+  it('refuses a plaintext endpoint rather than requesting it', () => {
+    // A custom endpoint carries the user's API key; there is no acceptable
+    // version of sending one over http.
+    expect(originPatternFor('http://api.example.com/v1')).toBeNull();
+  });
+
+  it('returns null for something that is not a URL', () => {
+    expect(originPatternFor('not a url')).toBeNull();
   });
 });
