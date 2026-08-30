@@ -24,3 +24,8 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Local env - never committed, never shipped
+.env
+.env.*
+!.env.local.example

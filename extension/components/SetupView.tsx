@@ -20,6 +20,7 @@ import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
 import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings, type Settings } from '@/lib/settings';
 import { missingRequiredFields, REQUIRED_FIELDS } from '@/lib/profile-completeness';
+import { devApiKey } from '@/lib/dev-prefill';
 
 export interface SetupStep {
   id: string;
@@ -45,7 +46,15 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
   useEffect(() => {
     getSettings().then((settings) => {
       setNotion(settings.notion);
-      setLlm(settings.llm);
+      // In a dev build only, and only when nothing is saved yet, prefill the
+      // key from .env.local so a cleared profile does not mean re-pasting it.
+      // Compiled out of release builds entirely - see lib/dev-prefill.ts.
+      const devKey = devApiKey();
+      setLlm(
+        devKey && !settings.llm.openRouterApiKey
+          ? { ...settings.llm, openRouterApiKey: devKey }
+          : settings.llm
+      );
       setSettingsLoaded(true);
     });
   }, []);
