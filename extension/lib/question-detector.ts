@@ -1,6 +1,7 @@
 import { getDisplayLabel, matchFields } from './field-matcher';
 import { isCombobox } from './combobox';
 import { inferAnswer } from './inference';
+import { isOffLimits } from './field-visibility';
 import type { Profile } from './schema';
 
 export interface DetectedQuestion {
@@ -26,6 +27,12 @@ export function detectQuestions(root: ParentNode = document, profile?: Profile):
 
   for (const element of candidates) {
     if (claimed.has(element)) continue;
+
+    // reCAPTCHA ships a hidden <textarea name="g-recaptcha-response">. Being a
+    // textarea it counted as open-ended, and with no label its field name
+    // became the question - so a model was asked to write an essay about
+    // "g-recaptcha-response".
+    if (isOffLimits(element)) continue;
 
     // A scripted dropdown is also an `input[type=text]` with a long label, so
     // without this "What is your work authorisation in Germany?" gets sent to

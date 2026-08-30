@@ -1,4 +1,5 @@
 import { SCHEMA_FIELDS } from './schema';
+import { isOffLimits } from './field-visibility';
 
 export type FillableElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -125,6 +126,11 @@ function getCandidates(el: FillableElement): Array<{ source: string; text: strin
 /** Every element on the page we could write a profile value into. */
 function fillableElements(root: ParentNode): FillableElement[] {
   return Array.from(root.querySelectorAll<FillableElement>('input, select, textarea')).filter((el) => {
+    // A field the user cannot see is either a bot check or a honeypot, and
+    // filling a honeypot gets the whole application discarded silently. See
+    // lib/field-visibility.ts.
+    if (isOffLimits(el)) return false;
+
     if (el instanceof HTMLInputElement) {
       // Radios are matched as groups (see matchRadioGroups) since a single
       // radio's own label is just its option text ("Yes"), not the question.

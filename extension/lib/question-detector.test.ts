@@ -82,3 +82,23 @@ describe('excluding non-questions', () => {
     expect(detectQuestions(document, studying)).toHaveLength(0);
   });
 });
+
+describe('fields that are not questions', () => {
+  it('ignores the reCAPTCHA response textarea', () => {
+    document.body.innerHTML = '<form><textarea name="g-recaptcha-response" style="display:none"></textarea></form>';
+    expect(detectQuestions(document)).toEqual([]);
+  });
+
+  it('ignores a hidden honeypot textarea with a plausible label', () => {
+    document.body.innerHTML =
+      '<form><label>Tell us about yourself in detail<textarea name="bio" style="display:none"></textarea></label></form>';
+    expect(detectQuestions(document)).toEqual([]);
+  });
+
+  it('still finds a real question next to them', () => {
+    document.body.innerHTML =
+      '<form><textarea name="g-recaptcha-response" style="display:none"></textarea>' +
+      '<label>Why do you want to work here?<textarea name="why"></textarea></label></form>';
+    expect(detectQuestions(document).map((q) => q.question)).toEqual(['Why do you want to work here?']);
+  });
+});
