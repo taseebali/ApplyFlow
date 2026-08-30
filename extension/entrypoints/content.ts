@@ -68,7 +68,9 @@ export interface GetQuestionsMessage {
   type: 'get-questions';
 }
 export interface GetQuestionsResponse {
-  questions: Array<{ id: string; question: string }>;
+  /** `maxLength` is the field's own `maxlength`, when the form declares one -
+   * the most reliable signal of how long an answer is expected to be. */
+  questions: Array<{ id: string; question: string; maxLength: number | null }>;
   jobDescription: string | null;
 }
 
@@ -300,7 +302,9 @@ export default defineContentScript({
           const questions = found.map((q, i) => {
             const id = `q${i}`;
             detectedQuestions.set(id, q.element);
-            return { id, question: q.question };
+            // maxLength is -1 when the attribute is absent.
+            const declared = q.element.maxLength;
+            return { id, question: q.question, maxLength: declared > 0 ? declared : null };
           });
           const response: GetQuestionsResponse = {
             questions,

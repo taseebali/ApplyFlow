@@ -62,8 +62,21 @@ async function runDraft(tabId: number): Promise<void> {
         entries.push({ id: question.id, question: question.question, text: saved.answer, saved: true });
       } else {
         try {
+          // Everything answered so far on this form, so the model can avoid
+          // reaching for the same example three times running. A reviewer
+          // reads these answers together, and the repetition shows.
+          const previousAnswers = entries
+            .filter((entry) => entry.text.trim().length > 0 && !entry.error)
+            .map((entry) => ({ question: entry.question, text: entry.text }));
+
           const { text, model } = await draftAnswer(
-            { question: question.question, jobDescription: found.jobDescription, profile },
+            {
+              question: question.question,
+              jobDescription: found.jobDescription,
+              profile,
+              previousAnswers,
+              maxLength: question.maxLength,
+            },
             settings.llm
           );
           entries.push({ id: question.id, question: question.question, text, saved: false, model });
