@@ -102,3 +102,32 @@ describe('fields that are not questions', () => {
     expect(detectQuestions(document).map((q) => q.question)).toEqual(['Why do you want to work here?']);
   });
 });
+
+describe('short factual fields are not essay questions', () => {
+  it('does not draft a long single-word label', () => {
+    // "Gehaltsvorstellung* (erforderlich)" is 31 characters but two words.
+    // Sending it to a model produced an invented salary figure.
+    document.body.innerHTML =
+      '<form><label>Gehaltsvorstellung (erforderlich)<input name="salary"></label></form>';
+    expect(detectQuestions(document)).toEqual([]);
+  });
+
+  it('still drafts a genuine question of the same length', () => {
+    document.body.innerHTML = '<form><label>Why do you want this job?<input name="q"></label></form>';
+    expect(detectQuestions(document)).toHaveLength(1);
+  });
+
+  it('still treats any textarea as open-ended, however it is labelled', () => {
+    document.body.innerHTML = '<form><label>Anschreiben<textarea name="c"></textarea></label></form>';
+    expect(detectQuestions(document)).toHaveLength(1);
+  });
+});
+
+describe('inputs with no type attribute', () => {
+  it('detects a question on an input that omits type, which defaults to text', () => {
+    // `input[type="text"]` matches only a literal attribute, so these were
+    // invisible to drafting entirely.
+    document.body.innerHTML = '<form><label>Tell us why you are a good fit here<input name="q"></label></form>';
+    expect(detectQuestions(document)).toHaveLength(1);
+  });
+});

@@ -13,6 +13,17 @@ export interface DetectedQuestion {
 const MIN_QUESTION_LABEL_LENGTH = 15;
 
 /**
+ * A real question is a sentence. Two or three words is a field label, however
+ * long the words themselves are — which matters most in German, where a single
+ * compound noun can be longer than an English sentence.
+ */
+const MIN_QUESTION_WORDS = 4;
+
+function countWords(label: string): number {
+  return label.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
  * Finds the open-ended, essay-style questions on a page: fields that profile
  * matching did NOT already claim, and that look like prose prompts rather
  * than short data entry fields.
@@ -21,9 +32,13 @@ export function detectQuestions(root: ParentNode = document, profile?: Profile):
   const claimed = new Set(matchFields(root).map((m) => m.element));
   const questions: DetectedQuestion[] = [];
 
+  // `input[type="text"]` only matches a literal attribute, so an `<input>`
+  // with no type — which defaults to text, and is common on real forms — was
+  // invisible to question detection. Filtering on the DOM property catches
+  // both, because it reports the default.
   const candidates = Array.from(
-    root.querySelectorAll<HTMLTextAreaElement | HTMLInputElement>('textarea, input[type="text"]')
-  );
+    root.querySelectorAll<HTMLTextAreaElement | HTMLInputElement>('textarea, input')
+  ).filter((element) => element instanceof HTMLTextAreaElement || element.type === 'text');
 
   for (const element of candidates) {
     if (claimed.has(element)) continue;
@@ -47,10 +62,16 @@ export function detectQuestions(root: ParentNode = document, profile?: Profile):
     // settles it.
     if (profile && inferAnswer(question, profile)) continue;
 
-    // A textarea is inherently open-ended; a text input only counts when its
-    // label is long enough to read as an actual question.
+    // A textarea is inherently open-ended. A single-line input has to look like
+    // an actual question — long enough, and made of several words.
+    //
+    // Length alone was not enough: a German form's "Gehaltsvorstellung*
+    // (erforderlich)" is 31 characters but two words, and sending it to a model
+    // produced an invented salary figure for a real application. A compound
+    // noun is a field label; a question has a sentence in it.
     const isOpenEnded =
-      element instanceof HTMLTextAreaElement || question.length >= MIN_QUESTION_LABEL_LENGTH;
+      element instanceof HTMLTextAreaElement ||
+      (question.length >= MIN_QUESTION_LABEL_LENGTH && countWords(question) >= MIN_QUESTION_WORDS);
     if (!isOpenEnded) continue;
 
     questions.push({ element, question });

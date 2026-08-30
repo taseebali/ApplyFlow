@@ -1,0 +1,36 @@
+{
+  "source": "https://personio-gmbh.jobs.personio.de/job/1676226/apply",
+  "captured": "2026-08-31",
+  "ats": "personio",
+  "language": "de",
+  "notes": [
+    "Captured blank, after JavaScript rendered. No personal data.",
+    "A German-language form on a German ATS — the primary user's actual case, and the first fixture that tests the German aliases against a real page rather than labels we wrote ourselves.",
+    "First and last name have visually-hidden (sr-only) labels and rely on placeholders; the inputs themselves are visible, so they must still be filled.",
+    "Labels carry a trailing '(erforderlich)' inside an sr-only span, so the matched text is 'e mail erforderlich' rather than 'e mail'.",
+    "'Gehaltsvorstellung' (salary expectation) is REQUIRED here and has no schema field at all — see mustNotMatchWhy. This is a real gap the fixture exposes, not a matching failure."
+  ],
+  "expect": {
+    "field-first_name": "contact.firstName",
+    "field-last_name": "contact.lastName",
+    "field-email": "contact.email",
+    "field-phone": "contact.phone",
+    "field-available_from": "logistics.availableFrom"
+  },
+  "mustNotMatch": [
+    "field-salary_expectations"
+  ],
+  "mustNotMatchWhy": {
+    "field-salary_expectations": "The profile has nowhere to store a salary expectation, so anything written here would be invented. Leaving it blank and letting the user answer is correct until the schema gains the field."
+  },
+  "openQuestions": [],
+  "notQuestions": [
+    "field-salary_expectations",
+    "field-available_from"
+  ],
+  "notQuestionsWhy": "Neither is an essay question. Salary is a short factual field the user must answer; availability is answered from the profile.",
+  "baseline": {
+    "matched": 5,
+    "wrong": 0
+  }
+}
