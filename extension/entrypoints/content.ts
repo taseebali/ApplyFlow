@@ -5,6 +5,7 @@ import {
   fillRadioGroups,
   journalSize,
   setNativeFieldValue,
+  takeValidationProblems,
   undoFill,
 } from '@/lib/filler';
 import {
@@ -31,6 +32,8 @@ export interface FillPageMessage {
 export interface FillPageResponse {
   /** Fields whose previous value was recorded, so the panel can offer an undo. */
   undoable: number;
+  /** Values written that the form itself rejects — they will fail at submit. */
+  invalid: Array<{ label: string; reason: string }>;
   filledCount: number;
   unmatchedCount: number;
   unmatchedLabels: string[];
@@ -303,6 +306,7 @@ export default defineContentScript({
 
           const response: FillPageResponse = {
             undoable: journalSize(),
+            invalid: takeValidationProblems(),
             filledCount: fieldResult.filledCount + radioResult.filledCount + inferred.filled.length,
             unmatchedCount: fieldResult.skippedCount + radioResult.skippedCount,
             unmatchedLabels: [...fieldResult.skippedLabels, ...radioResult.skippedLabels],

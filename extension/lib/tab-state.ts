@@ -24,6 +24,8 @@ export type FillResult =
        * holds. Undo has to go back to the same frames that were written.
        */
       undo?: Array<{ frameId: number | null; fields: number }>;
+      /** Written but rejected by the form; these fail at submit unless corrected. */
+      invalid?: Array<{ label: string; reason: string }>;
       /** Set once the page navigated or swapped its form after this fill, so
        * the summary is not mistaken for describing what is on screen now. */
       stale?: boolean;

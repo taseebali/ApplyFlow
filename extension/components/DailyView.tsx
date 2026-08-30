@@ -213,6 +213,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           hostname: responses[0]!.hostname,
           frameCount: responses.length,
           undo: written.filter((entry) => entry.fields > 0),
+          invalid: responses.flatMap((response) => response.invalid),
         },
       });
     } catch (err) {
@@ -351,6 +352,14 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
                 </span>
                 {fill.unmatchedCount > 0 && (
                   <span className="pill pill-neutral">{fill.unmatchedCount} need attention</span>
+                )}
+                {(fill.invalid?.length ?? 0) > 0 && (
+                  <span
+                    className="pill pill-danger"
+                    title={fill.invalid!.map((problem) => `${problem.label}: ${problem.reason}`).join(', ')}
+                  >
+                    {fill.invalid!.length} rejected by the form
+                  </span>
                 )}
                 {fill.unmatchedLabels.length > 0 && (
                   <span className="unmatched-labels" title="Recognized but has no data in your profile yet">

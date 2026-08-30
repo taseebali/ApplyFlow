@@ -3,6 +3,7 @@ import { fillCombobox, isCombobox } from './combobox';
 import { inferAnswer } from './inference';
 import { matchesBooleanAnswer } from './option-synonyms';
 import { SCHEMA_FIELDS, type Profile } from './schema';
+import { adaptToField, validateWritten, type ValidationProblem } from './field-validation';
 
 export interface FillResult {
   filledCount: number;
@@ -110,6 +111,7 @@ let writeJournal: Array<{ element: Writable; previous: string }> = [];
 
 export function beginFillJournal(): void {
   writeJournal = [];
+  validationProblems = [];
 }
 
 export function journalSize(): number {
@@ -156,8 +158,40 @@ export function setNativeFieldValue(
   el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
   value: string
 ) {
-  setNativeValue(el, value);
+  // Reshape the value to what this particular field will accept before
+  // writing: a date input takes only yyyy-mm-dd, some phone fields refuse
+  // spaces. Writing a value the form rejects looked like success until submit.
+  setNativeValue(el, adaptToField(value, el));
   dispatchChange(el);
+}
+
+/**
+ * Values written into fields that the form itself rejects. Collected during a
+ * fill so "written but invalid" can be reported separately from "filled" —
+ * counting them together overstated how well filling worked, and left the user
+ * to discover the problem at submit time.
+ */
+let validationProblems: ValidationProblem[] = [];
+
+export function takeValidationProblems(): ValidationProblem[] {
+  const problems = validationProblems;
+  validationProblems = [];
+  return problems;
+}
+
+/** Writes a value, then checks the form accepted it. Returns false if not. */
+export function setAndValidate(
+  el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  value: string,
+  label: string
+): boolean {
+  setNativeFieldValue(el, value);
+  const problem = validateWritten(el, label);
+  if (problem) {
+    validationProblems.push(problem);
+    return false;
+  }
+  return true;
 }
 
 /**
