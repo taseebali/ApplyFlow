@@ -19,6 +19,11 @@ export type FillResult =
       hostname: string;
       /** How many frames answered, so an embedded application is visible as one. */
       frameCount?: number;
+      /**
+       * Frames whose previous values were recorded, with how many fields each
+       * holds. Undo has to go back to the same frames that were written.
+       */
+      undo?: Array<{ frameId: number | null; fields: number }>;
       /** Set once the page navigated or swapped its form after this fill, so
        * the summary is not mistaken for describing what is on screen now. */
       stale?: boolean;

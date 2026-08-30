@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type {
+  UndoFillMessage,
+  UndoFillResponse,
   AttachDocumentsMessage,
   AttachDocumentsResponse,
   FillPageMessage,
@@ -116,6 +118,38 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
     return () => browser.runtime.onMessage.removeListener(onMessage);
   }, []);
 
+  /**
+   * Puts every field back the way it was. Filling changes many fields at once
+   * on a live application, and until now the only way back was by hand.
+   */
+  const handleUndo = async () => {
+    const target = tabId;
+    const entries = fill?.status === 'done' ? (fill.undo ?? []) : [];
+    if (target === null || entries.length === 0) return;
+
+    const message: UndoFillMessage = { type: 'undo-fill' };
+    let restored = 0;
+    for (const entry of entries) {
+      try {
+        const response: UndoFillResponse = await browser.tabs.sendMessage(
+          target,
+          message,
+          entry.frameId === null ? undefined : { frameId: entry.frameId }
+        );
+        restored += response.restored;
+      } catch {
+        // A frame that has gone has nothing left to restore.
+      }
+    }
+
+    await patchTabState(target, {
+      fill: {
+        status: 'error',
+        message: restored > 0 ? `Undone — ${restored} field${restored === 1 ? '' : 's'} put back.` : 'Nothing to undo.',
+      },
+    });
+  };
+
   const handleFillClick = async () => {
     // Resolved once and written back explicitly: if the user switches tabs while
     // this runs, the result must still land on the tab that was filled.
@@ -135,14 +169,23 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       const frames = await listFillableFrames(target);
       const responses: FillPageResponse[] = [];
 
+      // Which frames were actually written to, so undo can go back to them.
+      const written: Array<{ frameId: number | null; fields: number }> = [];
+
       if (frames.length === 0) {
         // No frame registered — a plain top-level form, or a page whose script
         // has not announced itself yet. Ask the tab directly, as before.
-        responses.push(await browser.tabs.sendMessage(target, message));
+        const response: FillPageResponse = await browser.tabs.sendMessage(target, message);
+        responses.push(response);
+        written.push({ frameId: null, fields: response.undoable });
       } else {
         for (const frame of frames) {
           try {
-            responses.push(await browser.tabs.sendMessage(target, message, { frameId: frame.frameId }));
+            const response: FillPageResponse = await browser.tabs.sendMessage(target, message, {
+              frameId: frame.frameId,
+            });
+            responses.push(response);
+            written.push({ frameId: frame.frameId, fields: response.undoable });
           } catch {
             // A frame can vanish between announcing itself and being filled.
             // Skipping it is right; failing the whole run is not.
@@ -169,6 +212,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           ]),
           hostname: responses[0]!.hostname,
           frameCount: responses.length,
+          undo: written.filter((entry) => entry.fields > 0),
         },
       });
     } catch (err) {
@@ -334,6 +378,12 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
             </div>
           ))}
         </div>
+      )}
+
+      {!fillClosed && fill?.status === 'done' && !fill.stale && (fill.undo?.length ?? 0) > 0 && (
+        <button type="button" className="btn-plain" onClick={handleUndo}>
+          Undo fill
+        </button>
       )}
 
       {!fillClosed && fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (

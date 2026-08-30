@@ -92,7 +92,54 @@ function dispatchChange(el: HTMLElement) {
  * bypasses that instance patch, so the framework's change tracker correctly
  * sees a diff once we dispatch the input/change events below.
  */
-function setNativeValue(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
+type Writable = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+/**
+ * What each field held before this fill touched it.
+ *
+ * One click changes thirty fields at once, on a live application that may
+ * autosave. Without this the only remedy for a wrong value is to find and
+ * retype it by hand. Every write goes through `setNativeValue`, so recording
+ * here catches text fields, native selects, radios, and comboboxes alike.
+ *
+ * Element references cannot be serialised, so the journal lives in the frame
+ * that did the writing and dies with the page — which is correct: once the
+ * page is gone, there is nothing left to undo.
+ */
+let writeJournal: Array<{ element: Writable; previous: string }> = [];
+
+export function beginFillJournal(): void {
+  writeJournal = [];
+}
+
+export function journalSize(): number {
+  return writeJournal.length;
+}
+
+/**
+ * Puts back what was there before, most recent first so a field written twice
+ * ends on its original value. Returns how many fields were restored.
+ */
+export function undoFill(): number {
+  let restored = 0;
+  for (const entry of [...writeJournal].reverse()) {
+    // The field may have been removed by a step change; skip rather than throw.
+    if (!entry.element.isConnected) continue;
+    setNativeValue(entry.element, entry.previous);
+    dispatchChange(entry.element);
+    restored++;
+  }
+  writeJournal = [];
+  return restored;
+}
+
+function setNativeValue(el: Writable, value: string) {
+  // Recorded before the write, and only the first time a field is touched, so
+  // "previous" always means "before ApplyFlow", not "before the last keystroke".
+  if (!writeJournal.some((entry) => entry.element === el)) {
+    writeJournal.push({ element: el, previous: el.value });
+  }
+
   const prototype =
     el instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype

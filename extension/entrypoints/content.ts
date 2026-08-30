@@ -1,4 +1,12 @@
-import { fillFields, fillInferredFields, fillRadioGroups, setNativeFieldValue } from '@/lib/filler';
+import {
+  beginFillJournal,
+  fillFields,
+  fillInferredFields,
+  fillRadioGroups,
+  journalSize,
+  setNativeFieldValue,
+  undoFill,
+} from '@/lib/filler';
 import {
   findUnrecognizedElements,
   findUnrecognizedFields,
@@ -21,6 +29,8 @@ export interface FillPageMessage {
   type: 'fill-page';
 }
 export interface FillPageResponse {
+  /** Fields whose previous value was recorded, so the panel can offer an undo. */
+  undoable: number;
   filledCount: number;
   unmatchedCount: number;
   unmatchedLabels: string[];
@@ -75,6 +85,13 @@ export interface GetQuestionsResponse {
   jobDescription: string | null;
 }
 
+export interface UndoFillMessage {
+  type: 'undo-fill';
+}
+export interface UndoFillResponse {
+  restored: number;
+}
+
 export interface InsertAnswerMessage {
   type: 'insert-answer';
   id: string;
@@ -89,6 +106,7 @@ type IncomingMessage =
   | GetJobInfoMessage
   | AttachDocumentsMessage
   | GetQuestionsMessage
+  | UndoFillMessage
   | InsertAnswerMessage;
 
 // Detected question elements can't cross the message boundary, so they're kept
@@ -248,6 +266,8 @@ export default defineContentScript({
     browser.runtime.onMessage.addListener((message: IncomingMessage, _sender, sendResponse) => {
       if (message?.type === 'fill-page') {
         (async () => {
+          // Anything written from here on can be put back.
+          beginFillJournal();
           const profile = await getProfile();
           const overrides = await getOverridesForHost(location.hostname);
 
@@ -282,6 +302,7 @@ export default defineContentScript({
           const inferredLabels = new Set(inferred.filled.map((f) => f.label));
 
           const response: FillPageResponse = {
+            undoable: journalSize(),
             filledCount: fieldResult.filledCount + radioResult.filledCount + inferred.filled.length,
             unmatchedCount: fieldResult.skippedCount + radioResult.skippedCount,
             unmatchedLabels: [...fieldResult.skippedLabels, ...radioResult.skippedLabels],
@@ -318,6 +339,12 @@ export default defineContentScript({
           file: new File([f.data], f.name, { type: f.mimeType }),
         }));
         const response: AttachDocumentsResponse = { attached: attachDocuments(entries) };
+        sendResponse(response);
+        return true;
+      }
+
+      if (message?.type === 'undo-fill') {
+        const response: UndoFillResponse = { restored: undoFill() };
         sendResponse(response);
         return true;
       }
