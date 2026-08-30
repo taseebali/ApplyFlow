@@ -170,23 +170,23 @@ export interface SchemaFieldDef {
 }
 
 export const SCHEMA_FIELDS: SchemaFieldDef[] = [
-  { path: 'contact.fullName', aliases: ['full name', 'name', 'complete name', 'your name', 'applicant name'] },
+  { path: 'contact.fullName', aliases: ['full name', 'name', 'complete name', 'your name', 'applicant name', 'vollstandiger name', 'vor und nachname'] },
   {
     path: 'contact.firstName',
     aliases: ['first name', 'given name', 'legal first name', 'fname', 'vorname'],
   },
   {
     path: 'contact.lastName',
-    aliases: ['last name', 'surname', 'family name', 'legal last name', 'lname', 'nachname'],
+    aliases: ['last name', 'surname', 'family name', 'legal last name', 'lname', 'nachname', 'familienname'],
   },
-  { path: 'contact.email', aliases: ['email', 'email address', 'e-mail'] },
-  { path: 'contact.phone', aliases: ['phone', 'phone number', 'mobile', 'mobile number', 'telephone'] },
-  { path: 'contact.addressLine1', aliases: ['address', 'address line 1', 'street address', 'address 1'] },
-  { path: 'contact.addressLine2', aliases: ['address line 2', 'apt', 'apartment', 'suite', 'address 2'] },
-  { path: 'contact.city', aliases: ['city', 'town'] },
-  { path: 'contact.state', aliases: ['state', 'province', 'region'] },
-  { path: 'contact.postalCode', aliases: ['zip', 'zip code', 'postal code', 'postcode'] },
-  { path: 'contact.country', aliases: ['country'] },
+  { path: 'contact.email', aliases: ['email', 'email address', 'e-mail', 'e mail adresse', 'e mail', 'mailadresse'] },
+  { path: 'contact.phone', aliases: ['phone', 'phone number', 'mobile', 'mobile number', 'telephone', 'telefon', 'telefonnummer', 'handynummer', 'mobilnummer', 'rufnummer'] },
+  { path: 'contact.addressLine1', aliases: ['address', 'address line 1', 'street address', 'address 1', 'adresse', 'anschrift', 'strasse', 'strasse und hausnummer', 'strasse hausnummer'] },
+  { path: 'contact.addressLine2', aliases: ['address line 2', 'apt', 'apartment', 'suite', 'address 2', 'adresszusatz'] },
+  { path: 'contact.city', aliases: ['city', 'town', 'stadt', 'ort', 'wohnort'] },
+  { path: 'contact.state', aliases: ['state', 'province', 'region', 'bundesland'] },
+  { path: 'contact.postalCode', aliases: ['zip', 'zip code', 'postal code', 'postcode', 'plz', 'postleitzahl'] },
+  { path: 'contact.country', aliases: ['country', 'land'] },
   {
     path: 'education.graduationDate',
     aliases: [
@@ -196,23 +196,23 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
       'expected completion date',
       'when do you graduate',
       'graduation',
-    ],
+    'voraussichtlicher abschluss', 'abschlussdatum', 'studienende'],
   },
-  { path: 'education.school', aliases: ['university', 'college', 'school', 'institution'] },
-  { path: 'education.degree', aliases: ['degree', 'qualification'] },
+  { path: 'education.school', aliases: ['university', 'college', 'school', 'institution', 'universitat', 'hochschule', 'fachhochschule', 'schule', 'bildungseinrichtung'] },
+  { path: 'education.degree', aliases: ['degree', 'qualification', 'abschluss', 'studienabschluss', 'hochster abschluss'] },
   {
     path: 'languages.list',
-    aliases: ['which languages', 'languages you speak', 'languages', 'spoken languages'],
+    aliases: ['which languages', 'languages you speak', 'languages', 'spoken languages', 'sprachen', 'sprachkenntnisse', 'welche sprachen'],
   },
   {
     path: 'languages.german',
-    aliases: ['german level', 'current german level', 'level of german', 'deutsch'],
+    aliases: ['german level', 'current german level', 'level of german', 'deutsch', 'deutschkenntnisse', 'deutsch niveau', 'deutschniveau'],
   },
-  { path: 'education.fieldOfStudy', aliases: ['field of study', 'major', 'course of study', 'subject'] },
-  { path: 'links.linkedin', aliases: ['linkedin', 'linkedin url', 'linkedin profile'] },
-  { path: 'links.github', aliases: ['github', 'github url', 'github profile'] },
+  { path: 'education.fieldOfStudy', aliases: ['field of study', 'major', 'course of study', 'subject', 'studienfach', 'studiengang', 'fachrichtung'] },
+  { path: 'links.linkedin', aliases: ['linkedin', 'linkedin url', 'linkedin profile', 'linkedin profil'] },
+  { path: 'links.github', aliases: ['github', 'github url', 'github profile', 'github profil'] },
   { path: 'links.portfolio', aliases: ['portfolio', 'portfolio url', 'portfolio link'] },
-  { path: 'links.website', aliases: ['website', 'personal website', 'personal site'] },
+  { path: 'links.website', aliases: ['website', 'personal website', 'personal site', 'webseite', 'homepage', 'personliche webseite'] },
   {
     // Forms that offer a list ("EU citizen", "Requires sponsorship", …) rather
     // than yes/no. Listed before the boolean so the specific wording wins.
@@ -225,7 +225,7 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
       'immigration status',
       'residency status',
       'work permit',
-    ],
+    'aufenthaltstitel', 'aufenthaltsstatus', 'arbeitsgenehmigung'],
   },
   {
     path: 'workAuthorization.authorizedToWorkInCountry',
@@ -236,12 +236,12 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
       'eligible to work',
       'work authorization',
       'right to work',
-    ],
+    'arbeitserlaubnis', 'arbeitserlaubnis in deutschland', 'durfen sie in deutschland arbeiten'],
     valueKind: 'boolean',
   },
   {
     path: 'workAuthorization.requiresSponsorship',
-    aliases: ['require sponsorship', 'need sponsorship', 'require visa sponsorship', 'need visa sponsorship'],
+    aliases: ['require sponsorship', 'need sponsorship', 'require visa sponsorship', 'need visa sponsorship', 'visum erforderlich', 'benotigen sie ein visum', 'visasponsoring'],
     valueKind: 'boolean',
   },
   {
@@ -253,14 +253,14 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
     aliases: ['disability status', 'do you have a disability'],
   },
   { path: 'workAuthorization.race', aliases: ['race', 'race ethnicity', 'ethnicity'] },
-  { path: 'workAuthorization.gender', aliases: ['gender', 'gender identity', 'sex'] },
+  { path: 'workAuthorization.gender', aliases: ['gender', 'gender identity', 'sex', 'geschlecht'] },
   {
     path: 'logistics.availableFrom',
-    aliases: ['available from', 'availability', 'start date', 'earliest start date', 'when can you start', 'notice period'],
+    aliases: ['available from', 'availability', 'start date', 'earliest start date', 'when can you start', 'notice period', 'verfugbar ab', 'verfugbarkeit', 'eintrittsdatum', 'fruhestes eintrittsdatum', 'fruhester eintrittstermin', 'starttermin', 'kundigungsfrist', 'wann konnen sie anfangen'],
   },
   {
     path: 'logistics.willingToRelocate',
-    aliases: ['willing to relocate', 'open to relocation', 'able to relocate', 'relocation'],
+    aliases: ['willing to relocate', 'open to relocation', 'able to relocate', 'relocation', 'umzugsbereit', 'umzugsbereitschaft', 'wurden sie umziehen'],
     valueKind: 'boolean',
   },
   {

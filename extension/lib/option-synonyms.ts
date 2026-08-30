@@ -12,11 +12,14 @@ import { normalizeText } from './field-matcher';
  */
 const SYNONYM_GROUPS: string[][] = [
   // Affirmative / negative, including the sentence forms dropdowns favour.
-  ['yes', 'yes i do', 'yes i am', 'i do', 'i am', 'true', 'authorised', 'authorized', 'eligible'],
-  ['no', 'no i do not', 'no i am not', 'i do not', 'i am not', 'false', 'not authorised', 'not authorized'],
+  // German dropdowns sit in the same groups, so a profile value of "Yes"
+  // selects "Ja" without a second table.
+  ['yes', 'yes i do', 'yes i am', 'i do', 'i am', 'true', 'authorised', 'authorized', 'eligible', 'ja'],
+  ['no', 'no i do not', 'no i am not', 'i do not', 'i am not', 'false', 'not authorised', 'not authorized', 'nein'],
 
   // Availability.
-  ['immediately', 'immediately available', 'available immediately', 'right away', 'asap', 'now', 'at once'],
+  ['immediately', 'immediately available', 'available immediately', 'right away', 'asap', 'now', 'at once', 'sofort', 'ab sofort'],
+  ['by arrangement', 'by agreement', 'to be discussed', 'nach vereinbarung', 'nach absprache'],
   ['1 month', 'one month', '4 weeks', 'a month'],
   ['2 months', 'two months', '8 weeks'],
   ['3 months', 'three months', '12 weeks', 'a quarter'],

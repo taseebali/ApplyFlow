@@ -1,8 +1,10 @@
 export type DocumentKind = 'resume' | 'coverLetter';
 
 const KEYWORDS: Record<DocumentKind, string[]> = {
-  resume: ['resume', 'cv'],
-  coverLetter: ['cover letter', 'coverletter', 'cover'],
+  // German forms label these 'Lebenslauf' and 'Anschreiben' (or
+  // 'Motivationsschreiben'), and so do the files people save for them.
+  resume: ['resume', 'cv', 'lebenslauf'],
+  coverLetter: ['cover letter', 'coverletter', 'cover', 'anschreiben', 'motivationsschreiben'],
 };
 
 export interface FolderFile {

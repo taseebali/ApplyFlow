@@ -28,13 +28,49 @@ const SOURCE_WEIGHTS: Record<string, number> = {
   id: 0.7,
 };
 
+/**
+ * Folds accents onto their base letters so a label written in German, French,
+ * Spanish or Portuguese survives normalisation.
+ *
+ * Without this, the ASCII-only filter below turned "Verfügbar" into
+ * "verf gbar" and "Straße" into "stra e" — so every non-English alias was
+ * unmatchable no matter how it was spelled. NFD splits a letter from its
+ * accent; the range strips the accents that fall out. ß has no decomposition,
+ * so it is handled explicitly.
+ */
+function foldAccents(text: string): string {
+  // ̀-ͯ is the combining-diacritic block NFD splits accents into.
+  // Written escaped because the literal characters are invisible in source.
+  return text.replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 export function normalizeText(text: string): string {
-  return text
+  return foldAccents(text)
     .toLowerCase()
     .replace(/[_\-.]/g, ' ')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Whether the label contains the alias as a *word*, for single-word aliases.
+ *
+ * A plain substring test lets short aliases match inside longer words: the
+ * German alias "ort" (city) matched "imp**ort**ant" in a long accessibility
+ * question, claiming a field that should have gone to drafting. "cv", "plz",
+ * "zip" and "sex" all have the same problem. Multi-word aliases are specific
+ * enough that a substring test is safe, and keeping it preserves matches like
+ * "first name" inside "legal first name".
+ */
+function containsAlias(text: string, alias: string): boolean {
+  if (alias.includes(' ')) return text.includes(alias);
+  return (
+    text === alias ||
+    text.startsWith(`${alias} `) ||
+    text.endsWith(` ${alias}`) ||
+    text.includes(` ${alias} `)
+  );
 }
 
 function scoreAgainstAlias(text: string, alias: string): number {
@@ -44,7 +80,7 @@ function scoreAgainstAlias(text: string, alias: string): number {
   // Scaled by how much of the label the alias actually accounts for. A flat
   // score here made "Preferred First Name" match the alias "name" as strongly
   // as "first name", and the more generic field won purely on list order.
-  if (text.includes(alias)) return 0.6 + 0.35 * (alias.length / text.length);
+  if (containsAlias(text, alias)) return 0.6 + 0.35 * (alias.length / text.length);
   if (alias.includes(text)) return 0.6 + 0.35 * (text.length / alias.length);
 
   const textTokens = new Set(text.split(' '));

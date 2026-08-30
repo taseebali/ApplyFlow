@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fieldSignature, findUnrecognizedFields, matchFields } from './field-matcher';
+import { fieldSignature, findUnrecognizedFields, matchFields, normalizeText } from './field-matcher';
 
 function setBody(html: string) {
   document.body.innerHTML = html;
@@ -115,5 +115,78 @@ describe('yes/no questions', () => {
   it('leaves ordinary value fields alone', () => {
     setBody('<label for="q">University</label><input id="q" />');
     expect(matchFields(document)[0]?.path).toBe('education.school');
+  });
+});
+
+describe('non-English labels', () => {
+  it('folds umlauts so a German label survives normalisation', () => {
+    // Before accents were folded, this normalised to "verf gbar ab" and no
+    // alias could ever match it.
+    expect(normalizeText('Verfügbar ab')).toBe('verfugbar ab');
+    expect(normalizeText('Straße und Hausnummer')).toBe('strasse und hausnummer');
+    expect(normalizeText('Universität')).toBe('universitat');
+  });
+
+  it('folds accents from other languages too', () => {
+    expect(normalizeText('Prénom')).toBe('prenom');
+    expect(normalizeText('Dirección')).toBe('direccion');
+  });
+
+  it('matches the core fields on a German form', () => {
+    document.body.innerHTML = `
+      <form>
+        <label>Vorname<input name="a"></label>
+        <label>Nachname<input name="b"></label>
+        <label>E-Mail-Adresse<input name="c"></label>
+        <label>Telefonnummer<input name="d"></label>
+        <label>Wohnort<input name="e"></label>
+        <label>Land<input name="f"></label>
+        <label>Verfügbar ab<input name="g"></label>
+      </form>`;
+
+    const byName = new Map(matchFields(document).map((m) => [m.element.getAttribute('name'), m.path]));
+    expect(byName.get('a')).toBe('contact.firstName');
+    expect(byName.get('b')).toBe('contact.lastName');
+    expect(byName.get('c')).toBe('contact.email');
+    expect(byName.get('d')).toBe('contact.phone');
+    expect(byName.get('e')).toBe('contact.city');
+    expect(byName.get('f')).toBe('contact.country');
+    expect(byName.get('g')).toBe('logistics.availableFrom');
+  });
+
+  it('matches German work-authorisation and education wording', () => {
+    document.body.innerHTML = `
+      <form>
+        <label>Arbeitserlaubnis<input name="a"></label>
+        <label>Studiengang<input name="b"></label>
+        <label>Hochschule<input name="c"></label>
+        <label>Postleitzahl<input name="d"></label>
+      </form>`;
+
+    const byName = new Map(matchFields(document).map((m) => [m.element.getAttribute('name'), m.path]));
+    expect(byName.get('a')).toBe('workAuthorization.authorizedToWorkInCountry');
+    expect(byName.get('b')).toBe('education.fieldOfStudy');
+    expect(byName.get('c')).toBe('education.school');
+    expect(byName.get('d')).toBe('contact.postalCode');
+  });
+});
+
+describe('short aliases do not match inside words', () => {
+  it('does not claim a long question because it contains a short alias', () => {
+    // "important" contains the German city alias "ort". This claimed the field
+    // and kept it out of AI drafting, which the fixture corpus caught.
+    document.body.innerHTML =
+      '<form><label>Please let us know if there are any important adjustments we should make<input name="q"></label></form>';
+    expect(matchFields(document)).toEqual([]);
+  });
+
+  it('still matches a short alias standing as its own word', () => {
+    document.body.innerHTML = '<form><label>Ort<input name="a"></label></form>';
+    expect(matchFields(document)[0]?.path).toBe('contact.city');
+  });
+
+  it('keeps multi-word aliases matching inside a longer label', () => {
+    document.body.innerHTML = '<form><label>Legal First Name<input name="a"></label></form>';
+    expect(matchFields(document)[0]?.path).toBe('contact.firstName');
   });
 });
