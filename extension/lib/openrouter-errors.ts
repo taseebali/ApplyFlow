@@ -46,6 +46,12 @@ export function describeOpenRouterFailure(status: number, body: string): string 
     return 'OpenRouter rate-limited the request. Free models allow only a few requests a minute — wait a moment and try again, or use a paid model or Ollama.';
   }
 
+  if (status === 503) {
+    return `No provider had capacity for that model. Free endpoints are shared and fill up — try again, or add a fallback model.${
+      detail ? ` (${detail})` : ''
+    }`;
+  }
+
   if (status >= 500) {
     return `The model provider is failing right now (${status}). This is on their side — try again, or pick a different model.${
       detail ? ` (${detail})` : ''
@@ -71,12 +77,21 @@ export function extractOpenRouterText(data: unknown): string {
   const payload = data as { choices?: Choice[]; error?: { message?: string; code?: number } };
 
   if (payload.error) {
-    const code = payload.error.code ? ` (${payload.error.code})` : '';
-    throw new LlmError(`OpenRouter reported an error${code}: ${payload.error.message ?? 'no details given'}`);
+    const code = payload.error.code;
+    // A saturated upstream provider arrives here, not as an HTTP status: the
+    // request to OpenRouter itself succeeded, and the failure is reported
+    // inside the body. It is worth retrying; a 4xx in the same place is not.
+    const transient = code === undefined || code === 429 || code >= 500;
+    const shown = code ? ` (${code})` : '';
+    throw new LlmError(
+      `OpenRouter reported an error${shown}: ${payload.error.message ?? 'no details given'}`,
+      transient
+    );
   }
 
   const choice = payload.choices?.[0];
-  if (!choice) throw new LlmError('OpenRouter returned no completion at all. Try again, or pick a different model.');
+  if (!choice)
+    throw new LlmError('OpenRouter returned no completion at all. Try again, or pick a different model.', true);
 
   // Reasoning models routinely return an empty `content` with the text in
   // `reasoning`. Using it is better than reporting an empty answer.
@@ -90,6 +105,15 @@ export function extractOpenRouterText(data: unknown): string {
   }
 
   throw new LlmError(
-    'The model returned nothing. Free models do this when they are overloaded or when their provider drops the request — try again, or pick a different model.'
+    'The model returned nothing. Free models do this when they are overloaded or when their provider drops the request — try again, or pick a different model.',
+    true
   );
+}
+
+/**
+ * Whether an HTTP-level failure is worth sending again. Capacity and rate
+ * limits clear on their own; a rejected key or a missing model never will.
+ */
+export function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
 }

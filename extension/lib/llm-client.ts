@@ -1,6 +1,6 @@
 import type { Profile } from './schema';
 import type { LlmSettings } from './settings';
-import { describeOpenRouterFailure, extractOpenRouterText } from './openrouter-errors';
+import { describeOpenRouterFailure, extractOpenRouterText, isTransientStatus } from './openrouter-errors';
 import { LlmError } from './llm-error';
 
 export interface DraftContext {
@@ -102,7 +102,20 @@ async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> 
   return (data.response ?? '').trim();
 }
 
+/**
+ * Splits the comma- or newline-separated fallback list the user typed into
+ * model ids, ignoring blanks and anything already named as the primary.
+ */
+export function parseModelList(raw: string, primary: string): string[] {
+  return raw
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0 && entry !== primary);
+}
+
 async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
+  const fallbacks = parseModelList(llm.openRouterFallbackModels ?? '', llm.openRouterModel);
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -111,23 +124,37 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
     },
     body: JSON.stringify({
       model: llm.openRouterModel,
+      // OpenRouter walks this list itself when a model errors, is rate
+      // limited, or its provider is down - which is exactly how a busy free
+      // endpoint fails. Sent only when the user named alternatives.
+      ...(fallbacks.length ? { models: [llm.openRouterModel, ...fallbacks] } : {}),
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: timeoutSignal(),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new LlmError(describeOpenRouterFailure(response.status, body));
+    throw new LlmError(describeOpenRouterFailure(response.status, body), isTransientStatus(response.status));
   }
-  return extractOpenRouterText(await response.json());
+  const data = await response.json().catch(() => {
+    // A 200 whose body will not parse is not a connection problem, and saying
+    // so would send the user checking their key for no reason.
+    throw new LlmError('OpenRouter returned a response that could not be read as JSON.', true);
+  });
+  return extractOpenRouterText(data);
 }
 
 /**
- * Sends a prompt to whichever backend the user configured and returns the raw
- * text. Every LLM feature goes through here so the fetch and error handling
- * live in exactly one place.
+ * Free endpoints are shared, and a saturated one refuses for a few seconds
+ * rather than for good. Two quick retries turn the most common failure of the
+ * free tier into a pause instead of a dead run. Only failures classed as
+ * transient are retried; a bad key fails immediately, as it should.
  */
-async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
+const RETRY_DELAYS_MS = [1_000, 3_000];
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
   try {
     return backend === 'ollama' ? await runWithOllama(prompt, llm) : await runWithOpenRouter(prompt, llm);
   } catch (err) {
@@ -139,9 +166,33 @@ async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
     throw new LlmError(
       backend === 'ollama'
         ? 'Could not reach Ollama on localhost:11434. Is it running?'
-        : 'Could not reach OpenRouter. Check your connection and API key.'
+        : 'Could not reach OpenRouter. Check your connection and API key.',
+      // A network-level failure is as likely to be a blip as a real outage.
+      true
     );
   }
+}
+
+/**
+ * Sends a prompt to whichever backend the user configured and returns the raw
+ * text. Every LLM feature goes through here so the fetch, retries, and error
+ * handling live in exactly one place.
+ */
+async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
+  let last: unknown;
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await runOnce(backend, prompt, llm);
+    } catch (err) {
+      last = err;
+      const retryable = err instanceof LlmError && err.transient;
+      if (!retryable || attempt === RETRY_DELAYS_MS.length) break;
+      await wait(RETRY_DELAYS_MS[attempt]!);
+    }
+  }
+
+  throw last;
 }
 
 /**

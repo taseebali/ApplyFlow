@@ -11,6 +11,7 @@ const LLM: LlmSettings = {
   ollamaModel: '',
   openRouterApiKey: 'k',
   openRouterModel: 'm',
+  openRouterFallbackModels: '',
 };
 
 beforeEach(() => {

@@ -10,6 +10,12 @@ export interface LlmSettings {
   ollamaModel: string;
   openRouterApiKey: string;
   openRouterModel: string;
+  /**
+   * Comma-separated model ids tried, in order, when the first one errors or its
+   * provider is out of capacity. OpenRouter walks the list server-side, which
+   * is the only thing that helps when a free endpoint is simply full.
+   */
+  openRouterFallbackModels: string;
 }
 
 export interface Settings {
@@ -38,6 +44,7 @@ export const EMPTY_SETTINGS: Settings = {
     // Deliberately a small, cheap model: this workload is structured
     // extraction plus a short first draft the user edits, not hard reasoning.
     openRouterModel: 'google/gemini-2.0-flash-001',
+    openRouterFallbackModels: '',
   },
   setupCompleted: false,
 };

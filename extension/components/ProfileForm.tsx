@@ -807,6 +807,19 @@ export function LlmSettingsSection({
               onChange={(e) => update({ openRouterModel: e.target.value })}
             />
           </label>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>If that model is busy, try (optional)</span>
+            <input
+              type="text"
+              placeholder="another/model, a-third/model"
+              value={llm.openRouterFallbackModels}
+              onChange={(e) => update({ openRouterFallbackModels: e.target.value })}
+            />
+          </label>
+          <p className="hint">
+            Free endpoints are shared and fill up — the usual failure is "no capacity", not a bad key. Listing one
+            or two alternatives lets OpenRouter move on to the next instead of giving up.
+          </p>
         </>
       )}
 
