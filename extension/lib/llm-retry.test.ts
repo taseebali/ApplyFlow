@@ -8,6 +8,9 @@ const LLM: LlmSettings = {
   fallbackBackend: null,
   ollamaModel: '',
   openRouterApiKey: 'k',
+  provider: 'openrouter',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  apiKeys: { openrouter: 'k' },
   modelPolicy: { kind: 'single', model: 'primary/model' },
 };
 

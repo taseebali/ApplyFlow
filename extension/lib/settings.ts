@@ -1,8 +1,22 @@
 import { policyFromLegacy, type ModelPolicy } from './model-router';
+import { providerById } from './providers';
 
 export interface LlmSettings {
   /** null means "not configured" — the drafting feature stays inactive. */
   backend: 'ollama' | 'openrouter' | null;
+  /**
+   * Which provider drafting runs against: a row in `lib/providers.ts`. The
+   * older `backend` field is kept because it still selects the fallback, and
+   * because settings saved before providers existed are read through it.
+   */
+  provider: string;
+  /** Overrides the provider's default endpoint. Only meaningful for `custom`. */
+  baseUrl: string;
+  /**
+   * One key per provider, so switching between them does not mean re-pasting.
+   * Never logged, never sent anywhere but that provider's own endpoint.
+   */
+  apiKeys: Record<string, string>;
   /**
    * Tried when the primary backend fails. Both can be configured at once so a
    * hosted model can do the work while a local one covers an outage, a rate
@@ -40,6 +54,9 @@ export const EMPTY_SETTINGS: Settings = {
   llm: {
     backend: null,
     fallbackBackend: null,
+    provider: 'openrouter',
+    baseUrl: '',
+    apiKeys: {},
     ollamaModel: 'llama3.1',
     openRouterApiKey: '',
     // Free models by default, rotating across whatever the catalogue currently
@@ -75,6 +92,16 @@ function migrateLlm(stored: Partial<LlmSettings> & LegacyLlmFields) {
   if (!stored.modelPolicy && stored.openRouterModel) {
     merged.modelPolicy = policyFromLegacy(stored.openRouterModel, stored.openRouterFallbackModels ?? '');
   }
+
+  // Settings written before providers existed named their backend directly,
+  // and kept the OpenRouter key in its own field.
+  if (!stored.provider && stored.backend) merged.provider = stored.backend;
+  merged.apiKeys = { ...merged.apiKeys };
+  if (stored.openRouterApiKey && !merged.apiKeys.openrouter) {
+    merged.apiKeys.openrouter = stored.openRouterApiKey;
+  }
+  if (!merged.baseUrl) merged.baseUrl = providerById(merged.provider).baseUrl;
+
   return merged;
 }
 

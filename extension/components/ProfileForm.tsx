@@ -14,6 +14,7 @@ import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/li
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { LocationFields } from './LocationFields';
 import { ModelPicker } from './ModelPicker';
+import { PROVIDERS, originPatternFor, providerById } from '@/lib/providers';
 
 export type NotionConfig = Settings['notion'];
 
@@ -725,6 +726,8 @@ export function LlmSettingsSection({
 }) {
   const llm = value;
   const setLlm = onChange;
+  const provider = providerById(llm.provider);
+  const [hostGranted, setHostGranted] = useState<boolean | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -732,6 +735,21 @@ export function LlmSettingsSection({
   const update = (patch: Partial<LlmSettings>) => {
     setTestResult(null);
     setLlm({ ...llm, ...patch });
+  };
+
+  // MV3 will not let an extension call an arbitrary host without a grant, and
+  // the grant has to be asked for from a click.
+  const grantHost = async () => {
+    const origin = originPatternFor(llm.baseUrl);
+    if (!origin) {
+      setHostGranted(false);
+      return;
+    }
+    try {
+      setHostGranted(await browser.permissions.request({ origins: [origin] }));
+    } catch {
+      setHostGranted(false);
+    }
   };
 
   const runTest = async () => {
@@ -758,14 +776,83 @@ export function LlmSettingsSection({
       <label className="field">
         <span>Where should drafting run?</span>
         <select
-          value={llm.backend ?? ''}
-          onChange={(e) => update({ backend: (e.target.value || null) as LlmSettings['backend'] })}
+          value={llm.backend ? llm.provider : ''}
+          onChange={(e) => {
+            const id = e.target.value;
+            if (!id) {
+              update({ backend: null });
+              return;
+            }
+            const spec = providerById(id);
+            update({
+              // `backend` still drives whether drafting is on at all, and which
+              // dialect the fallback uses.
+              backend: spec.dialect === 'ollama' ? 'ollama' : 'openrouter',
+              provider: id,
+              baseUrl: spec.baseUrl,
+              modelPolicy:
+                id === 'openrouter'
+                  ? { kind: 'free-pool', minContext: 32_000 }
+                  : { kind: 'single', model: spec.defaultModel },
+            });
+          }}
         >
           <option value="">Off</option>
-          <option value="ollama">On my computer (Ollama)</option>
-          <option value="openrouter">OpenRouter (API key)</option>
+          {PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
         </select>
       </label>
+
+      {llm.backend && provider.note && (
+        <p className="hint" style={{ marginTop: 10 }}>
+          {provider.note}
+        </p>
+      )}
+
+      {llm.backend && provider.id === 'custom' && (
+        <>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>Base URL</span>
+            <input
+              type="text"
+              placeholder="https://api.example.com/v1"
+              value={llm.baseUrl}
+              onChange={(e) => update({ baseUrl: e.target.value })}
+            />
+          </label>
+          <button type="button" className="btn" style={{ marginTop: 8 }} onClick={grantHost}>
+            {hostGranted === true ? 'Access granted' : 'Allow access to this host'}
+          </button>
+          {hostGranted === false && (
+            <p className="error" style={{ marginTop: 8 }}>
+              Without permission for that host, requests to it will fail.
+            </p>
+          )}
+        </>
+      )}
+
+      {llm.backend && provider.needsKey && (
+        <label className="field" style={{ marginTop: 10 }}>
+          <span>API key</span>
+          <input
+            type="password"
+            value={llm.apiKeys[provider.id] ?? ''}
+            onChange={(e) => update({ apiKeys: { ...llm.apiKeys, [provider.id]: e.target.value } })}
+          />
+        </label>
+      )}
+      {llm.backend && provider.keyUrl && (
+        <p className="hint">
+          Get a key from{' '}
+          <a href={provider.keyUrl} target="_blank" rel="noreferrer">
+            {provider.keyUrl.replace(/^https:\/\//, '')}
+          </a>
+          . It is stored on this computer and sent only to {provider.label}.
+        </p>
+      )}
 
       {llm.backend === 'ollama' && (
         <>
@@ -777,30 +864,31 @@ export function LlmSettingsSection({
         </>
       )}
 
-      {llm.backend === 'openrouter' && (
+      {llm.backend === 'openrouter' && provider.id === 'openrouter' && (
         <>
-          <p className="hint" style={{ marginTop: 12 }}>
-            Uses your own{' '}
-            <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
-              OpenRouter API key
-            </a>
-            . Your question and profile details are sent to OpenRouter when you press Draft answers.
-          </p>
           <p className="hint">
             A small, cheap model is enough here — this is mostly pulling structure out of text and writing a first
             draft you then edit. Models ending in <code>:free</code> cost nothing, but usually come with no
             data-retention guarantee and tight daily limits; since the text sent includes your resume and work
             history, prefer a cheap paid model, or use Ollama to keep everything on your machine.
           </p>
-          <label className="field">
-            <span>API key</span>
-            <input
-              type="password"
-              value={llm.openRouterApiKey}
-              onChange={(e) => update({ openRouterApiKey: e.target.value })}
-            />
-          </label>
           <ModelPicker policy={llm.modelPolicy} onChange={(modelPolicy) => update({ modelPolicy })} />
+        </>
+      )}
+
+      {/* Providers that serve their own models take a plain model id; only
+          OpenRouter has a public catalogue worth browsing in-app. */}
+      {llm.backend && provider.dialect !== "ollama" && provider.id !== "openrouter" && (
+        <>
+          <TextField
+            label="Model"
+            value={llm.modelPolicy.kind === "single" ? llm.modelPolicy.model : ""}
+            onChange={(v) => update({ modelPolicy: { kind: "single", model: v } })}
+          />
+          <p className="hint">
+            The model id exactly as {provider.label} writes it
+            {provider.defaultModel ? `, for example "${provider.defaultModel}"` : ''}.
+          </p>
         </>
       )}
 

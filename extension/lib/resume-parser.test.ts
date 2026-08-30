@@ -143,6 +143,9 @@ describe('parseResume', () => {
     fallbackBackend: null,
     ollamaModel: '',
     openRouterApiKey: '',
+    provider: 'openrouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiKeys: { openrouter: 'k' },
     modelPolicy: { kind: 'single', model: 'm' },
   } as const;
 

@@ -12,6 +12,8 @@ export { LlmError };
 import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure } from './model-cooldowns';
 import { getModels } from './openrouter-catalog';
+import { providerById } from './providers';
+import { buildRequest, describeFailure, readResponse } from './dialects';
 
 export interface DraftContext {
   question: string;
@@ -224,33 +226,36 @@ async function candidatesFor(llm: LlmSettings): Promise<string[]> {
   return candidates;
 }
 
-async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string[]): Promise<Completion> {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+async function postToProvider(prompt: string, llm: LlmSettings, models: string[]): Promise<Completion> {
+  const provider = providerById(llm.provider);
+  const baseUrl = llm.baseUrl || provider.baseUrl;
+  const apiKey = llm.apiKeys[provider.id] ?? '';
+
+  if (provider.needsKey && !apiKey) {
+    throw new LlmError(`No API key saved for ${provider.label}. Open Settings and add one.`);
+  }
+  if (!baseUrl) {
+    throw new LlmError(`No endpoint set for ${provider.label}. Open Settings and add its base URL.`);
+  }
+
+  const request = buildRequest(provider, baseUrl, apiKey, models, prompt);
+  const response = await fetch(request.url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${llm.openRouterApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: models[0],
-      // OpenRouter walks this list itself when a model errors, is rate limited,
-      // or its provider is down - which is exactly how a busy free endpoint
-      // fails. Our own rotation sits outside it and remembers across requests.
-      ...(models.length > 1 ? { models } : {}),
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    headers: request.headers,
+    body: JSON.stringify(request.body),
     signal: timeoutSignal(),
   });
+
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new LlmError(describeOpenRouterFailure(response.status, body), isTransientStatus(response.status));
+    throw new LlmError(describeFailure(provider, response.status, body), isTransientStatus(response.status));
   }
   const data = await response.json().catch(() => {
     // A 200 whose body will not parse is not a connection problem, and saying
     // so would send the user checking their key for no reason.
-    throw new LlmError('OpenRouter returned a response that could not be read as JSON.', true);
+    throw new LlmError(`${provider.label} returned a response that could not be read as JSON.`, true);
   });
-  return extractOpenRouterCompletion(data);
+  return readResponse(provider, data, models[0]!);
 }
 
 /**
@@ -267,7 +272,7 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<Comp
     // more than one model before coming back to us.
     const attempt = candidates.slice(i);
     try {
-      return await postToOpenRouter(prompt, llm, attempt);
+      return await postToProvider(prompt, llm, attempt);
     } catch (err) {
       last = err;
       if (!(err instanceof LlmError) || !err.transient) throw err;

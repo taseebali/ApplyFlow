@@ -16,8 +16,15 @@ export default defineConfig({
     host_permissions: [
       'https://api.notion.com/*',
       'https://openrouter.ai/*',
+      'https://api.anthropic.com/*',
+      'https://api.openai.com/*',
+      'https://api.groq.com/*',
       'http://localhost:11434/*',
     ],
+    // A self-hosted or less common endpoint cannot be listed ahead of time.
+    // Rather than ship broad access to everyone, the host is requested at the
+    // moment the user configures it, and only that host.
+    optional_host_permissions: ['https://*/*', 'http://*/*'],
     action: {
       default_title: 'ApplyFlow',
     },
