@@ -1,3 +1,5 @@
+import { policyFromLegacy, type ModelPolicy } from './model-router';
+
 export interface LlmSettings {
   /** null means "not configured" — the drafting feature stays inactive. */
   backend: 'ollama' | 'openrouter' | null;
@@ -9,13 +11,12 @@ export interface LlmSettings {
   fallbackBackend: 'ollama' | 'openrouter' | null;
   ollamaModel: string;
   openRouterApiKey: string;
-  openRouterModel: string;
   /**
-   * Comma-separated model ids tried, in order, when the first one errors or its
-   * provider is out of capacity. OpenRouter walks the list server-side, which
-   * is the only thing that helps when a free endpoint is simply full.
+   * How a model is picked for each request. Replaces the single pasted model
+   * id: free endpoints saturate, and a policy can move to another one instead
+   * of failing. See `lib/model-router.ts`.
    */
-  openRouterFallbackModels: string;
+  modelPolicy: ModelPolicy;
 }
 
 export interface Settings {
@@ -41,10 +42,11 @@ export const EMPTY_SETTINGS: Settings = {
     fallbackBackend: null,
     ollamaModel: 'llama3.1',
     openRouterApiKey: '',
-    // Deliberately a small, cheap model: this workload is structured
-    // extraction plus a short first draft the user edits, not hard reasoning.
-    openRouterModel: 'google/gemini-2.0-flash-001',
-    openRouterFallbackModels: '',
+    // Free models by default, rotating across whatever the catalogue currently
+    // offers. Costs nothing and routes around a saturated provider — at the
+    // price of sending the resume to providers that may train on it, which the
+    // settings UI states plainly at the point of choosing.
+    modelPolicy: { kind: 'free-pool', minContext: 32_000 },
   },
   setupCompleted: false,
 };
@@ -52,14 +54,34 @@ export const EMPTY_SETTINGS: Settings = {
 const SETTINGS_KEY = 'settings';
 
 /** Backfills any sections added to Settings after a user's data was last saved. */
+/**
+ * Settings as they may exist on disk: every section partial, plus the fields
+ * that older versions wrote and `migrateLlm` still reads. Naming them here
+ * keeps the migration honest rather than casting it away at the call site.
+ */
+type LegacyLlmFields = { openRouterModel?: string; openRouterFallbackModels?: string };
+
 type StoredSettings = {
   [K in keyof Settings]?: Settings[K] extends object ? Partial<Settings[K]> : Settings[K];
-};
+} & { llm?: Partial<LlmSettings> & LegacyLlmFields };
+
+/**
+ * Settings saved before policies existed carry `openRouterModel` and
+ * `openRouterFallbackModels` instead. Fold them into an equivalent policy so
+ * nobody's chosen model is silently replaced by the new default.
+ */
+function migrateLlm(stored: Partial<LlmSettings> & LegacyLlmFields) {
+  const merged = { ...EMPTY_SETTINGS.llm, ...stored };
+  if (!stored.modelPolicy && stored.openRouterModel) {
+    merged.modelPolicy = policyFromLegacy(stored.openRouterModel, stored.openRouterFallbackModels ?? '');
+  }
+  return merged;
+}
 
 export function applySettingsDefaults(stored: StoredSettings): Settings {
   return {
     notion: { ...EMPTY_SETTINGS.notion, ...stored.notion },
-    llm: { ...EMPTY_SETTINGS.llm, ...stored.llm },
+    llm: migrateLlm(stored.llm ?? {}),
     setupCompleted: stored.setupCompleted ?? EMPTY_SETTINGS.setupCompleted,
   };
 }

@@ -13,6 +13,7 @@ import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { LocationFields } from './LocationFields';
+import { ModelPicker } from './ModelPicker';
 
 export type NotionConfig = Settings['notion'];
 
@@ -799,27 +800,7 @@ export function LlmSettingsSection({
               onChange={(e) => update({ openRouterApiKey: e.target.value })}
             />
           </label>
-          <label className="field" style={{ marginTop: 10 }}>
-            <span>Model</span>
-            <input
-              type="text"
-              value={llm.openRouterModel}
-              onChange={(e) => update({ openRouterModel: e.target.value })}
-            />
-          </label>
-          <label className="field" style={{ marginTop: 10 }}>
-            <span>If that model is busy, try (optional)</span>
-            <input
-              type="text"
-              placeholder="another/model, a-third/model"
-              value={llm.openRouterFallbackModels}
-              onChange={(e) => update({ openRouterFallbackModels: e.target.value })}
-            />
-          </label>
-          <p className="hint">
-            Free endpoints are shared and fill up — the usual failure is "no capacity", not a bad key. Listing one
-            or two alternatives lets OpenRouter move on to the next instead of giving up.
-          </p>
+          <ModelPicker policy={llm.modelPolicy} onChange={(modelPolicy) => update({ modelPolicy })} />
         </>
       )}
 

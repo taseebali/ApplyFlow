@@ -2,6 +2,9 @@ import type { Profile } from './schema';
 import type { LlmSettings } from './settings';
 import { describeOpenRouterFailure, extractOpenRouterText, isTransientStatus } from './openrouter-errors';
 import { LlmError } from './llm-error';
+import { nextCandidates } from './model-router';
+import { getCooldowns, recordFailure } from './model-cooldowns';
+import { getModels } from './openrouter-catalog';
 
 export interface DraftContext {
   question: string;
@@ -103,19 +106,28 @@ async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> 
 }
 
 /**
- * Splits the comma- or newline-separated fallback list the user typed into
- * model ids, ignoring blanks and anything already named as the primary.
+ * The models this request should try, best first. A `free-pool` policy needs
+ * the catalogue to know what is currently free; the other policies name their
+ * models outright, so a catalogue failure must not stop them.
  */
-export function parseModelList(raw: string, primary: string): string[] {
-  return raw
-    .split(/[,\n]/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0 && entry !== primary);
+async function candidatesFor(llm: LlmSettings): Promise<string[]> {
+  const cooldowns = await getCooldowns();
+  const catalogue =
+    llm.modelPolicy.kind === 'free-pool' ? await getModels().catch(() => []) : [];
+
+  const candidates = nextCandidates({ policy: llm.modelPolicy, catalogue, cooldowns, now: Date.now() });
+
+  if (candidates.length === 0) {
+    throw new LlmError(
+      llm.modelPolicy.kind === 'free-pool'
+        ? 'No free model with enough context is available right now. Open Settings to pick a model directly, or lower the minimum context.'
+        : 'No model is selected. Open Settings and choose one.'
+    );
+  }
+  return candidates;
 }
 
-async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
-  const fallbacks = parseModelList(llm.openRouterFallbackModels ?? '', llm.openRouterModel);
-
+async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string[]): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -123,11 +135,11 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: llm.openRouterModel,
-      // OpenRouter walks this list itself when a model errors, is rate
-      // limited, or its provider is down - which is exactly how a busy free
-      // endpoint fails. Sent only when the user named alternatives.
-      ...(fallbacks.length ? { models: [llm.openRouterModel, ...fallbacks] } : {}),
+      model: models[0],
+      // OpenRouter walks this list itself when a model errors, is rate limited,
+      // or its provider is down - which is exactly how a busy free endpoint
+      // fails. Our own rotation sits outside it and remembers across requests.
+      ...(models.length > 1 ? { models } : {}),
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: timeoutSignal(),
@@ -142,6 +154,31 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
     throw new LlmError('OpenRouter returned a response that could not be read as JSON.', true);
   });
   return extractOpenRouterText(data);
+}
+
+/**
+ * Walks the candidate models, parking each one that fails transiently so the
+ * next request - and the next question in a drafting run - starts somewhere
+ * that is actually answering.
+ */
+async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
+  const candidates = await candidatesFor(llm);
+  let last: unknown;
+
+  for (let i = 0; i < candidates.length; i++) {
+    // Hand OpenRouter the rest of the list too, so one request already tries
+    // more than one model before coming back to us.
+    const attempt = candidates.slice(i);
+    try {
+      return await postToOpenRouter(prompt, llm, attempt);
+    } catch (err) {
+      last = err;
+      if (!(err instanceof LlmError) || !err.transient) throw err;
+      await recordFailure(candidates[i]!);
+    }
+  }
+
+  throw last;
 }
 
 /**

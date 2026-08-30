@@ -143,8 +143,7 @@ describe('parseResume', () => {
     fallbackBackend: null,
     ollamaModel: '',
     openRouterApiKey: '',
-    openRouterModel: '',
-    openRouterFallbackModels: '',
+    modelPolicy: { kind: 'single', model: 'm' },
   } as const;
 
   it('still imports contact details with no AI backend configured', async () => {

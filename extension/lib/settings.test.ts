@@ -24,3 +24,22 @@ describe('notion skip', () => {
     expect(applySettingsDefaults({ notion: { skipped: true } }).notion.skipped).toBe(true);
   });
 });
+
+describe('model policy migration', () => {
+  it('keeps a model chosen before policies existed', () => {
+    const legacy = { llm: { backend: 'openrouter' as const, openRouterModel: 'a/one' } };
+    expect(applySettingsDefaults(legacy).llm.modelPolicy).toEqual({ kind: 'single', model: 'a/one' });
+  });
+
+  it('folds old fallback models into an ordered list', () => {
+    const legacy = { llm: { openRouterModel: 'a/one', openRouterFallbackModels: 'b/two' } };
+    expect(applySettingsDefaults(legacy).llm.modelPolicy).toEqual({
+      kind: 'list',
+      models: ['a/one', 'b/two'],
+    });
+  });
+
+  it('defaults to the free pool for a fresh install', () => {
+    expect(applySettingsDefaults({}).llm.modelPolicy).toEqual({ kind: 'free-pool', minContext: 32_000 });
+  });
+});

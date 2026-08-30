@@ -10,8 +10,7 @@ const LLM: LlmSettings = {
   fallbackBackend: null,
   ollamaModel: '',
   openRouterApiKey: 'k',
-  openRouterModel: 'm',
-  openRouterFallbackModels: '',
+  modelPolicy: { kind: 'single', model: 'm' },
 };
 
 beforeEach(() => {
