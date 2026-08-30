@@ -72,3 +72,11 @@ export function BackIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function ChevronIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M9 6l6 6-6 6" />
+    </Svg>
+  );
+}

@@ -58,6 +58,10 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [pending, setPending] = useState<Partial<Record<DocumentKind, true>>>({});
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
   const [missing, setMissing] = useState<RequiredField[]>([]);
+  // Folded away by the card's own arrow. View state only: results stay in tab
+  // state, so collapsing never discards or re-requests anything.
+  const [fillClosed, setFillClosed] = useState(false);
+  const [docsClosed, setDocsClosed] = useState(false);
 
   const fill = tabState.fill;
   const attachResults = tabState.attach?.results ?? {};
@@ -247,6 +251,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         tint="blue"
         onClick={handleFillClick}
         disabled={filling}
+        collapsed={fillClosed}
+        onToggleCollapse={() => setFillClosed((v) => !v)}
       >
         {filling && <span className="pill pill-neutral">Filling…</span>}
         {!filling && fill?.status === 'done' && (
@@ -289,7 +295,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         </div>
       )}
 
-      {fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
+      {!fillClosed && fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
         <TeachFieldsPanel
           fields={fill.unrecognized}
           hostname={fill.hostname}
@@ -304,6 +310,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         tint="green"
         onClick={handleCheckDocuments}
         disabled={docStatus.kind === 'loading'}
+        collapsed={docsClosed}
+        onToggleCollapse={() => setDocsClosed((v) => !v)}
       >
         {docStatus.kind === 'loading' && <span className="pill pill-neutral">Checking…</span>}
         {docStatus.kind === 'no-folder' && (
@@ -311,13 +319,13 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         )}
         {docStatus.kind === 'error' && <span className="pill pill-danger">{docStatus.message}</span>}
       </ActionCard>
-      {docStatus.kind === 'no-folder' && (
+      {!docsClosed && docStatus.kind === 'no-folder' && (
         <button type="button" className="btn-plain" onClick={onOpenSetup}>
           Open Settings
         </button>
       )}
-      {attachError && <span className="pill pill-danger">{attachError}</span>}
-      {docStatus.kind === 'ready' && (
+      {!docsClosed && attachError && <span className="pill pill-danger">{attachError}</span>}
+      {!docsClosed && docStatus.kind === 'ready' && (
         <div className="doc-results">
           {(['resume', 'coverLetter'] as const).map((kind) => {
             const result = kind === 'resume' ? docStatus.resume : docStatus.coverLetter;
@@ -471,6 +479,7 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   // null until settings are read, so the card does not flash into view for
   // someone who has skipped the tracker.
   const [skipped, setSkipped] = useState<boolean | null>(null);
+  const [closed, setClosed] = useState(false);
   // Whether this application was already logged belongs to its tab: coming back
   // to it later must not invite logging the same row twice.
   const { tabId, state: tabState } = useTabState();
@@ -561,6 +570,8 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         tint="amber"
         onClick={handleStart}
         disabled={status.kind === 'loading' || status.kind === 'form' || status.kind === 'logging'}
+        collapsed={closed}
+        onToggleCollapse={() => setClosed((v) => !v)}
       >
         {status.kind === 'loading' && <span className="pill pill-neutral">Reading page…</span>}
         {status.kind === 'logging' && <span className="pill pill-neutral">Logging…</span>}
@@ -572,17 +583,17 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           <span className="pill pill-success">Logged to Notion</span>
         )}
       </ActionCard>
-      {status.kind === 'no-settings' && (
+      {!closed && status.kind === 'no-settings' && (
         <button type="button" className="btn-plain" onClick={onOpenSetup}>
           Open Settings
         </button>
       )}
-      {rowUrl && (
+      {!closed && rowUrl && (
         <a href={rowUrl} target="_blank" rel="noreferrer" className="btn-plain">
           Open row
         </a>
       )}
-      {status.kind === 'form' && (
+      {!closed && status.kind === 'form' && (
         <div className="log-form">
           {status.duplicates?.length ? (
             <div className="duplicate-warning">
@@ -668,6 +679,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   // component — the answers themselves live in tab state and are never
   // discarded or re-requested by collapsing.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [cardClosed, setCardClosed] = useState(false);
   const run = tabState.draft;
   const [starting, setStarting] = useState(false);
 
@@ -751,6 +763,8 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         tint="neutral"
         onClick={handleDraft}
         disabled={running}
+        collapsed={cardClosed}
+        onToggleCollapse={() => setCardClosed((v) => !v)}
       >
         {running && (
           <span className="pill pill-neutral">
@@ -762,20 +776,20 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         {run?.status === 'done' && <span className="pill pill-success">{run.entries.length} drafted</span>}
         {run?.status === 'error' && <span className="pill pill-danger">{run.message}</span>}
       </ActionCard>
-      {needsSetup && (
+      {!cardClosed && needsSetup && (
         <button type="button" className="btn-plain" onClick={onOpenSetup}>
           Open Settings
         </button>
       )}
 
-      {run && run.entries.length > 0 && (
+      {!cardClosed && run && run.entries.length > 0 && (
         <div className="drafts">
           <div className="drafts-toolbar">
             <span className="hint">
               {run.entries.length} question{run.entries.length === 1 ? '' : 's'}
             </span>
             <button type="button" className="btn-plain" onClick={toggleAll}>
-              {allCollapsed ? 'Expand all' : 'Collapse all'}
+              {allCollapsed ? 'Expand answers' : 'Collapse answers'}
             </button>
           </div>
 

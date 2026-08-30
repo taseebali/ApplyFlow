@@ -221,7 +221,7 @@ textarea:focus-visible {
 
 .action-card {
   display: flex;
-  gap: 12px;
+  align-items: stretch;
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
@@ -231,17 +231,70 @@ textarea:focus-visible {
   transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
-.action-card:hover:not(:disabled) {
+.action-card:hover:not(.action-card-disabled) {
   border-color: var(--text-muted);
 }
 
-.action-card:active:not(:disabled) {
+.action-card-disabled {
+  opacity: 0.6;
+}
+
+/* The card carries the frame; the button inside is only the hit area for the
+   primary action, so it resets everything the frame already provides. */
+.action-card-main {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: transform 0.1s;
+}
+
+.action-card-main:active:not(:disabled) {
   transform: scale(0.995);
 }
 
-.action-card:disabled {
-  opacity: 0.6;
+.action-card-main:disabled {
   cursor: default;
+}
+
+.action-card-toggle {
+  flex-shrink: 0;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 46px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0 10px 0 0;
+  color: var(--text-muted);
+}
+
+.action-card-toggle:hover {
+  color: var(--text);
+}
+
+.action-card-toggle svg {
+  transition: transform 0.18s;
+}
+
+.chevron-open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-card-toggle svg {
+    transition: none;
+  }
 }
 
 .action-card-icon {
