@@ -724,6 +724,28 @@ export function LlmSettingsSection({
 }) {
   const llm = value;
   const setLlm = onChange;
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Editing any of it invalidates a result that described the old settings.
+  const update = (patch: Partial<LlmSettings>) => {
+    setTestResult(null);
+    setLlm({ ...llm, ...patch });
+  };
+
+  const runTest = async () => {
+    if (!llm.backend) return;
+    setTesting(true);
+    try {
+      const { testLlmConnection } = await import('@/lib/llm-client');
+      const result = await testLlmConnection(llm, llm.backend);
+      setTestResult(
+        result.ok ? { ok: true, message: 'The model answered. Drafting is ready.' } : { ok: false, message: result.message }
+      );
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <section>
@@ -736,7 +758,7 @@ export function LlmSettingsSection({
         <span>Where should drafting run?</span>
         <select
           value={llm.backend ?? ''}
-          onChange={(e) => setLlm({ ...llm, backend: (e.target.value || null) as LlmSettings['backend'] })}
+          onChange={(e) => update({ backend: (e.target.value || null) as LlmSettings['backend'] })}
         >
           <option value="">Off</option>
           <option value="ollama">On my computer (Ollama)</option>
@@ -750,7 +772,7 @@ export function LlmSettingsSection({
             Requires <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> running locally with a
             model pulled. Nothing leaves your computer.
           </p>
-          <TextField label="Model" value={llm.ollamaModel} onChange={(v) => setLlm({ ...llm, ollamaModel: v })} />
+          <TextField label="Model" value={llm.ollamaModel} onChange={(v) => update({ ollamaModel: v })} />
         </>
       )}
 
@@ -774,7 +796,7 @@ export function LlmSettingsSection({
             <input
               type="password"
               value={llm.openRouterApiKey}
-              onChange={(e) => setLlm({ ...llm, openRouterApiKey: e.target.value })}
+              onChange={(e) => update({ openRouterApiKey: e.target.value })}
             />
           </label>
           <label className="field" style={{ marginTop: 10 }}>
@@ -782,7 +804,7 @@ export function LlmSettingsSection({
             <input
               type="text"
               value={llm.openRouterModel}
-              onChange={(e) => setLlm({ ...llm, openRouterModel: e.target.value })}
+              onChange={(e) => update({ openRouterModel: e.target.value })}
             />
           </label>
         </>
@@ -790,6 +812,18 @@ export function LlmSettingsSection({
 
       {llm.backend && (
         <>
+          <button type="button" className="btn" style={{ marginTop: 12 }} disabled={testing} onClick={runTest}>
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          {testResult && (
+            <p className="status-row" style={{ marginTop: 8 }}>
+              <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>
+                {testResult.ok ? 'Working' : 'Failed'}
+              </span>
+            </p>
+          )}
+          {testResult && !testResult.ok && <p className="error" style={{ marginTop: 8 }}>{testResult.message}</p>}
+
           <label className="field" style={{ marginTop: 12 }}>
             <span>If that fails, fall back to</span>
             <select

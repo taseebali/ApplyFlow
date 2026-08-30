@@ -1,5 +1,7 @@
 import type { Profile } from './schema';
 import type { LlmSettings } from './settings';
+import { describeOpenRouterFailure, extractOpenRouterText } from './openrouter-errors';
+import { LlmError } from './llm-error';
 
 export interface DraftContext {
   question: string;
@@ -7,7 +9,7 @@ export interface DraftContext {
   profile: Profile;
 }
 
-export class LlmError extends Error {}
+export { LlmError };
 
 /**
  * The job description is scraped from the page and goes into the prompt next
@@ -115,10 +117,9 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<stri
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new LlmError(`OpenRouter returned ${response.status}: ${body.slice(0, 200)}`);
+    throw new LlmError(describeOpenRouterFailure(response.status, body));
   }
-  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return (data.choices?.[0]?.message?.content ?? '').trim();
+  return extractOpenRouterText(await response.json());
 }
 
 /**
@@ -171,4 +172,26 @@ export async function runPrompt(prompt: string, llm: LlmSettings): Promise<strin
 
 export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<string> {
   return runPrompt(buildPrompt(context), llm);
+}
+
+/**
+ * Sends the smallest possible real request to one backend so a misconfigured
+ * key, an unroutable model, or a blocked data policy can be found from Settings
+ * in a second, instead of by importing a resume and reading a failure at the
+ * end of it. Deliberately targets one backend rather than going through the
+ * fallback chain: the point is to learn whether *this* one works.
+ */
+export async function testLlmConnection(
+  llm: LlmSettings,
+  backend: 'ollama' | 'openrouter'
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (backend === 'openrouter' && !llm.openRouterApiKey) {
+    return { ok: false, message: 'Enter your OpenRouter API key first.' };
+  }
+  try {
+    await runWith(backend, 'Reply with exactly the word: ok', llm);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'The request failed.' };
+  }
 }
