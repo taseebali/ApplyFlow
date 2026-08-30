@@ -8,21 +8,17 @@
     "A German-language form on a German ATS — the primary user's actual case, and the first fixture that tests the German aliases against a real page rather than labels we wrote ourselves.",
     "First and last name have visually-hidden (sr-only) labels and rely on placeholders; the inputs themselves are visible, so they must still be filled.",
     "Labels carry a trailing '(erforderlich)' inside an sr-only span, so the matched text is 'e mail erforderlich' rather than 'e mail'.",
-    "'Gehaltsvorstellung' (salary expectation) is REQUIRED here and has no schema field at all — see mustNotMatchWhy. This is a real gap the fixture exposes, not a matching failure."
+    "'Gehaltsvorstellung' is required here and originally had no schema field, so it was left blank. Adding logistics.salaryExpectation raised this fixture from 5/6 to 6/6 — the change that motivated the field."
   ],
   "expect": {
     "field-first_name": "contact.firstName",
     "field-last_name": "contact.lastName",
     "field-email": "contact.email",
     "field-phone": "contact.phone",
-    "field-available_from": "logistics.availableFrom"
+    "field-available_from": "logistics.availableFrom",
+    "field-salary_expectations": "logistics.salaryExpectation"
   },
-  "mustNotMatch": [
-    "field-salary_expectations"
-  ],
-  "mustNotMatchWhy": {
-    "field-salary_expectations": "The profile has nowhere to store a salary expectation, so anything written here would be invented. Leaving it blank and letting the user answer is correct until the schema gains the field."
-  },
+  "mustNotMatch": [],
   "openQuestions": [],
   "notQuestions": [
     "field-salary_expectations",
@@ -30,7 +26,7 @@
   ],
   "notQuestionsWhy": "Neither is an essay question. Salary is a short factual field the user must answer; availability is answered from the profile.",
   "baseline": {
-    "matched": 5,
+    "matched": 6,
     "wrong": 0
   }
 }

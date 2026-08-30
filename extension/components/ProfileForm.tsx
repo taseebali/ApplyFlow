@@ -458,6 +458,11 @@ export function LogisticsSection({ profile, onChange }: { profile: Profile; onCh
           value={lg.availableFrom}
           onChange={(v) => onChange({ ...profile, logistics: { ...lg, availableFrom: v } })}
         />
+        <TextField
+          label="Salary expectation"
+          value={lg.salaryExpectation}
+          onChange={(v) => onChange({ ...profile, logistics: { ...lg, salaryExpectation: v } })}
+        />
         <label className="field">
           <span>Willing to relocate?</span>
           <select

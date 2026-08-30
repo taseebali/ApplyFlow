@@ -190,3 +190,24 @@ describe('short aliases do not match inside words', () => {
     expect(matchFields(document)[0]?.path).toBe('contact.firstName');
   });
 });
+
+describe('salary expectation', () => {
+  it('matches the German and English wordings', () => {
+    document.body.innerHTML = `
+      <form>
+        <label>Gehaltsvorstellung<input name="a"></label>
+        <label>Salary expectation<input name="b"></label>
+        <label>Desired salary<input name="c"></label>
+      </form>`;
+    const byName = new Map(matchFields(document).map((m) => [m.element.getAttribute('name'), m.path]));
+    expect(byName.get('a')).toBe('logistics.salaryExpectation');
+    expect(byName.get('b')).toBe('logistics.salaryExpectation');
+    expect(byName.get('c')).toBe('logistics.salaryExpectation');
+  });
+
+  it('does not claim an unrelated question that mentions salary', () => {
+    document.body.innerHTML =
+      '<form><label>Describe a time you negotiated a difficult outcome<input name="q"></label></form>';
+    expect(matchFields(document)).toEqual([]);
+  });
+});

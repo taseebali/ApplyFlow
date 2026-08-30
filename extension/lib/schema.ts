@@ -92,6 +92,12 @@ export interface Profile {
   logistics: {
     availableFrom: string;
     willingToRelocate: boolean | null;
+    /**
+     * What the candidate asks for, in their own words — "65000", "60-70k",
+     * "negotiable". Deliberately free text and deliberately theirs: a salary
+     * expectation is a negotiating position, not a fact to be looked up.
+     */
+    salaryExpectation: string;
     /** Ordered by preference; the first one present among a form's options is used. */
     hearAboutUsPreferences: string[];
   };
@@ -133,6 +139,7 @@ export const EMPTY_PROFILE: Profile = {
   logistics: {
     availableFrom: '',
     willingToRelocate: null,
+    salaryExpectation: '',
     hearAboutUsPreferences: ['LinkedIn', 'Social Media'],
   },
   customQA: [],
@@ -254,6 +261,25 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
   },
   { path: 'workAuthorization.race', aliases: ['race', 'race ethnicity', 'ethnicity'] },
   { path: 'workAuthorization.gender', aliases: ['gender', 'gender identity', 'sex', 'geschlecht'] },
+  {
+    // Required on German forms (Gehaltsvorstellung) and common elsewhere. Until
+    // this existed the field was left blank on every Personio application.
+    path: 'logistics.salaryExpectation',
+    aliases: [
+      'salary expectation',
+      'salary expectations',
+      'expected salary',
+      'desired salary',
+      'salary requirement',
+      'salary requirements',
+      'compensation expectation',
+      'compensation expectations',
+      'gehaltsvorstellung',
+      'gehaltswunsch',
+      'wunschgehalt',
+      'gehaltsvorstellungen',
+    ],
+  },
   {
     path: 'logistics.availableFrom',
     aliases: ['available from', 'availability', 'start date', 'earliest start date', 'when can you start', 'notice period', 'verfugbar ab', 'verfugbarkeit', 'eintrittsdatum', 'fruhestes eintrittsdatum', 'fruhester eintrittstermin', 'starttermin', 'kundigungsfrist', 'wann konnen sie anfangen'],
