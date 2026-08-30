@@ -1,0 +1,56 @@
+{
+  "source": "https://job-boards.greenhouse.io/gitlab/jobs/8705017002",
+  "captured": "2026-08-30",
+  "ats": "greenhouse",
+  "notes": [
+    "Captured blank, after JavaScript rendered. No personal data.",
+    "Zero native <select> elements: all ten dropdowns are react-select comboboxes, i.e. input[type=text] with role=combobox. This is the current Greenhouse default and the reason the combobox path exists.",
+    "No element carries a name attribute, so field signatures fall back to id.",
+    "Question ids are per-posting (question_<numeric>), so a taught mapping on one GitLab posting will not transfer to another. That is a known limitation, not a fixture artefact.",
+    "Long EEOC prose was trimmed; every form control and the structure around it is untouched."
+  ],
+  "expect": {
+    "first_name": "contact.firstName",
+    "last_name": "contact.lastName",
+    "email": "contact.email",
+    "phone": "contact.phone",
+    "question_37763347002": "links.linkedin",
+    "question_37763349002": "contact.country",
+    "question_37763354002": "contact.country",
+    "question_37763352002": "workAuthorization.requiresSponsorship",
+    "gender": "workAuthorization.gender",
+    "veteran_status": "workAuthorization.veteranStatus",
+    "disability_status": "workAuthorization.disabilityStatus"
+  },
+  "mustNotMatch": [
+    "question_37845851002",
+    "question_37763350002",
+    "question_37763353002"
+  ],
+  "mustNotMatchWhy": {
+    "question_37845851002": "\"Are you currently located in the United States?\" is a yes/no about location, not a country field. Filling it with a country name would be wrong.",
+    "question_37763350002": "Employment agreements and post-employment restrictions - nothing in the profile answers this.",
+    "question_37763353002": "\"Have you previously worked at GitLab?\" - profile has no employer-specific history flag."
+  },
+  "openQuestions": [
+    "question_37763351002"
+  ],
+  "notQuestions": [
+    "question_37763349002",
+    "question_37845851002",
+    "question_37763350002",
+    "question_37763352002",
+    "question_37763353002",
+    "question_37763354002",
+    "gender",
+    "hispanic_ethnicity",
+    "veteran_status",
+    "disability_status",
+    "country"
+  ],
+  "notQuestionsWhy": "Comboboxes have a fixed option list and belong to the fill path. Sending them to a model as essay questions is what made drafting slow and useless before isCombobox was added.",
+  "baseline": {
+    "matched": 11,
+    "wrong": 0
+  }
+}
