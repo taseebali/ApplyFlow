@@ -28,8 +28,23 @@ export async function getProfile(): Promise<Profile> {
   return stored ? applyProfileDefaults(stored) : EMPTY_PROFILE;
 }
 
+/**
+ * `storage.local` is capped at roughly 10MB and shared by the profile,
+ * snapshots, learned mappings and the model catalogue. A rejected write is
+ * silent otherwise — the user would go on editing a profile that is no longer
+ * being saved.
+ */
+export class StorageFullError extends Error {}
+
 export async function setProfile(profile: Profile): Promise<void> {
-  await browser.storage.local.set({ [PROFILE_KEY]: profile });
+  try {
+    await browser.storage.local.set({ [PROFILE_KEY]: profile });
+  } catch (err) {
+    throw new StorageFullError(
+      'Could not save your profile — this browser’s extension storage is full. Remove some earlier versions under Setup → Earlier versions, then try again.',
+      { cause: err }
+    );
+  }
 }
 
 const SNAPSHOT_KEY = 'profile-snapshots';

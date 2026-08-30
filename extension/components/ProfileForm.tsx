@@ -8,12 +8,23 @@ import {
   type ProjectEntry,
   type WorkHistoryEntry,
 } from '@/lib/schema';
-import { getDocumentsFolderHandle, saveDocumentsFolderHandle } from '@/lib/document-store';
+import {
+  getDocumentsFolderHandle,
+  saveDocumentsFolderHandle,
+  supportsDocumentsFolder,
+} from '@/lib/document-store';
 import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { LocationFields } from './LocationFields';
 import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
+import {
+  clearApplications,
+  getApplications,
+  summarize,
+  toCsv,
+  type ApplicationEntry,
+} from '@/lib/application-log';
 import { ModelPicker } from './ModelPicker';
 import { PROVIDERS, originPatternFor, providerById } from '@/lib/providers';
 
@@ -486,6 +497,9 @@ export function LogisticsSection({ profile, onChange }: { profile: Profile; onCh
 }
 
 export function DocumentsSection() {
+  // Chromium-only. Rendering the button on a browser that cannot honour it
+  // makes the feature look broken rather than unavailable.
+  const supported = supportsDocumentsFolder();
   const [folderName, setFolderName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -508,6 +522,19 @@ export function DocumentsSection() {
       }
     }
   };
+
+  if (!supported) {
+    return (
+      <section>
+        <h2>Documents</h2>
+        <p className="hint">
+          Linking a documents folder needs the File System Access API, which this browser does not support — it is
+          currently Chromium-only (Chrome, Brave, Edge). Everything else works as normal; you will just attach
+          resumes and cover letters by hand.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -1090,6 +1117,90 @@ export function ProfileHistorySection() {
       </div>
 
       {message && <p className="hint" style={{ marginTop: 10 }}>{message}</p>}
+    </section>
+  );
+}
+
+/**
+ * Every application put through the tool, kept locally. Answers "is this
+ * helping?", and gives people who skipped Notion a tracker of their own.
+ */
+export function ApplicationHistorySection() {
+  const [entries, setEntries] = useState<ApplicationEntry[]>([]);
+  const [confirming, setConfirming] = useState(false);
+
+  const load = () => void getApplications().then(setEntries);
+  useEffect(load, []);
+
+  const stats = summarize(entries);
+
+  const exportCsv = () => {
+    const blob = new Blob([toCsv(entries)], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `applyflow-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <section>
+      <h2>Application history</h2>
+      <p className="hint">
+        Kept on this computer. Nothing here is sent anywhere — it exists so you can see what you have applied to
+        and whether this is saving you anything.
+      </p>
+
+      {entries.length === 0 ? (
+        <p className="hint">Nothing recorded yet. Fill a page and it will appear here.</p>
+      ) : (
+        <>
+          <p className="status-row" style={{ marginBottom: 12 }}>
+            <span className="pill pill-neutral">{stats.total} applications</span>
+            <span className="pill pill-neutral">{stats.last30Days} in the last 30 days</span>
+            <span className="pill pill-success">{stats.fieldsFilled} fields filled</span>
+            <span className="pill pill-success">{stats.questionsDrafted} answers drafted</span>
+          </p>
+
+          {stats.troublesomeSites.length > 0 && (
+            <p className="hint">
+              Forms that rejected a value: {stats.troublesomeSites.map((s) => `${s.hostname} (${s.invalid})`).join(', ')}.
+            </p>
+          )}
+
+          <div className="doc-results">
+            {entries.slice(0, 25).map((entry) => (
+              <div className="doc-row" key={entry.id}>
+                <span className="doc-row-label" title={entry.url}>
+                  {new Date(entry.appliedAt).toLocaleDateString()} — {entry.company || entry.hostname}
+                  {entry.title ? `, ${entry.title}` : ''}
+                </span>
+                <span className="pill pill-neutral">{entry.filledCount} filled</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="setup-footer" style={{ marginTop: 12 }}>
+            <button type="button" className="btn" onClick={exportCsv}>
+              Export CSV
+            </button>
+            {confirming ? (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => void clearApplications().then(() => { setConfirming(false); load(); })}
+              >
+                Really clear history
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => setConfirming(true)}>
+                Clear history
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

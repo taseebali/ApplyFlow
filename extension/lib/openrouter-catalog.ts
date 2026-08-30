@@ -104,7 +104,13 @@ export async function getModels(options: { force?: boolean } = {}): Promise<Cata
     const models = normalizeCatalogue(await response.json());
     if (models.length === 0) throw new Error('The catalogue came back empty.');
 
-    await browser.storage.local.set({ [CACHE_KEY]: { fetchedAt: Date.now(), models } satisfies CachedCatalogue });
+    try {
+      await browser.storage.local.set({ [CACHE_KEY]: { fetchedAt: Date.now(), models } satisfies CachedCatalogue });
+    } catch {
+      // storage.local is capped (~10MB) and shared with the profile, snapshots
+      // and learned mappings. A rejected cache write must not fail the fetch —
+      // the list is still usable for this session, it just is not remembered.
+    }
     return models;
   } catch (err) {
     if (cached) return cached.models;

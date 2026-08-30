@@ -8,6 +8,7 @@ import {
   LlmSettingsSection,
   LogisticsSection,
   FieldMappingsSection,
+  ApplicationHistorySection,
   ProfileHistorySection,
   NotionSettingsSection,
   LanguagesSection,
@@ -146,6 +147,12 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       render: () => <DocumentsSection />,
     },
     {
+      id: 'applications',
+      title: 'Application history',
+      blurb: 'Everything you have applied to through ApplyFlow, kept on this computer.',
+      render: () => <ApplicationHistorySection />,
+    },
+    {
       id: 'history',
       title: 'Earlier versions',
       blurb: 'Copies kept automatically before an import replaced anything, so a bad import is not final.',
@@ -179,7 +186,7 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
   if (mode === 'wizard') {
     // "Learned fields" is always empty during first-run setup, so it would be
     // a step with nothing to do. It stays available as a tab afterwards.
-    return <Wizard steps={steps.filter((s) => s.id !== 'learned' && s.id !== 'history')} onDone={handleDone} />;
+    return <Wizard steps={steps.filter((s) => !['learned', 'history', 'applications'].includes(s.id))} onDone={handleDone} />;
   }
 
   // Tabs mode: same steps minus the wizard-only welcome/done screens.

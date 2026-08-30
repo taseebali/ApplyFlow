@@ -44,3 +44,15 @@ export async function ensureReadPermission(handle: FileSystemDirectoryHandle): P
   if ((await handle.queryPermission(options)) === 'granted') return true;
   return (await handle.requestPermission(options)) === 'granted';
 }
+
+/**
+ * Whether this browser can link a documents folder at all.
+ *
+ * The File System Access API is Chromium-only. The Firefox build scripts
+ * advertised a browser where this feature silently does nothing — the button
+ * was there, and pressing it achieved nothing anyone could see. Better to say
+ * so than to offer a control that cannot work.
+ */
+export function supportsDocumentsFolder(): boolean {
+  return typeof (globalThis as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
+}

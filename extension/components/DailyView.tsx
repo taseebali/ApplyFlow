@@ -33,6 +33,7 @@ import { missingRequiredFields, type RequiredField } from '@/lib/profile-complet
 import type { StartDraftMessage } from '@/entrypoints/background';
 import { getTabState, patchTabState, type AttachOutcome, type DraftEntry } from '@/lib/tab-state';
 import { mergeFillResults, type FrameReport } from '@/lib/frames';
+import { recordApplication } from '@/lib/application-log';
 import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
@@ -196,6 +197,26 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       if (responses.length === 0) throw new Error('No part of this page could be filled.');
 
       const merged = mergeFillResults(responses);
+
+      // A local record of what this run actually did, so the tool can answer
+      // whether it is helping — and so people who skipped Notion still have a
+      // tracker. Never allowed to fail the fill.
+      void browser.tabs
+        .sendMessage(target, { type: 'get-job-info' } satisfies GetJobInfoMessage)
+        .then((info: GetJobInfoResponse) =>
+          recordApplication({
+            company: info.companyName ?? '',
+            title: info.jobTitle ?? '',
+            url: info.jobUrl ?? '',
+            hostname: responses[0]!.hostname,
+            filledCount: merged.filledCount,
+            invalidCount: responses.reduce((sum, r) => sum + r.invalid.length, 0),
+            questionsDrafted: 0,
+            documentsAttached: 0,
+            loggedToNotion: false,
+          })
+        )
+        .catch(() => {});
       await patchTabState(target, {
         fill: {
           status: 'done',
