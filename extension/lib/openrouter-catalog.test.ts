@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getModels, isFresh, normalizeCatalogue, normalizeModel } from './openrouter-catalog';
+import { getModels, isFresh, normalizeCatalogue, normalizeModel, summarizeHealth } from './openrouter-catalog';
 
 const entry = (over: Record<string, unknown> = {}) => ({
   id: 'vendor/model',
@@ -123,5 +123,36 @@ describe('getModels', () => {
     respondWith([]);
     await expect(getModels()).rejects.toThrow();
     expect(store['openrouter-catalog-v1']).toBeUndefined();
+  });
+});
+
+describe('summarizeHealth', () => {
+  it('reads providers and the best recent uptime', () => {
+    const health = summarizeHealth({
+      data: {
+        endpoints: [
+          { provider_name: 'Google AI Studio', status: 0, uptime_last_5m: 100 },
+          { provider_name: 'Other', status: 0, uptime_last_5m: 72 },
+        ],
+      },
+    });
+    expect(health.anyLive).toBe(true);
+    expect(health.bestUptime5m).toBe(100);
+    expect(health.providers).toEqual(['Google AI Studio', 'Other']);
+  });
+
+  it('reports a retired model with no endpoints as not live', () => {
+    const health = summarizeHealth({ data: { endpoints: [] } });
+    expect(health.anyLive).toBe(false);
+    expect(health.bestUptime5m).toBeNull();
+  });
+
+  it('falls back to the thirty-minute figure when the five-minute one is missing', () => {
+    expect(summarizeHealth({ data: { endpoints: [{ uptime_last_30m: 88 }] } }).bestUptime5m).toBe(88);
+  });
+
+  it('survives a payload in an unexpected shape', () => {
+    expect(summarizeHealth(null).anyLive).toBe(false);
+    expect(summarizeHealth({ data: {} }).anyLive).toBe(false);
   });
 });

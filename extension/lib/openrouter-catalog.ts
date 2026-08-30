@@ -115,3 +115,54 @@ export async function getModels(options: { force?: boolean } = {}): Promise<Cata
     );
   }
 }
+
+export interface ModelHealth {
+  /** False when every provider has dropped the model — how a retired free model presents. */
+  anyLive: boolean;
+  /** Best uptime across providers over the last five minutes, 0-100, or null when unknown. */
+  bestUptime5m: number | null;
+  providers: string[];
+}
+
+interface RawEndpoint {
+  provider_name?: unknown;
+  status?: unknown;
+  uptime_last_5m?: unknown;
+  uptime_last_30m?: unknown;
+}
+
+export function summarizeHealth(payload: unknown): ModelHealth {
+  const endpoints = (payload as { data?: { endpoints?: unknown } })?.data?.endpoints;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) {
+    return { anyLive: false, bestUptime5m: null, providers: [] };
+  }
+
+  const providers: string[] = [];
+  let best: number | null = null;
+
+  for (const raw of endpoints as RawEndpoint[]) {
+    if (typeof raw.provider_name === 'string') providers.push(raw.provider_name);
+    // Five minutes is the window that matters for "is it busy right now"; the
+    // thirty-minute figure stands in when the shorter one is absent.
+    const uptime = typeof raw.uptime_last_5m === 'number' ? raw.uptime_last_5m : raw.uptime_last_30m;
+    if (typeof uptime === 'number' && (best === null || uptime > best)) best = uptime;
+  }
+
+  return { anyLive: true, bestUptime5m: best, providers };
+}
+
+/**
+ * Live availability for one model. Fetched only for a model the user is
+ * actually looking at — asking for all 396 would be several hundred requests.
+ */
+export async function fetchModelHealth(modelId: string): Promise<ModelHealth | null> {
+  try {
+    const response = await fetch(`${MODELS_URL}/${modelId}/endpoints`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    return summarizeHealth(await response.json());
+  } catch {
+    // Health is an extra, never a gate: a failed check must not stop the user
+    // choosing a model.
+    return null;
+  }
+}
