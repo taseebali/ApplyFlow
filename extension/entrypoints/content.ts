@@ -15,6 +15,7 @@ import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
 import type { DocumentKind } from '@/lib/document-matcher';
 import { detectQuestions } from '@/lib/question-detector';
 import type { ChooseOptionMessage } from '@/entrypoints/background';
+import { frameHasWork, summarizeFrame } from '@/lib/frames';
 
 export interface FillPageMessage {
   type: 'fill-page';
@@ -191,6 +192,8 @@ function watchForPageChanges() {
     if (!form) return; // Nothing fillable here; no point nudging the user.
     // The panel may not be open; a failed send is expected and harmless.
     browser.runtime.sendMessage({ type: 'page-changed', url }).catch(() => {});
+    // A step change can introduce a form where there was none.
+    void announceFrame();
   };
 
   // History API navigations do not fire an event of their own.
@@ -212,10 +215,35 @@ function watchForPageChanges() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
+/**
+ * Tells the worker this frame holds something fillable. Frames self-report
+ * because a broadcast `tabs.sendMessage` returns only the first reply, which
+ * on a multi-frame page is a race rather than an answer — whereas the worker
+ * sees each sender's `frameId` for free.
+ *
+ * Frames with nothing to fill stay silent, so ad and tracking iframes never
+ * enter the registry and are never messaged again.
+ */
+async function announceFrame(): Promise<void> {
+  const summary = summarizeFrame(document);
+  if (!frameHasWork(summary)) return;
+  await browser.runtime
+    .sendMessage({ type: 'frame-has-form', url: location.href, ...summary })
+    .catch(() => {
+      // The worker may not be listening yet; the page-change watcher re-announces.
+    });
+}
+
 export default defineContentScript({
   matches: ['<all_urls>'],
+  // An application embedded in an iframe — Greenhouse and Lever on a company's
+  // own careers page — was previously invisible: the script ran only in the top
+  // document, found no form, and reported "0 filled".
+  allFrames: true,
+  matchAboutBlank: true,
   main() {
     watchForPageChanges();
+    void announceFrame();
 
     browser.runtime.onMessage.addListener((message: IncomingMessage, _sender, sendResponse) => {
       if (message?.type === 'fill-page') {

@@ -5,6 +5,24 @@ import { draftAnswer } from '@/lib/llm-client';
 import { normalizeQuestion } from '@/lib/question-matching';
 import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/lib/tab-state';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
+import { rankFrames, type FrameReport } from '@/lib/frames';
+
+/**
+ * Which frames of which tab hold a fillable form. Held in the worker because
+ * it is the only party that sees `sender.frameId`, and rebuilt from scratch on
+ * every navigation — a frame that no longer exists must never be messaged.
+ */
+const frameRegistry = new Map<number, Map<number, FrameReport>>();
+
+function recordFrame(tabId: number, report: FrameReport): void {
+  const frames = frameRegistry.get(tabId) ?? new Map<number, FrameReport>();
+  frames.set(report.frameId, report);
+  frameRegistry.set(tabId, frames);
+}
+
+export function framesForTab(tabId: number): FrameReport[] {
+  return rankFrames([...(frameRegistry.get(tabId)?.values() ?? [])]);
+}
 
 export interface ChooseOptionMessage {
   type: 'choose-option';
@@ -37,7 +55,15 @@ async function runDraft(tabId: number): Promise<void> {
     }
 
     const message: GetQuestionsMessage = { type: 'get-questions' };
-    const found: GetQuestionsResponse = await browser.tabs.sendMessage(tabId, message);
+    // Addressed by frame: an un-targeted send goes to every frame and keeps
+    // whichever answers first, which on an embedded application is a coin toss.
+    const frames = framesForTab(tabId);
+    const target = frames.find((frame) => frame.questionCount > 0) ?? frames[0];
+    const found: GetQuestionsResponse = await browser.tabs.sendMessage(
+      tabId,
+      message,
+      target ? { frameId: target.frameId } : undefined
+    );
 
     if (!found.questions.length) {
       await fail('No open-ended questions found on this page.');
@@ -114,6 +140,32 @@ export default defineBackground(() => {
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('Failed to set side panel behavior', err));
 
+  // Frames announce themselves when they load and after an in-page step change.
+  browser.runtime.onMessage.addListener(
+    (message: { type?: string; url?: string; fieldCount?: number; fileInputCount?: number; questionCount?: number }, sender) => {
+      if (message?.type !== 'frame-has-form') return undefined;
+      const tabId = sender.tab?.id;
+      if (tabId === undefined || sender.frameId === undefined) return undefined;
+      recordFrame(tabId, {
+        frameId: sender.frameId,
+        url: message.url ?? '',
+        fieldCount: message.fieldCount ?? 0,
+        fileInputCount: message.fileInputCount ?? 0,
+        questionCount: message.questionCount ?? 0,
+      });
+      return undefined;
+    }
+  );
+
+  // The panel asks which frames are worth addressing.
+  browser.runtime.onMessage.addListener(
+    (message: { type?: string; tabId?: number }, _sender, sendResponse) => {
+      if (message?.type !== 'get-frames' || typeof message.tabId !== 'number') return undefined;
+      sendResponse({ frames: framesForTab(message.tabId) });
+      return true;
+    }
+  );
+
   browser.runtime.onMessage.addListener((message: StartDraftMessage, sender, sendResponse) => {
     if (message?.type !== 'start-draft') return undefined;
 
@@ -141,6 +193,7 @@ export default defineBackground(() => {
   // A closed tab's application is over; keep session storage from growing.
   browser.tabs.onRemoved.addListener((tabId) => {
     void clearTabState(tabId);
+    frameRegistry.delete(tabId);
   });
 
   // A navigation, or an in-page step change, replaces the form — so the stored
@@ -154,6 +207,9 @@ export default defineBackground(() => {
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading' || !changeInfo.url) return;
+    // The old frame ids describe a page that no longer exists. Each frame of
+    // the new page announces itself as it loads.
+    frameRegistry.delete(tabId);
     markFillStale(tabId);
   });
 

@@ -17,6 +17,8 @@ export type FillResult =
       /** Answers written without the user typing them, shown so they can be checked. */
       autoAnswered: Array<{ label: string; answer: string; source: 'profile' | 'ai' }>;
       hostname: string;
+      /** How many frames answered, so an embedded application is visible as one. */
+      frameCount?: number;
       /** Set once the page navigated or swapped its form after this fill, so
        * the summary is not mistaken for describing what is on screen now. */
       stale?: boolean;

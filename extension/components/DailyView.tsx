@@ -30,6 +30,7 @@ import { getProfile, setProfile } from '@/lib/storage';
 import { missingRequiredFields, type RequiredField } from '@/lib/profile-completeness';
 import type { StartDraftMessage } from '@/entrypoints/background';
 import { getTabState, patchTabState, type AttachOutcome, type DraftEntry } from '@/lib/tab-state';
+import { mergeFillResults, type FrameReport } from '@/lib/frames';
 import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
@@ -42,6 +43,21 @@ type DocStatus =
   | { kind: 'ready'; resume: DocumentMatchResult; coverLetter: DocumentMatchResult };
 
 const DOC_LABELS: Record<DocumentKind, string> = { resume: 'Resume', coverLetter: 'Cover letter' };
+
+/**
+ * The frames of this tab that hold something fillable, richest first. The
+ * worker owns the registry because only it sees each sender's `frameId`.
+ */
+async function listFillableFrames(tabId: number): Promise<FrameReport[]> {
+  try {
+    const response = (await browser.runtime.sendMessage({ type: 'get-frames', tabId })) as
+      | { frames?: FrameReport[] }
+      | undefined;
+    return response?.frames ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export async function getActiveTabId(): Promise<number> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -112,22 +128,47 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
     setBusyTab(target);
     try {
       const message: FillPageMessage = { type: 'fill-page' };
-      const response: FillPageResponse = await browser.tabs.sendMessage(target, message);
+
+      // An application is often embedded in an iframe, and can legitimately
+      // span more than one. Each frame is addressed by id: an un-targeted send
+      // reaches every frame but keeps only whichever replies first.
+      const frames = await listFillableFrames(target);
+      const responses: FillPageResponse[] = [];
+
+      if (frames.length === 0) {
+        // No frame registered — a plain top-level form, or a page whose script
+        // has not announced itself yet. Ask the tab directly, as before.
+        responses.push(await browser.tabs.sendMessage(target, message));
+      } else {
+        for (const frame of frames) {
+          try {
+            responses.push(await browser.tabs.sendMessage(target, message, { frameId: frame.frameId }));
+          } catch {
+            // A frame can vanish between announcing itself and being filled.
+            // Skipping it is right; failing the whole run is not.
+          }
+        }
+      }
+
+      if (responses.length === 0) throw new Error('No part of this page could be filled.');
+
+      const merged = mergeFillResults(responses);
       await patchTabState(target, {
         fill: {
           status: 'done',
-          filledCount: response.filledCount,
-          unmatchedCount: response.unmatchedCount,
-          unmatchedLabels: response.unmatchedLabels,
-          unrecognized: response.unrecognized,
+          filledCount: merged.filledCount,
+          unmatchedCount: merged.unmatchedCount,
+          unmatchedLabels: merged.unmatchedLabels,
+          unrecognized: merged.unrecognized as FillPageResponse['unrecognized'],
           // Everything written into the form that the user did not type
           // themselves, so they can check it before submitting. An AI-chosen
           // dropdown especially: the option text came from the page.
-          autoAnswered: [
+          autoAnswered: responses.flatMap((response) => [
             ...response.inferred.map((a) => ({ ...a, source: 'profile' as const })),
             ...response.aiChoices.map((a) => ({ ...a, source: 'ai' as const })),
-          ],
-          hostname: response.hostname,
+          ]),
+          hostname: responses[0]!.hostname,
+          frameCount: responses.length,
         },
       });
     } catch (err) {
