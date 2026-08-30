@@ -17,7 +17,6 @@
     "check:secrets": "node scripts/check-no-secrets.mjs"
   },
   "dependencies": {
-    "country-state-city": "^3.2.1",
     "mammoth": "^1.12.1",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.4",
