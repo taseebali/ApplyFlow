@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { EMPTY_PROFILE, isProfile, type Profile } from '@/lib/schema';
-import { getProfile, setProfile } from '@/lib/storage';
+import { getProfile, setProfile, snapshotProfile } from '@/lib/storage';
 
 type SaveState = 'idle' | 'saved';
 
@@ -42,6 +42,9 @@ export function useProfileEditor() {
         setImportError('That file does not match the expected profile format.');
         return;
       }
+      // A JSON import replaces everything. Snapshot first so a wrong file is
+      // recoverable rather than final.
+      await snapshotProfile('before importing a profile file');
       setProfileState(parsed);
       setImportError(null);
     } catch {

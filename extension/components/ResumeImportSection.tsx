@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/schema';
 import type { LlmSettings } from '@/lib/settings';
 import { extractResumeText } from '@/lib/resume-text';
 import { parseResume, type ParsedResume } from '@/lib/resume-parser';
+import { snapshotProfile } from '@/lib/storage';
 
 type ImportState =
   | { kind: 'idle' }
@@ -109,10 +110,12 @@ export function ResumeImportSection({
     }
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (state.kind !== 'review') return;
     const counts = countFound(state.parsed);
     const kept = SECTION_LABELS.filter((s) => selection[s.key] && counts[s.key] > 0);
+    // Importing overwrites whole sections; keep a way back.
+    await snapshotProfile('before importing a resume');
     onChange(applyParsed(profile, state.parsed, selection));
     setState({
       kind: 'applied',
@@ -222,7 +225,7 @@ export function ResumeImportSection({
             <button type="button" className="btn" onClick={() => setState({ kind: 'idle' })}>
               Discard
             </button>
-            <button type="button" className="btn btn-primary" onClick={handleApply}>
+            <button type="button" className="btn btn-primary" onClick={() => void handleApply()}>
               Use these details
             </button>
           </div>

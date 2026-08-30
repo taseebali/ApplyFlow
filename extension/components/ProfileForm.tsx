@@ -13,6 +13,7 @@ import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { LocationFields } from './LocationFields';
+import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
 import { ModelPicker } from './ModelPicker';
 import { PROVIDERS, originPatternFor, providerById } from '@/lib/providers';
 
@@ -1033,6 +1034,62 @@ export function LanguagesSection({ profile, onChange }: { profile: Profile; onCh
       <button type="button" className="btn" onClick={add}>
         + Add language
       </button>
+    </section>
+  );
+}
+
+/**
+ * Earlier copies of the profile, kept automatically before anything replaces
+ * it wholesale. Without this an unlucky import is final, which is exactly the
+ * fear that stops people using the import that saves them the typing.
+ */
+export function ProfileHistorySection() {
+  const [snapshots, setSnapshots] = useState<ProfileSnapshot[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = () => void getSnapshots().then(setSnapshots);
+  useEffect(load, []);
+
+  const restore = async (takenAt: number) => {
+    setBusy(true);
+    try {
+      const ok = await restoreSnapshot(takenAt);
+      setMessage(
+        ok
+          ? 'Restored. Reopen Setup to see the restored details — the current version was saved first, so this is reversible.'
+          : 'That version is no longer available.'
+      );
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h2>Earlier versions</h2>
+      <p className="hint">
+        A copy is kept automatically before a resume or JSON import replaces anything. The five most recent are
+        stored, on this computer only.
+      </p>
+
+      {snapshots.length === 0 && <p className="hint">No earlier versions yet.</p>}
+
+      <div className="doc-results">
+        {snapshots.map((snapshot) => (
+          <div className="doc-row" key={snapshot.takenAt}>
+            <span className="doc-row-label">
+              {new Date(snapshot.takenAt).toLocaleString()} — {snapshot.reason}
+            </span>
+            <button type="button" className="btn" disabled={busy} onClick={() => void restore(snapshot.takenAt)}>
+              Restore
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {message && <p className="hint" style={{ marginTop: 10 }}>{message}</p>}
     </section>
   );
 }
