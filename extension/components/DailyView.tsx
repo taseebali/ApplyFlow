@@ -664,6 +664,10 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   // another application and back shows this one's answers — finished, or
   // still arriving.
   const { tabId, state: tabState, patch } = useTabState();
+  // Which drafts are folded away. Purely a view preference, so it stays in the
+  // component — the answers themselves live in tab state and are never
+  // discarded or re-requested by collapsing.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const run = tabState.draft;
   const [starting, setStarting] = useState(false);
 
@@ -731,6 +735,11 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   };
 
   const running = starting || run?.status === 'running';
+
+  const entries = run?.entries ?? [];
+  const allCollapsed = entries.length > 0 && entries.every((e) => collapsed[e.id]);
+  const toggleAll = () =>
+    setCollapsed(allCollapsed ? {} : Object.fromEntries(entries.map((e) => [e.id, true])));
   const needsSetup = run?.status === 'error' && /Settings/i.test(run.message ?? '');
 
   return (
@@ -761,38 +770,74 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
       {run && run.entries.length > 0 && (
         <div className="drafts">
-          {run.entries.map((draft) => (
-            <div className="draft" key={draft.id}>
-              <p className="draft-question">
-                {draft.question}
-                {draft.saved && <span className="pill pill-neutral">saved answer</span>}
-                {!draft.saved && draft.model && (
-                  <span className="pill pill-neutral" title="The model that answered — a rotating pool can use a different one per question">
-                    {draft.model}
+          <div className="drafts-toolbar">
+            <span className="hint">
+              {run.entries.length} question{run.entries.length === 1 ? '' : 's'}
+            </span>
+            <button type="button" className="btn-plain" onClick={toggleAll}>
+              {allCollapsed ? 'Expand all' : 'Collapse all'}
+            </button>
+          </div>
+
+          {run.entries.map((draft) => {
+            const open = !collapsed[draft.id];
+            return (
+              <div className="draft" key={draft.id}>
+                {/* A button, not a heading with a handler: collapsing has to be
+                    reachable by keyboard, and the whole row is the target. */}
+                <button
+                  type="button"
+                  className="draft-question"
+                  aria-expanded={open}
+                  onClick={() => setCollapsed((prev) => ({ ...prev, [draft.id]: open }))}
+                >
+                  <span className={`draft-chevron ${open ? 'draft-chevron-open' : ''}`} aria-hidden="true">
+                    ▸
                   </span>
-                )}
-              </p>
-              {draft.error ? (
-                <span className="pill pill-danger">{draft.error}</span>
-              ) : (
-                <>
-                  <textarea value={draft.text} onChange={(e) => updateDraft(draft.id, { text: e.target.value })} />
-                  {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
-                  <div className="draft-actions">
-                    <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
-                      {draft.inserted ? 'Inserted' : 'Insert'}
-                    </button>
-                    <button
-                      className="btn"
-                      onClick={() => handleSaveReusable(draft.id, draft.question, draft.text)}
+                  <span className="draft-question-text">{draft.question}</span>
+                  {draft.saved && <span className="pill pill-neutral">saved answer</span>}
+                  {!draft.saved && draft.model && (
+                    <span
+                      className="pill pill-neutral"
+                      title="The model that answered — a rotating pool can use a different one per question"
                     >
-                      {draft.saved ? 'Saved' : 'Save for reuse'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                      {draft.model}
+                    </span>
+                  )}
+                  {draft.inserted && <span className="pill pill-success">inserted</span>}
+                  {draft.error && <span className="pill pill-danger">failed</span>}
+                </button>
+
+                {/* Hidden, never unmounted: the drafted text is preserved
+                    exactly as it was, including unsaved edits, and nothing is
+                    regenerated on reopening. */}
+                <div className="draft-body" hidden={!open}>
+                  {draft.error ? (
+                    <span className="pill pill-danger">{draft.error}</span>
+                  ) : (
+                    <>
+                      <textarea
+                        value={draft.text}
+                        onChange={(e) => updateDraft(draft.id, { text: e.target.value })}
+                      />
+                      {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
+                      <div className="draft-actions">
+                        <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
+                          {draft.inserted ? 'Inserted' : 'Insert'}
+                        </button>
+                        <button
+                          className="btn"
+                          onClick={() => handleSaveReusable(draft.id, draft.question, draft.text)}
+                        >
+                          {draft.saved ? 'Saved' : 'Save for reuse'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </>

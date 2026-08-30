@@ -227,13 +227,64 @@ body {
   padding: 12px;
 }
 
+.panel .drafts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel .drafts-toolbar .hint {
+  margin: 0;
+}
+
+/* The whole header row is the toggle, so it is a button reset back to looking
+   like a heading rather than a control. */
 .panel .draft-question {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
-  margin: 0 0 8px;
+  font-family: inherit;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.panel .draft-question:hover .draft-question-text {
+  color: var(--text-muted);
+}
+
+.panel .draft-question-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel .draft-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.panel .draft-chevron-open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel .draft-chevron {
+    transition: none;
+  }
+}
+
+.panel .draft-body {
+  margin-top: 8px;
 }
 
 .panel .draft textarea {
