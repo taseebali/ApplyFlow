@@ -71,6 +71,7 @@ interface AnthropicResponse {
   model?: string;
   stop_reason?: string;
   stop_details?: { category?: string | null; explanation?: string | null };
+  usage?: { input_tokens?: number; output_tokens?: number };
 }
 
 function readAnthropic(data: unknown): Completion {
@@ -96,13 +97,27 @@ function readAnthropic(data: unknown): Completion {
     throw new LlmError('The model returned no text.', true);
   }
 
-  return { text, model: payload.model };
+  return {
+    text,
+    model: payload.model,
+    usage: payload.usage
+      ? { input: payload.usage.input_tokens ?? 0, output: payload.usage.output_tokens ?? 0 }
+      : undefined,
+  };
 }
 
 function readOllama(data: unknown, model: string): Completion {
-  const text = ((data as { response?: string }).response ?? '').trim();
+  const payload = data as { response?: string; prompt_eval_count?: number; eval_count?: number };
+  const text = (payload.response ?? '').trim();
   if (!text) throw new LlmError('Ollama returned an empty response.', true);
-  return { text, model };
+  return {
+    text,
+    model,
+    usage:
+      payload.prompt_eval_count !== undefined || payload.eval_count !== undefined
+        ? { input: payload.prompt_eval_count ?? 0, output: payload.eval_count ?? 0 }
+        : undefined,
+  };
 }
 
 export function readResponse(provider: ProviderSpec, data: unknown, model: string): Completion {

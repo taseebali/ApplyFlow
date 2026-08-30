@@ -1,7 +1,8 @@
 # ApplyFlow: Whole-Product Review and Improvement Plan
 
-> **Status: Tiers 1–5 done, Tier 6 partly done (2026-08-31).** What shipped,
-> and what deliberately did not, is recorded at the end under *Outcome*.
+> **Status: complete except 6.3, which is scoped as its own project (2026-08-31).**
+> What shipped, and what deliberately did not, is recorded at the end under
+> *Outcome*.
 
 ## How this was assessed
 
@@ -305,6 +306,9 @@ treat each of those as plausible rather than proven.
 | 5.3 Store material | `docs/store-listing.md` — permission justifications, single purpose, data disclosures, checklist. |
 | 6.1 / 6.2 Local tracking | `lib/application-log.ts` records every fill, with stats and CSV export. Tracking no longer requires Notion. |
 | 6.4 Answer reuse | Near-duplicate questions surface the saved answer as a suggestion showing both questions. |
+| 6.4 Cost visibility | Token usage read from all four provider dialects, priced from the catalogue, shown per drafting run. A run that silently moved onto a paid model is now visible. |
+| 1.1 (finish) | `frameCount` was stored but never displayed; the Fill card now says "across N frames". |
+| 1.2 (finish) | Second fixture: a real German Personio form. **5/5 matched.** |
 
 ## Bugs found by this work, not predicted by it
 
@@ -317,15 +321,25 @@ treat each of those as plausible rather than proven.
 - **Honeypot fields were fillable.** Found while fixing the reCAPTCHA
   detection: hidden decoys with ordinary names like `email` would have been
   filled, silently binning the application.
+- **A salary field was being sent to the AI.** The German fixture caught
+  "Gehaltsvorstellung" going to drafting, where a model would invent a salary
+  figure for a real application. A question needs to be a sentence, not just a
+  long word.
+- **`input` with no `type` attribute was invisible to drafting.** The selector
+  was `input[type="text"]`, which matches only a literal attribute, so the very
+  common untyped input never reached question detection at all.
 
-## Not done, deliberately
+## Not done
 
-- **6.3 Resume and cover-letter tailoring.** Genuinely project-sized — a
+- **6.3 Resume and cover-letter tailoring** — the only remaining item. Genuinely project-sized — a
   `master-profile.yaml`, a render pipeline, and a document format. It belongs
   in its own plan, not as a trailing item in this one.
-- **A dry-run preview** (part of 2.1). Undo makes a wrong fill recoverable,
-  which addresses the risk; a preview is a nicety on top and adds a second
-  code path through the filler.
+- **A dry-run preview** (part of 2.1) — dropped deliberately. Undo makes a
+  wrong fill recoverable, which addresses the risk; a preview adds a second
+  code path through the filler for less benefit.
+- **Aliases were appended to the existing flat arrays** rather than
+  restructured as `{ en, de }`. Matching is identical; adding a third language
+  is messier than the plan intended. Noted rather than hidden.
 
 ## Standing risk, unchanged
 

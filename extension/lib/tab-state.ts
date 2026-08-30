@@ -61,6 +61,8 @@ export interface DraftEntry {
    * applied — the user sees both questions and decides.
    */
   similar?: { question: string; text: string };
+  /** Tokens this answer cost, when the provider reported them. */
+  usage?: { input: number; output: number };
   inserted?: boolean;
   error?: string;
   insertError?: string;

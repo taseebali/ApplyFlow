@@ -95,7 +95,7 @@ async function runDraft(tabId: number): Promise<void> {
             .filter((entry) => entry.text.trim().length > 0 && !entry.error)
             .map((entry) => ({ question: entry.question, text: entry.text }));
 
-          const { text, model } = await draftAnswer(
+          const { text, model, usage } = await draftAnswer(
             {
               question: question.question,
               jobDescription: found.jobDescription,
@@ -115,6 +115,7 @@ async function runDraft(tabId: number): Promise<void> {
             text,
             saved: false,
             model,
+            ...(usage ? { usage } : {}),
             ...(similar ? { similar: { question: similar.entry.question, text: similar.entry.answer } } : {}),
           });
         } catch (err) {

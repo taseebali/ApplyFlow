@@ -34,6 +34,8 @@ import type { StartDraftMessage } from '@/entrypoints/background';
 import { getTabState, patchTabState, type AttachOutcome, type DraftEntry } from '@/lib/tab-state';
 import { mergeFillResults, type FrameReport } from '@/lib/frames';
 import { recordApplication } from '@/lib/application-log';
+import { formatCost, summarizeRunCost } from '@/lib/run-cost';
+import { getModels, type CatalogModel } from '@/lib/openrouter-catalog';
 import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
@@ -380,6 +382,14 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
                     title={fill.invalid!.map((problem) => `${problem.label}: ${problem.reason}`).join(', ')}
                   >
                     {fill.invalid!.length} rejected by the form
+                  </span>
+                )}
+                {(fill.frameCount ?? 1) > 1 && (
+                  <span
+                    className="pill pill-neutral"
+                    title="This application is split across embedded frames; all of them were filled."
+                  >
+                    across {fill.frameCount} frames
                   </span>
                 )}
                 {fill.unmatchedLabels.length > 0 && (
@@ -870,6 +880,21 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   const running = starting || run?.status === 'running';
 
   const entries = run?.entries ?? [];
+
+  // What the run cost, priced from the catalogue when the model is in it. With
+  // a rotating free pool a run can move between models and tiers, and without
+  // this there is no way to tell a free run from a paid one.
+  const [catalogue, setCatalogue] = useState<CatalogModel[]>([]);
+  useEffect(() => {
+    void getModels()
+      .then(setCatalogue)
+      .catch(() => setCatalogue([]));
+  }, []);
+
+  const usages = entries
+    .filter((entry) => entry.usage && entry.model)
+    .map((entry) => ({ model: entry.model!, input: entry.usage!.input, output: entry.usage!.output }));
+  const runCost = usages.length > 0 ? summarizeRunCost(usages, catalogue) : null;
   const allCollapsed = entries.length > 0 && entries.every((e) => collapsed[e.id]);
   const toggleAll = () =>
     setCollapsed(allCollapsed ? {} : Object.fromEntries(entries.map((e) => [e.id, true])));
@@ -908,6 +933,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
           <div className="drafts-toolbar">
             <span className="hint">
               {run.entries.length} question{run.entries.length === 1 ? '' : 's'}
+              {runCost && ` · ${formatCost(runCost)}`}
             </span>
             <button type="button" className="btn-plain" onClick={toggleAll}>
               {allCollapsed ? 'Expand answers' : 'Collapse answers'}

@@ -73,15 +73,27 @@ interface Choice {
  * everything in `reasoning`, and an answer cut off before it began. Each of
  * those would otherwise surface as "the AI found nothing".
  */
+export interface TokenUsage {
+  input: number;
+  output: number;
+}
+
 export interface Completion {
   text: string;
+  /** What the request cost in tokens, when the provider reports it. */
+  usage?: TokenUsage;
   /** Which model actually answered. With a rotating pool this is not
    * necessarily the one that was asked for, and the difference matters. */
   model?: string;
 }
 
 export function extractOpenRouterCompletion(data: unknown): Completion {
-  const payload = data as { choices?: Choice[]; error?: { message?: string; code?: number }; model?: string };
+  const payload = data as {
+    choices?: Choice[];
+    error?: { message?: string; code?: number };
+    model?: string;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
 
   if (payload.error) {
     const code = payload.error.code;
@@ -103,7 +115,15 @@ export function extractOpenRouterCompletion(data: unknown): Completion {
   // Reasoning models routinely return an empty `content` with the text in
   // `reasoning`. Using it is better than reporting an empty answer.
   const text = (choice.message?.content || choice.message?.reasoning || '').trim();
-  if (text) return { text, model: typeof payload.model === 'string' ? payload.model : undefined };
+  if (text) {
+    return {
+      text,
+      model: typeof payload.model === 'string' ? payload.model : undefined,
+      usage: payload.usage
+        ? { input: payload.usage.prompt_tokens ?? 0, output: payload.usage.completion_tokens ?? 0 }
+        : undefined,
+    };
+  }
 
   if (choice.finish_reason === 'length') {
     throw new LlmError(
