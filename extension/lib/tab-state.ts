@@ -46,6 +46,8 @@ export interface TabState {
   };
   draft?: DraftRun;
   notion?: { loggedUrl: string };
+  /** The history entry for this application, so later steps can complete it. */
+  applicationId?: string;
 }
 
 export interface DraftEntry {

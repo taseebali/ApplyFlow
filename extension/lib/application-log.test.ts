@@ -5,6 +5,7 @@ import {
   recordApplication,
   summarize,
   toCsv,
+  updateApplication,
   type ApplicationEntry,
 } from './application-log';
 
@@ -102,5 +103,25 @@ describe('toCsv', () => {
   it('neutralises a value a spreadsheet would run as a formula', () => {
     // A company name starting with "=" is executed by Excel on open.
     expect(toCsv([{ ...entry, company: '=cmd()' }])).toContain(`"'=cmd()"`);
+  });
+});
+
+describe('completing an entry after the fill', () => {
+  it('fills in work that happened after the page was filled', async () => {
+    // Drafting, attaching and logging all happen later; without this the
+    // history reported them as zero forever.
+    const entry = await recordApplication(base);
+    await updateApplication(entry.id, { questionsDrafted: 4, documentsAttached: 2, loggedToNotion: true });
+
+    const [stored] = await getApplications();
+    expect(stored!.questionsDrafted).toBe(4);
+    expect(stored!.documentsAttached).toBe(2);
+    expect(stored!.loggedToNotion).toBe(true);
+    // The original fill numbers survive the update.
+    expect(stored!.filledCount).toBe(12);
+  });
+
+  it('ignores an update for an entry that is no longer there', async () => {
+    await expect(updateApplication('gone', { questionsDrafted: 1 })).resolves.toBeUndefined();
   });
 });

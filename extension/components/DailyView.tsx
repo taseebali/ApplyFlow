@@ -33,7 +33,7 @@ import { missingRequiredFields, type RequiredField } from '@/lib/profile-complet
 import type { StartDraftMessage } from '@/entrypoints/background';
 import { getTabState, patchTabState, type AttachOutcome, type DraftEntry } from '@/lib/tab-state';
 import { mergeFillResults, type FrameReport } from '@/lib/frames';
-import { recordApplication } from '@/lib/application-log';
+import { recordApplication, updateApplication } from '@/lib/application-log';
 import { formatCost, summarizeRunCost } from '@/lib/run-cost';
 import { getModels, type CatalogModel } from '@/lib/openrouter-catalog';
 import { useTabState } from '@/components/useTabState';
@@ -205,19 +205,21 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
       // tracker. Never allowed to fail the fill.
       void browser.tabs
         .sendMessage(target, { type: 'get-job-info' } satisfies GetJobInfoMessage)
-        .then((info: GetJobInfoResponse) =>
-          recordApplication({
+        .then(async (info: GetJobInfoResponse) => {
+          const entry = await recordApplication({
             company: info.companyName ?? '',
             title: info.jobTitle ?? '',
             url: info.jobUrl ?? '',
             hostname: responses[0]!.hostname,
             filledCount: merged.filledCount,
             invalidCount: responses.reduce((sum, r) => sum + r.invalid.length, 0),
+            // Filled in as those steps happen; see updateApplication.
             questionsDrafted: 0,
             documentsAttached: 0,
             loggedToNotion: false,
-          })
-        )
+          });
+          await patchTabState(target, { applicationId: entry.id });
+        })
         .catch(() => {});
       await patchTabState(target, {
         fill: {
@@ -253,8 +255,15 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
     outcomes: Partial<Record<DocumentKind, AttachOutcome>>,
     error?: string
   ) => {
-    const existing = (await getTabState(target)).attach?.results ?? {};
-    await patchTabState(target, { attach: { results: { ...existing, ...outcomes }, error } });
+    const state = await getTabState(target);
+    const existing = state.attach?.results ?? {};
+    const merged = { ...existing, ...outcomes };
+    await patchTabState(target, { attach: { results: merged, error } });
+
+    if (state.applicationId) {
+      const attached = Object.values(merged).filter((outcome) => outcome?.ok).length;
+      void updateApplication(state.applicationId, { documentsAttached: attached });
+    }
   };
 
   const attachDocuments = async (entries: Array<{ kind: DocumentKind; folderFile: FolderFile }>, target: number) => {
@@ -680,7 +689,11 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         jobDescription: form.jobDescription || null,
       });
       setStatus({ kind: 'done', url });
-      if (tabId !== null) await patchTabState(tabId, { notion: { loggedUrl: url } });
+      if (tabId !== null) {
+        await patchTabState(tabId, { notion: { loggedUrl: url } });
+        const applicationId = (await getTabState(tabId)).applicationId;
+        if (applicationId) void updateApplication(applicationId, { loggedToNotion: true });
+      }
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not log to Notion.' });
     }

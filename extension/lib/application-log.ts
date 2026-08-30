@@ -47,6 +47,28 @@ export async function recordApplication(
   return full;
 }
 
+/**
+ * Fills in what happened after the fill. An application is recorded when the
+ * page is filled, but drafting, attaching and logging happen afterwards — so
+ * without this those counts stayed at zero forever and the history reported
+ * work it had actually done as nothing.
+ */
+export async function updateApplication(
+  id: string,
+  patch: Partial<Omit<ApplicationEntry, 'id' | 'appliedAt'>>
+): Promise<void> {
+  const entries = await getApplications();
+  const index = entries.findIndex((entry) => entry.id === id);
+  if (index === -1) return;
+
+  entries[index] = { ...entries[index]!, ...patch };
+  try {
+    await browser.storage.local.set({ [LOG_KEY]: entries });
+  } catch {
+    // History is a convenience; never let it break an application.
+  }
+}
+
 export async function clearApplications(): Promise<void> {
   await browser.storage.local.remove(LOG_KEY);
 }

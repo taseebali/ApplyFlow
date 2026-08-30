@@ -6,6 +6,7 @@ import { findSimilarAnswer, normalizeQuestion } from '@/lib/question-matching';
 import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/lib/tab-state';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
 import { rankFrames, type FrameReport } from '@/lib/frames';
+import { updateApplication } from '@/lib/application-log';
 
 /**
  * Which frames of which tab hold a fillable form. Held in the worker because
@@ -140,6 +141,14 @@ async function runDraft(tabId: number): Promise<void> {
     await patchTabState(tabId, {
       draft: { status: 'done', done: entries.length, total, entries },
     });
+
+    // Record the drafting against this tab's history entry, if the page was
+    // filled first. Counts answers that actually produced text.
+    const applicationId = (await getTabState(tabId)).applicationId;
+    if (applicationId) {
+      const drafted = entries.filter((entry) => entry.text.trim().length > 0 && !entry.error).length;
+      void updateApplication(applicationId, { questionsDrafted: drafted });
+    }
   } catch (err) {
     await fail(err instanceof Error ? err.message : 'Could not draft answers.');
   }
