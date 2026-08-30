@@ -1,5 +1,8 @@
 # ApplyFlow: Whole-Product Review and Improvement Plan
 
+> **Status: Tiers 1–5 done, Tier 6 partly done (2026-08-31).** What shipped,
+> and what deliberately did not, is recorded at the end under *Outcome*.
+
 ## How this was assessed
 
 Findings below are grounded in the built output and the source, not in
@@ -279,3 +282,56 @@ per-tab state, the model catalogue, routing, the provider layer, the prompt
 rewrite — has been verified by types, unit tests, and a build. **None of it has
 been exercised in a browser.** Item 1.2 is the structural answer; until then,
 treat each of those as plausible rather than proven.
+
+
+---
+
+# Outcome (2026-08-31)
+
+## Done
+
+| Item | Result |
+|---|---|
+| 1.2 Regression corpus | `fixtures/forms/` plus a harness that fails on regression. Seeded with a real GitLab Greenhouse form captured post-hydration. **11/11 matched, 0 wrong**, printed on every test run. |
+| 1.1 Iframes | `all_frames`, frames self-register with the worker (no new permission — `sender.frameId` suffices), panel addresses them individually and merges results. |
+| 1.3 Non-English labels | Accent folding in `normalizeText` — without it every German alias was unmatchable. German aliases across 27 fields, plus document names and `Ja`/`Nein`/`Sofort` dropdown values. |
+| 2.1 Undo | Every write journalled at `setNativeValue`, the one choke point. "Undo fill" restores the pre-fill value per frame. |
+| 2.2 Validation | Values adapted to the field's declared type before writing, then checked with the browser's own constraint validation. "Rejected by the form" is now counted separately from "filled". |
+| 3.1 Snapshots | Profile copied before any import; five kept; restore in Setup, itself reversible. |
+| 3.2 Storage | Catalogue cache write and profile write both handle a full quota instead of failing silently. |
+| 4.1 Bundle | **11.35MB → 2.74MB.** The 8.7MB `country-state-city` dependency replaced with 94KB of generated data; city became free text, which is what forms use anyway. |
+| 5.1 Permissions | Wildcard narrowed to `https://*/*` — and `http` refused outright, since a custom endpoint carries an API key. |
+| 5.2 Firefox | Documents folder feature-detects and explains itself instead of showing a dead button. |
+| 5.3 Store material | `docs/store-listing.md` — permission justifications, single purpose, data disclosures, checklist. |
+| 6.1 / 6.2 Local tracking | `lib/application-log.ts` records every fill, with stats and CSV export. Tracking no longer requires Notion. |
+| 6.4 Answer reuse | Near-duplicate questions surface the saved answer as a suggestion showing both questions. |
+
+## Bugs found by this work, not predicted by it
+
+- **Short aliases matched inside words.** The German alias `ort` matched
+  "imp**ort**ant" and claimed a question that should have gone to drafting.
+  Caught by the corpus on its second day. Single-word aliases now match on word
+  boundaries.
+- **A page-supplied `pattern` could throw out of the whole fill.** The first
+  `new RegExp` in the phone adaptation sat outside its `try`.
+- **Honeypot fields were fillable.** Found while fixing the reCAPTCHA
+  detection: hidden decoys with ordinary names like `email` would have been
+  filled, silently binning the application.
+
+## Not done, deliberately
+
+- **6.3 Resume and cover-letter tailoring.** Genuinely project-sized — a
+  `master-profile.yaml`, a render pipeline, and a document format. It belongs
+  in its own plan, not as a trailing item in this one.
+- **A dry-run preview** (part of 2.1). Undo makes a wrong fill recoverable,
+  which addresses the risk; a preview is a nicety on top and adds a second
+  code path through the filler.
+
+## Standing risk, unchanged
+
+Almost none of this has been exercised in a browser. The corpus measures
+*matching*, not *filling* — it cannot exercise the native-setter write path,
+react-select interaction, file attach, cross-frame messaging, or any provider
+call. Those remain reasoned rather than proven, and the next most valuable
+thing anyone can do is load the built extension and walk one real application
+end to end.

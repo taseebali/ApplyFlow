@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { findSimilarAnswer, questionSimilarity } from './question-matching';
 import { normalizeQuestion } from './question-matching';
 
 /** Two questions are treated as the same question iff their normalized forms are equal. */
@@ -54,5 +55,41 @@ describe('normalizeQuestion', () => {
   it('normalizes the empty and whitespace-only cases to the same value', () => {
     expect(normalizeQuestion('')).toBe('');
     expect(normalizeQuestion('   \n\t ')).toBe('');
+  });
+});
+
+describe('reusing a saved answer for a reworded question', () => {
+  const saved = [
+    { question: 'Why do you want to work at this company?', answer: 'Because…' },
+    { question: 'Describe your experience with Python and Django', answer: 'I have…' },
+  ];
+
+  it('recognises the same question worded differently', () => {
+    const found = findSimilarAnswer('Why would you like to work for our company?', saved);
+    expect(found?.entry.answer).toBe('Because…');
+  });
+
+  it('does not match a genuinely different question', () => {
+    expect(findSimilarAnswer('What is your notice period?', saved)).toBeNull();
+  });
+
+  it('does not confuse two questions that merely share filler words', () => {
+    // Both are "describe your experience with X" — the X is what matters, and
+    // "experience"/"describe" alone must not be enough.
+    const found = findSimilarAnswer('Describe your availability and notice period', saved);
+    expect(found).toBeNull();
+  });
+
+  it('offers rather than applies — the caller shows both questions', () => {
+    const found = findSimilarAnswer('Why would you like to work for our company?', saved);
+    expect(found!.similarity).toBeLessThan(1);
+  });
+
+  it('scores an identical question as fully similar', () => {
+    expect(questionSimilarity('Why do you want to work here?', 'why do you want to work here')).toBe(1);
+  });
+
+  it('ignores an empty or filler-only question rather than matching everything', () => {
+    expect(questionSimilarity('Why do you?', 'What about us?')).toBe(0);
   });
 });

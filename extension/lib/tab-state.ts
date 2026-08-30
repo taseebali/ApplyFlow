@@ -56,6 +56,11 @@ export interface DraftEntry {
   /** Which model produced this, when it was not a saved answer. With a
    * rotating pool the answers in one run can come from different models. */
   model?: string;
+  /**
+   * A previously saved answer to a similar question, offered rather than
+   * applied — the user sees both questions and decides.
+   */
+  similar?: { question: string; text: string };
   inserted?: boolean;
   error?: string;
   insertError?: string;

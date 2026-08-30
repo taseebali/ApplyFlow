@@ -955,6 +955,21 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                         value={draft.text}
                         onChange={(e) => updateDraft(draft.id, { text: e.target.value })}
                       />
+                      {draft.similar && (
+                        <div className="notice notice-warning" style={{ marginTop: 8 }}>
+                          <p>
+                            You saved an answer to a similar question:{' '}
+                            <strong>{draft.similar.question}</strong>
+                          </p>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => updateDraft(draft.id, { text: draft.similar!.text })}
+                          >
+                            Use that answer instead
+                          </button>
+                        </div>
+                      )}
                       {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
                       <div className="draft-actions">
                         <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>

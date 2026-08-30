@@ -2,7 +2,7 @@ import { getSettings } from '@/lib/settings';
 import { chooseOptionWithAi } from '@/lib/option-ai';
 import { getProfile } from '@/lib/storage';
 import { draftAnswer } from '@/lib/llm-client';
-import { normalizeQuestion } from '@/lib/question-matching';
+import { findSimilarAnswer, normalizeQuestion } from '@/lib/question-matching';
 import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/lib/tab-state';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
 import { rankFrames, type FrameReport } from '@/lib/frames';
@@ -105,7 +105,18 @@ async function runDraft(tabId: number): Promise<void> {
             },
             settings.llm
           );
-          entries.push({ id: question.id, question: question.question, text, saved: false, model });
+          // A saved answer to a near-identical question, offered alongside the
+          // fresh draft. Never substituted silently: the wording differs, and
+          // only the user can say whether that matters.
+          const similar = findSimilarAnswer(question.question, profile.customQA);
+          entries.push({
+            id: question.id,
+            question: question.question,
+            text,
+            saved: false,
+            model,
+            ...(similar ? { similar: { question: similar.entry.question, text: similar.entry.answer } } : {}),
+          });
         } catch (err) {
           // One failure must not discard the answers already paid for.
           entries.push({
