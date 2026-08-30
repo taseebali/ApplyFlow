@@ -73,8 +73,15 @@ interface Choice {
  * everything in `reasoning`, and an answer cut off before it began. Each of
  * those would otherwise surface as "the AI found nothing".
  */
-export function extractOpenRouterText(data: unknown): string {
-  const payload = data as { choices?: Choice[]; error?: { message?: string; code?: number } };
+export interface Completion {
+  text: string;
+  /** Which model actually answered. With a rotating pool this is not
+   * necessarily the one that was asked for, and the difference matters. */
+  model?: string;
+}
+
+export function extractOpenRouterCompletion(data: unknown): Completion {
+  const payload = data as { choices?: Choice[]; error?: { message?: string; code?: number }; model?: string };
 
   if (payload.error) {
     const code = payload.error.code;
@@ -96,7 +103,7 @@ export function extractOpenRouterText(data: unknown): string {
   // Reasoning models routinely return an empty `content` with the text in
   // `reasoning`. Using it is better than reporting an empty answer.
   const text = (choice.message?.content || choice.message?.reasoning || '').trim();
-  if (text) return text;
+  if (text) return { text, model: typeof payload.model === 'string' ? payload.model : undefined };
 
   if (choice.finish_reason === 'length') {
     throw new LlmError(
@@ -116,4 +123,9 @@ export function extractOpenRouterText(data: unknown): string {
  */
 export function isTransientStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
+}
+
+/** The answer text alone, for callers that do not care which model produced it. */
+export function extractOpenRouterText(data: unknown): string {
+  return extractOpenRouterCompletion(data).text;
 }

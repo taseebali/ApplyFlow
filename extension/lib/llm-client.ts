@@ -1,6 +1,11 @@
 import type { Profile } from './schema';
 import type { LlmSettings } from './settings';
-import { describeOpenRouterFailure, extractOpenRouterText, isTransientStatus } from './openrouter-errors';
+import {
+  describeOpenRouterFailure,
+  extractOpenRouterCompletion,
+  isTransientStatus,
+  type Completion,
+} from './openrouter-errors';
 import { LlmError } from './llm-error';
 import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure } from './model-cooldowns';
@@ -89,7 +94,7 @@ export function buildPrompt(context: DraftContext): string {
   ].join('\n');
 }
 
-async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> {
+async function runWithOllama(prompt: string, llm: LlmSettings): Promise<Completion> {
   const response = await fetch('http://localhost:11434/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -102,7 +107,7 @@ async function runWithOllama(prompt: string, llm: LlmSettings): Promise<string> 
     );
   }
   const data = (await response.json()) as { response?: string };
-  return (data.response ?? '').trim();
+  return { text: (data.response ?? '').trim(), model: llm.ollamaModel };
 }
 
 /**
@@ -127,7 +132,7 @@ async function candidatesFor(llm: LlmSettings): Promise<string[]> {
   return candidates;
 }
 
-async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string[]): Promise<string> {
+async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string[]): Promise<Completion> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -153,7 +158,7 @@ async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string
     // so would send the user checking their key for no reason.
     throw new LlmError('OpenRouter returned a response that could not be read as JSON.', true);
   });
-  return extractOpenRouterText(data);
+  return extractOpenRouterCompletion(data);
 }
 
 /**
@@ -161,7 +166,7 @@ async function postToOpenRouter(prompt: string, llm: LlmSettings, models: string
  * next request - and the next question in a drafting run - starts somewhere
  * that is actually answering.
  */
-async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<string> {
+async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<Completion> {
   const candidates = await candidatesFor(llm);
   let last: unknown;
 
@@ -191,7 +196,7 @@ const RETRY_DELAYS_MS = [1_000, 3_000];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
+async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<Completion> {
   try {
     return backend === 'ollama' ? await runWithOllama(prompt, llm) : await runWithOpenRouter(prompt, llm);
   } catch (err) {
@@ -215,7 +220,7 @@ async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
  * text. Every LLM feature goes through here so the fetch, retries, and error
  * handling live in exactly one place.
  */
-async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<string> {
+async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<Completion> {
   let last: unknown;
 
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -238,7 +243,7 @@ async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
  * limit, an outage, or being offline degrades to the other backend instead of
  * failing the run.
  */
-export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
+export async function runPromptDetailed(prompt: string, llm: LlmSettings): Promise<Completion> {
   if (!llm.backend) throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
 
   try {
@@ -258,8 +263,13 @@ export async function runPrompt(prompt: string, llm: LlmSettings): Promise<strin
   }
 }
 
-export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<string> {
-  return runPrompt(buildPrompt(context), llm);
+/** The answer text alone, for the callers that do not need to know the model. */
+export async function runPrompt(prompt: string, llm: LlmSettings): Promise<string> {
+  return (await runPromptDetailed(prompt, llm)).text;
+}
+
+export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<Completion> {
+  return runPromptDetailed(buildPrompt(context), llm);
 }
 
 /**

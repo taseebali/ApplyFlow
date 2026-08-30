@@ -62,11 +62,11 @@ async function runDraft(tabId: number): Promise<void> {
         entries.push({ id: question.id, question: question.question, text: saved.answer, saved: true });
       } else {
         try {
-          const text = await draftAnswer(
+          const { text, model } = await draftAnswer(
             { question: question.question, jobDescription: found.jobDescription, profile },
             settings.llm
           );
-          entries.push({ id: question.id, question: question.question, text, saved: false });
+          entries.push({ id: question.id, question: question.question, text, saved: false, model });
         } catch (err) {
           // One failure must not discard the answers already paid for.
           entries.push({

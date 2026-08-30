@@ -44,6 +44,9 @@ export interface DraftEntry {
   question: string;
   text: string;
   saved: boolean;
+  /** Which model produced this, when it was not a saved answer. With a
+   * rotating pool the answers in one run can come from different models. */
+  model?: string;
   inserted?: boolean;
   error?: string;
   insertError?: string;

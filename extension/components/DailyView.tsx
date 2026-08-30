@@ -766,6 +766,11 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
               <p className="draft-question">
                 {draft.question}
                 {draft.saved && <span className="pill pill-neutral">saved answer</span>}
+                {!draft.saved && draft.model && (
+                  <span className="pill pill-neutral" title="The model that answered — a rotating pool can use a different one per question">
+                    {draft.model}
+                  </span>
+                )}
               </p>
               {draft.error ? (
                 <span className="pill pill-danger">{draft.error}</span>
