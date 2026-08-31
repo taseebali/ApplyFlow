@@ -18,6 +18,12 @@ export interface LlmSettings {
    */
   apiKeys: Record<string, string>;
   /**
+   * Anthropic only. An identity-linked API key is not tied to one workspace,
+   * so the API refuses the request unless it is told which workspace to act
+   * for. Workspace-scoped keys do not need this and ignore it.
+   */
+  anthropicWorkspaceId: string;
+  /**
    * Tried when the primary backend fails. Both can be configured at once so a
    * hosted model can do the work while a local one covers an outage, a rate
    * limit, or being offline.
@@ -57,6 +63,7 @@ export const EMPTY_SETTINGS: Settings = {
     provider: 'openrouter',
     baseUrl: '',
     apiKeys: {},
+    anthropicWorkspaceId: '',
     ollamaModel: 'llama3.1',
     openRouterApiKey: '',
     // Free models by default, rotating across whatever the catalogue currently

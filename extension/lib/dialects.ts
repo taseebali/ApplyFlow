@@ -22,7 +22,8 @@ export function buildRequest(
   baseUrl: string,
   apiKey: string,
   models: string[],
-  prompt: string
+  prompt: string,
+  options: { workspaceId?: string } = {}
 ): DialectRequest {
   if (provider.dialect === 'ollama') {
     return {
@@ -41,6 +42,10 @@ export function buildRequest(
         // The API rejects requests carrying a browser Origin unless this is
         // set. An extension sends one, so without it every call fails CORS.
         'anthropic-dangerous-direct-browser-access': 'true',
+        // An identity-linked key belongs to a person rather than a workspace,
+        // so the API refuses to guess which workspace the request is for.
+        // Sent only when set: a workspace-scoped key does not need it.
+        ...(options.workspaceId ? { 'anthropic-workspace-id': options.workspaceId } : {}),
         'Content-Type': 'application/json',
       },
       body: {
@@ -148,6 +153,9 @@ export function describeFailure(provider: ProviderSpec, status: number, body: st
   }
   if (status === 429) {
     return `${provider.label} rate-limited the request. Wait a moment, or check your usage limits.`;
+  }
+  if (status === 400 && /workspace[-_ ]?id/i.test(body)) {
+    return `${provider.label} needs a workspace id: this key is identity-linked, so it is not tied to one workspace on its own. Add your workspace id in Settings — it is in the Console under Settings → Workspaces.`;
   }
   if (status === 402) return `${provider.label} reports no remaining credit on this account.`;
   if (status >= 500) return `${provider.label} is failing right now (${status}). Try again shortly.`;

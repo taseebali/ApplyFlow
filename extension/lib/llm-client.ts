@@ -238,7 +238,9 @@ async function postToProvider(prompt: string, llm: LlmSettings, models: string[]
     throw new LlmError(`No endpoint set for ${provider.label}. Open Settings and add its base URL.`);
   }
 
-  const request = buildRequest(provider, baseUrl, apiKey, models, prompt);
+  const request = buildRequest(provider, baseUrl, apiKey, models, prompt, {
+    workspaceId: llm.anthropicWorkspaceId,
+  });
   const response = await fetch(request.url, {
     method: 'POST',
     headers: request.headers,

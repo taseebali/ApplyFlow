@@ -10,7 +10,7 @@ import {
 } from '@/lib/schema';
 import {
   getDocumentsFolderHandle,
-  pickDocumentsFolder,
+  saveDocumentsFolderHandle,
   supportsDocumentsFolder,
 } from '@/lib/document-store';
 import type { LlmSettings, Settings } from '@/lib/settings';
@@ -518,11 +518,13 @@ export function DocumentsSection() {
   const handleGrant = async () => {
     setError(null);
     try {
-      const handle = await pickDocumentsFolder();
-      // Null means the picker was closed without choosing — not a failure.
-      if (handle) setFolderName(handle.name);
-    } catch {
-      setError('Could not access that folder.');
+      const handle = await window.showDirectoryPicker({ mode: 'read' });
+      await saveDocumentsFolderHandle(handle);
+      setFolderName(handle.name);
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setError('Could not access that folder.');
+      }
     }
   };
 
@@ -875,6 +877,24 @@ export function LlmSettingsSection({
           />
         </label>
       )}
+      {llm.backend && provider.id === 'anthropic' && (
+        <>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>Workspace ID</span>
+            <input
+              type="text"
+              placeholder="Only needed for an identity-linked key"
+              value={llm.anthropicWorkspaceId}
+              onChange={(e) => update({ anthropicWorkspaceId: e.target.value })}
+            />
+          </label>
+          <p className="hint">
+            Leave empty unless Anthropic asks for it. A key tied to your identity rather than to one workspace
+            needs to say which workspace a request is for — find the id in the Console under Settings → Workspaces.
+          </p>
+        </>
+      )}
+
       {llm.backend && provider.keyUrl && (
         <p className="hint">
           Get a key from{' '}

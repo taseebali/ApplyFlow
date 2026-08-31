@@ -124,3 +124,35 @@ describe('custom endpoint permissions', () => {
     expect(originPatternFor('not a url')).toBeNull();
   });
 });
+
+describe('Anthropic workspace id', () => {
+  it('sends the header when a workspace id is set', () => {
+    const req = buildRequest(anthropic, anthropic.baseUrl, 'k', ['claude-sonnet-5'], 'hi', {
+      workspaceId: 'wrkspc_123',
+    });
+    expect(req.headers['anthropic-workspace-id']).toBe('wrkspc_123');
+  });
+
+  it('omits the header entirely when there is none', () => {
+    // A workspace-scoped key does not need it, and sending an empty value is
+    // not the same as sending nothing.
+    const req = buildRequest(anthropic, anthropic.baseUrl, 'k', ['claude-sonnet-5'], 'hi', { workspaceId: '' });
+    expect('anthropic-workspace-id' in req.headers).toBe(false);
+  });
+
+  it('never sends it to a provider that would not understand it', () => {
+    const req = buildRequest(openai, openai.baseUrl, 'k', ['gpt-4o-mini'], 'hi', { workspaceId: 'wrkspc_123' });
+    expect('anthropic-workspace-id' in req.headers).toBe(false);
+  });
+
+  it('turns the workspace 400 into something actionable', () => {
+    const body = JSON.stringify({
+      error: { message: 'anthropic-workspace-id is required when authenticating with an identity-linked API key' },
+    });
+    const message = describeFailure(anthropic, 400, body);
+    expect(message).toMatch(/workspace id/i);
+    expect(message).toMatch(/Settings/);
+    // Not the raw API sentence.
+    expect(message).not.toContain('identity-linked API key;');
+  });
+});

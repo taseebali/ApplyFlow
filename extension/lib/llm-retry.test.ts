@@ -11,6 +11,7 @@ const LLM: LlmSettings = {
   provider: 'openrouter',
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKeys: { openrouter: 'k' },
+  anthropicWorkspaceId: '',
   modelPolicy: { kind: 'single', model: 'primary/model' },
 };
 
