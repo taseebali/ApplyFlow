@@ -56,3 +56,31 @@ export async function ensureReadPermission(handle: FileSystemDirectoryHandle): P
 export function supportsDocumentsFolder(): boolean {
   return typeof (globalThis as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
 }
+
+/**
+ * Asks the user to pick their documents folder, and saves the handle.
+ *
+ * The picker call lives here rather than in the component so the one place
+ * that knows about the File System Access API is the module that owns folder
+ * handles — the same module that already feature-detects it above. It also
+ * keeps the UI off an ambient DOM global that not every editor's TypeScript
+ * setup resolves.
+ *
+ * Returns null when the user closes the picker without choosing, which is a
+ * normal outcome and not an error.
+ */
+export async function pickDocumentsFolder(): Promise<FileSystemDirectoryHandle | null> {
+  if (!supportsDocumentsFolder()) {
+    throw new Error('This browser cannot link a folder — the File System Access API is Chromium-only.');
+  }
+
+  try {
+    const handle = await globalThis.showDirectoryPicker({ mode: 'read' });
+    await saveDocumentsFolderHandle(handle);
+    return handle;
+  } catch (err) {
+    // Closing the picker throws AbortError. Nothing went wrong.
+    if (err instanceof Error && err.name === 'AbortError') return null;
+    throw err;
+  }
+}

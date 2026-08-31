@@ -1,0 +1,11 @@
+{
+  // The code lives in extension/, which has its own generated config. Without
+  // this, an editor opened at the repository root finds no tsconfig, falls back
+  // to default settings, and reports errors that `npm run compile` does not —
+  // most visibly on browser APIs whose types come from a devDependency.
+  //
+  // This file is for editors. The build and `npm run compile` always use
+  // extension/tsconfig.json directly.
+  "files": [],
+  "references": [{ "path": "./extension" }]
+}

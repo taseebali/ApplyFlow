@@ -10,7 +10,7 @@ import {
 } from '@/lib/schema';
 import {
   getDocumentsFolderHandle,
-  saveDocumentsFolderHandle,
+  pickDocumentsFolder,
   supportsDocumentsFolder,
 } from '@/lib/document-store';
 import type { LlmSettings, Settings } from '@/lib/settings';
@@ -518,13 +518,11 @@ export function DocumentsSection() {
   const handleGrant = async () => {
     setError(null);
     try {
-      const handle = await window.showDirectoryPicker({ mode: 'read' });
-      await saveDocumentsFolderHandle(handle);
-      setFolderName(handle.name);
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setError('Could not access that folder.');
-      }
+      const handle = await pickDocumentsFolder();
+      // Null means the picker was closed without choosing — not a failure.
+      if (handle) setFolderName(handle.name);
+    } catch {
+      setError('Could not access that folder.');
     }
   };
 
@@ -889,7 +887,7 @@ export function LlmSettingsSection({
 
       {llm.backend === 'ollama' && (
         <>
-          <p className="hint" style={{ marginTop: 12 }}>
+          <p className="hint" style={{ marginTop: 12 , marginBottom: 10}}>
             Requires <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> running locally with a
             model pulled. Nothing leaves your computer.
           </p>
