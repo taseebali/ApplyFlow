@@ -13,7 +13,7 @@ import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure } from './model-cooldowns';
 import { getModels } from './openrouter-catalog';
 import { providerById } from './providers';
-import { buildRequest, describeFailure, readResponse } from './dialects';
+import { buildRequest, describeFailure, readResponse, retryWithOtherTokenParam } from './dialects';
 
 export interface DraftContext {
   question: string;
@@ -241,16 +241,32 @@ async function postToProvider(prompt: string, llm: LlmSettings, models: string[]
   const request = buildRequest(provider, baseUrl, apiKey, models, prompt, {
     workspaceId: llm.anthropicWorkspaceId,
   });
-  const response = await fetch(request.url, {
-    method: 'POST',
-    headers: request.headers,
-    body: JSON.stringify(request.body),
-    signal: timeoutSignal(),
-  });
+
+  const send = (payload: unknown) =>
+    fetch(request.url, {
+      method: 'POST',
+      headers: request.headers,
+      body: JSON.stringify(payload),
+      signal: timeoutSignal(),
+    });
+
+  let response = await send(request.body);
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new LlmError(describeFailure(provider, response.status, body), isTransientStatus(response.status));
+    let body = await response.text().catch(() => '');
+
+    // Gateways disagree about whether the output limit is called `max_tokens`
+    // or `max_completion_tokens`. Rather than surface an error about a
+    // parameter the user never set, send it again under the other name.
+    const retryBody = retryWithOtherTokenParam(response.status, body, request.body);
+    if (retryBody) {
+      response = await send(retryBody);
+      if (!response.ok) body = await response.text().catch(() => '');
+    }
+
+    if (!response.ok) {
+      throw new LlmError(describeFailure(provider, response.status, body), isTransientStatus(response.status));
+    }
   }
   const data = await response.json().catch(() => {
     // A 200 whose body will not parse is not a connection problem, and saying

@@ -27,6 +27,14 @@ export interface ProviderSpec {
   defaultModel: string;
   /** Whether the model list can be fetched, and whether that needs the key. */
   catalogue: 'public' | 'authenticated' | 'none';
+  /**
+   * OpenAI renamed `max_tokens` to `max_completion_tokens` and its newer models
+   * reject the old spelling outright. Other OpenAI-compatible gateways still
+   * expect `max_tokens`, and some accept both — so the field is declared per
+   * provider rather than guessed, and a wrong guess is recovered from at
+   * request time. Defaults to `max_tokens`.
+   */
+  maxTokensParam?: 'max_tokens' | 'max_completion_tokens';
   note?: string;
 }
 
@@ -64,6 +72,7 @@ export const PROVIDERS: ProviderSpec[] = [
     keyUrl: 'https://platform.openai.com/api-keys',
     defaultModel: 'gpt-4o-mini',
     catalogue: 'authenticated',
+    maxTokensParam: 'max_completion_tokens',
   },
   {
     id: 'groq',

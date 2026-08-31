@@ -187,3 +187,31 @@ describe('testing a connection', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe('parameter-name recovery', () => {
+  const refusal = () =>
+    new Response(
+      JSON.stringify({
+        error: { message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead." },
+      }),
+      { status: 400 }
+    );
+
+  it('resends under the other name and succeeds, without troubling the user', async () => {
+    fetchMock.mockImplementationOnce(async () => refusal()).mockImplementation(async () => ok('drafted'));
+
+    await expect(withTimers(runPrompt('hi', LLM))).resolves.toBe('drafted');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const second = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
+    expect(second.max_completion_tokens).toBeGreaterThan(0);
+    expect('max_tokens' in second).toBe(false);
+  });
+
+  it('reports the failure when the other name does not help either', async () => {
+    fetchMock.mockImplementation(async () => refusal());
+    await expect(withTimers(runPrompt('hi', LLM))).rejects.toThrow();
+    // One attempt, one swap — and no retry loop, since a 400 is not transient.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

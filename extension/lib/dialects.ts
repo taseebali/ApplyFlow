@@ -66,9 +66,35 @@ export function buildRequest(
       // where an unknown field is ignored.
       ...(models.length > 1 ? { models } : {}),
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: MAX_OUTPUT_TOKENS,
+      [provider.maxTokensParam ?? 'max_tokens']: MAX_OUTPUT_TOKENS,
     },
   };
+}
+
+const TOKEN_PARAMS = ['max_tokens', 'max_completion_tokens'] as const;
+
+/**
+ * A retry body using the other spelling of the output-token limit, or null if
+ * that is not what went wrong.
+ *
+ * Declaring the right spelling per provider covers the ones we ship. This
+ * covers the rest: a custom OpenAI-compatible gateway, or a provider that
+ * changes its mind later. The alternative is the user seeing a raw API error
+ * about a parameter they never set.
+ */
+export function retryWithOtherTokenParam(status: number, body: string, requestBody: unknown): unknown | null {
+  if (status !== 400) return null;
+  if (!/max_tokens|max_completion_tokens/.test(body)) return null;
+  if (!/unsupported|not supported|unrecognized|unknown|invalid/i.test(body)) return null;
+
+  const sent = requestBody as Record<string, unknown>;
+  const used = TOKEN_PARAMS.find((name) => name in sent);
+  if (!used) return null;
+
+  const other = used === 'max_tokens' ? 'max_completion_tokens' : 'max_tokens';
+  const next: Record<string, unknown> = { ...sent, [other]: sent[used] };
+  delete next[used];
+  return next;
 }
 
 interface AnthropicResponse {

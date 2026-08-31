@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRequest, describeFailure, readResponse } from './dialects';
+import { buildRequest, describeFailure, readResponse, retryWithOtherTokenParam } from './dialects';
 import { originPatternFor, providerById } from './providers';
 
 const anthropic = providerById('anthropic');
@@ -154,5 +154,59 @@ describe('Anthropic workspace id', () => {
     expect(message).toMatch(/Settings/);
     // Not the raw API sentence.
     expect(message).not.toContain('identity-linked API key;');
+  });
+});
+
+describe('output-token parameter name', () => {
+  it('uses max_completion_tokens for OpenAI, whose newer models reject the old name', () => {
+    const body = buildRequest(openai, openai.baseUrl, 'k', ['gpt-4o-mini'], 'hi').body as Record<string, unknown>;
+    expect(body.max_completion_tokens).toBeGreaterThan(0);
+    expect('max_tokens' in body).toBe(false);
+  });
+
+  it('keeps max_tokens for gateways that expect it', () => {
+    const body = buildRequest(openrouter, openrouter.baseUrl, 'k', ['a/b'], 'hi').body as Record<string, unknown>;
+    expect(body.max_tokens).toBeGreaterThan(0);
+    expect('max_completion_tokens' in body).toBe(false);
+  });
+});
+
+describe('retryWithOtherTokenParam', () => {
+  const complaint = JSON.stringify({
+    error: { message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead." },
+  });
+
+  it('swaps to the other spelling when the API refuses one', () => {
+    const next = retryWithOtherTokenParam(400, complaint, { model: 'm', max_tokens: 2048 }) as Record<string, unknown>;
+    expect(next.max_completion_tokens).toBe(2048);
+    expect('max_tokens' in next).toBe(false);
+  });
+
+  it('swaps back the other way too', () => {
+    const body = JSON.stringify({ error: { message: "Unrecognized request argument: max_completion_tokens" } });
+    const next = retryWithOtherTokenParam(400, body, { max_completion_tokens: 999 }) as Record<string, unknown>;
+    expect(next.max_tokens).toBe(999);
+  });
+
+  it('leaves the rest of the request alone', () => {
+    const next = retryWithOtherTokenParam(400, complaint, {
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 10,
+    }) as Record<string, unknown>;
+    expect(next.model).toBe('m');
+    expect(next.messages).toHaveLength(1);
+  });
+
+  it('does not retry an unrelated 400', () => {
+    expect(retryWithOtherTokenParam(400, '{"error":{"message":"invalid model"}}', { max_tokens: 1 })).toBeNull();
+  });
+
+  it('does not retry a rejected key', () => {
+    expect(retryWithOtherTokenParam(401, complaint, { max_tokens: 1 })).toBeNull();
+  });
+
+  it('does nothing when neither name was sent', () => {
+    expect(retryWithOtherTokenParam(400, complaint, { model: 'm' })).toBeNull();
   });
 });
