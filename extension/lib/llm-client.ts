@@ -380,9 +380,18 @@ export async function testLlmConnection(
   llm: LlmSettings,
   backend: 'ollama' | 'openrouter'
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (backend === 'openrouter' && !llm.openRouterApiKey) {
-    return { ok: false, message: 'Enter your OpenRouter API key first.' };
+  // Keyed on the selected provider, not on `backend`. Keys are stored per
+  // provider, so reading the old single-key field reported "enter your API
+  // key" at people who had entered one — and testing Anthropic or Groq checked
+  // whichever dialect `backend` happened to name rather than the provider.
+  const provider = providerById(llm.provider);
+  if (provider.needsKey && !(llm.apiKeys[provider.id] ?? '')) {
+    return { ok: false, message: `Enter your ${provider.label} API key first.` };
   }
+  if (provider.id === 'custom' && !llm.baseUrl) {
+    return { ok: false, message: 'Enter the base URL for your endpoint first.' };
+  }
+
   try {
     await runWith(backend, 'Reply with exactly the word: ok', llm);
     return { ok: true };

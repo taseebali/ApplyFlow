@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runPrompt } from './llm-client';
+import { runPrompt, testLlmConnection } from './llm-client';
 import { LlmError } from './llm-error';
 import type { LlmSettings } from './settings';
 
@@ -139,5 +139,50 @@ describe('model fallbacks', () => {
 
     const second = JSON.parse(fetchMock.mock.calls.at(-1)![1]!.body as string);
     expect(second.model).toBe('b/two');
+  });
+});
+
+describe('testing a connection', () => {
+  it('uses the key saved for the selected provider', async () => {
+    // The check read the old single-key field, so a key saved under apiKeys
+    // reported "enter your API key" at someone who had entered one.
+    fetchMock.mockImplementation(async () => ok('ok'));
+
+    const result = await withTimers(
+      // The real-world state: the legacy field is empty, the key lives in apiKeys.
+      testLlmConnection({ ...LLM, openRouterApiKey: '', apiKeys: { openrouter: 'saved-key' } }, 'openrouter')
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('sends that key on the request', async () => {
+    fetchMock.mockImplementation(async () => ok('ok'));
+    await withTimers(
+      testLlmConnection({ ...LLM, openRouterApiKey: '', apiKeys: { openrouter: 'saved-key' } }, 'openrouter')
+    );
+
+    const headers = fetchMock.mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer saved-key');
+  });
+
+  it('asks for a key only when there genuinely is not one', async () => {
+    const result = await withTimers(testLlmConnection({ ...LLM, apiKeys: {} }, 'openrouter'));
+    expect(result).toEqual({ ok: false, message: expect.stringContaining('OpenRouter') });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('names the provider that is actually selected', async () => {
+    const result = await withTimers(
+      testLlmConnection({ ...LLM, provider: 'anthropic', apiKeys: {} }, 'openrouter')
+    );
+    expect(result).toEqual({ ok: false, message: expect.stringContaining('Anthropic') });
+  });
+
+  it('does not ask Ollama for a key it never needs', async () => {
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ response: 'ok' }), { status: 200 }));
+    const result = await withTimers(
+      testLlmConnection({ ...LLM, provider: 'ollama', backend: 'ollama', apiKeys: {} }, 'ollama')
+    );
+    expect(result.ok).toBe(true);
   });
 });

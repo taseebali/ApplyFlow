@@ -53,8 +53,8 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       // Compiled out of release builds entirely - see lib/dev-prefill.ts.
       const devKey = devApiKey();
       setLlm(
-        devKey && !settings.llm.openRouterApiKey
-          ? { ...settings.llm, openRouterApiKey: devKey }
+        devKey && !settings.llm.apiKeys.openrouter
+          ? { ...settings.llm, apiKeys: { ...settings.llm.apiKeys, openrouter: devKey } }
           : settings.llm
       );
       setSettingsLoaded(true);
