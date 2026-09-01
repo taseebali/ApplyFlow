@@ -1,0 +1,31 @@
+{
+  "source": "https://jobs.ashbyhq.com/enpal/04a4eabe-88f2-4e0a-aa2f-7e4d6081c98b/application",
+  "captured": "2026-09-01",
+  "ats": "ashby",
+  "language": "en",
+  "notes": [
+    "Captured from a live application by the user during manual testing. No personal data.",
+    "Ashby renders the whole application WITHOUT a <form> element — the capture reports formDetected: false. Nothing in the fill path requires one, but it rules out any future selector that assumes a form wrapper.",
+    "Ashby puts a radio group's question in a <label> inside the <fieldset> rather than in a <legend>. Until that was handled, every radio group on every Ashby form was skipped — including gender and CEFR language level.",
+    "Ashby's yes/no questions point label[for] at the field's NAME rather than its id, which the browser does not treat as an association, so el.labels is empty and the field looked unlabelled.",
+    "Most ids are per-posting UUIDs, so a taught field mapping will not transfer between Ashby postings."
+  ],
+  "expect": {
+    "_systemfield_name": "contact.fullName",
+    "_systemfield_email": "contact.email",
+    "68f80148-e7ef-41b6-b16d-0a51443feea9": "contact.phone",
+    "4ebae85d-298a-4059-b0ef-a14158dace11": "links.linkedin",
+    "70e704f8-78ab-4ba5-9a90-b10f569ece87": "logistics.willingToRelocate",
+    "5275c39d-ea78-4dfe-966b-d9364d492721": "workAuthorization.authorizedToWorkInCountry"
+  },
+  "mustNotMatch": ["23ded4a0-4c94-43a6-bb23-cb5bd93a786a"],
+  "mustNotMatchWhy": {
+    "23ded4a0-4c94-43a6-bb23-cb5bd93a786a": "\"Be aware, this is a full-time internship role. Does this work for you?\" is a question only the applicant can answer."
+  },
+  "openQuestions": ["7e6b2d38-5295-47d2-b3a4-d3ca7fa592c9"],
+  "notQuestions": [],
+  "baseline": {
+    "matched": 6,
+    "wrong": 0
+  }
+}

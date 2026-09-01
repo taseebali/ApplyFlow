@@ -100,6 +100,20 @@ function getLabelText(el: FillableElement): string {
   // Fall back to a wrapping <label> that has no `for` attribute.
   const wrappingLabel = el.closest('label');
   if (wrappingLabel) return wrappingLabel.textContent ?? '';
+
+  // Some forms point `for` at the field's *name* rather than its id, which the
+  // browser does not treat as an association at all — so `el.labels` is empty
+  // and the field looks unlabelled. Ashby does this on its yes/no questions.
+  const name = el.getAttribute('name');
+  if (name) {
+    // Escaped by hand rather than with CSS.escape, which is not defined in
+    // every environment this runs in. Quotes and backslashes are all that can
+    // break out of an attribute selector.
+    const safe = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const byName = el.ownerDocument.querySelector(`label[for="${safe}"]`);
+    if (byName?.textContent && !byName.contains(el)) return byName.textContent;
+  }
+
   return '';
 }
 
@@ -350,6 +364,15 @@ export function getRadioGroupQuestionText(firstRadio: HTMLInputElement): string 
   const fieldset = firstRadio.closest('fieldset');
   const legend = fieldset?.querySelector('legend');
   if (legend?.textContent) return legend.textContent;
+
+  // A fieldset whose question is a <label> or heading rather than a <legend>.
+  // Ashby writes exactly this, and the group was skipped entirely because the
+  // question text was nowhere our lookup was willing to look.
+  if (fieldset) {
+    const heading = fieldset.querySelector('label, h1, h2, h3, h4, h5, h6');
+    // Must be the group's own question, not one option's label.
+    if (heading?.textContent && !heading.contains(firstRadio)) return heading.textContent;
+  }
 
   const group = firstRadio.closest('[role="radiogroup"], [role="group"]');
   if (group) {

@@ -82,6 +82,9 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   // Folded away by the card's own arrow. View state only: results stay in tab
   // state, so collapsing never discards or re-requests anything.
   const [fillClosed, setFillClosed] = useState(false);
+  // Set when a fill was refused for an incomplete profile, so the reason is
+  // stated at the moment it happens rather than only in the standing notice.
+  const [blocked, setBlocked] = useState(false);
   const [docsClosed, setDocsClosed] = useState(false);
 
   const fill = tabState.fill;
@@ -102,7 +105,12 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   // Re-read on storage changes so finishing setup clears the warning without a
   // panel reload.
   useEffect(() => {
-    const refresh = () => void getProfile().then((p) => setMissing(missingRequiredFields(p)));
+    const refresh = () =>
+      void getProfile().then((p) => {
+        const gaps = missingRequiredFields(p);
+        setMissing(gaps);
+        if (gaps.length === 0) setBlocked(false);
+      });
     refresh();
     browser.storage.local.onChanged.addListener(refresh);
     return () => browser.storage.local.onChanged.removeListener(refresh);
@@ -154,6 +162,13 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   };
 
   const handleFillClick = async () => {
+    // A profile missing the essentials produces a half-filled application that
+    // the form will refuse at submit, and the user finds out at the worst
+    // moment. The warning alone was ignorable, so filling now stops here.
+    if (missing.length > 0) {
+      setBlocked(true);
+      return;
+    }
     // Resolved once and written back explicitly: if the user switches tabs while
     // this runs, the result must still land on the tab that was filled.
     await refill(await getActiveTabId());
@@ -352,10 +367,13 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
   return (
     <>
       {missing.length > 0 && (
-        <div className="notice notice-warning">
+        <div className={`notice ${blocked ? 'notice-danger' : 'notice-warning'}`}>
           <p>
-            Missing from your profile: <strong>{missing.map((f) => f.label).join(', ')}</strong>. Applications
-            almost always require these.
+            {blocked ? 'Nothing was filled. ' : ''}
+            Your profile is missing <strong>{missing.map((f) => f.label).join(', ')}</strong>.
+            {blocked
+              ? ' Applications require these, so filling would leave the form incomplete.'
+              : ' Applications almost always require these.'}
           </p>
           <button type="button" className="btn" onClick={onOpenSetup}>
             Complete profile
@@ -373,6 +391,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         onToggleCollapse={() => setFillClosed((v) => !v)}
       >
         {filling && <span className="pill pill-neutral">Filling…</span>}
+        {!filling && blocked && <span className="pill pill-danger">Complete your profile first</span>}
         {!filling && fill?.status === 'done' && (
           <>
             {fill.stale ? (
