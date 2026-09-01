@@ -109,9 +109,28 @@ type Writable = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
  */
 let writeJournal: Array<{ element: Writable; previous: string }> = [];
 
+/**
+ * Starts a fill run. The journal deliberately survives it.
+ *
+ * Clearing here meant a second fill recorded the *first* fill's values as
+ * "previous", so undo returned the form to the first fill rather than to how
+ * the user found it. `setNativeValue` already records each field only the
+ * first time it is touched, so keeping the journal across runs is what makes
+ * "previous" mean "before ApplyFlow".
+ *
+ * Validation problems are per-run and do reset.
+ */
 export function beginFillJournal(): void {
-  writeJournal = [];
   validationProblems = [];
+}
+
+/**
+ * Forgets what was on the page. Called when the page itself changes — a
+ * navigation or a step change — because those elements are gone and their old
+ * values describe a form that no longer exists.
+ */
+export function resetFillJournal(): void {
+  writeJournal = [];
 }
 
 export function journalSize(): number {

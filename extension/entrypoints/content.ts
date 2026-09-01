@@ -4,6 +4,7 @@ import {
   fillInferredFields,
   fillRadioGroups,
   journalSize,
+  resetFillJournal,
   setNativeFieldValue,
   takeValidationProblems,
   undoFill,
@@ -213,6 +214,9 @@ function watchForPageChanges() {
     if (!form) return; // Nothing fillable here; no point nudging the user.
     // The panel may not be open; a failed send is expected and harmless.
     browser.runtime.sendMessage({ type: 'page-changed', url }).catch(() => {});
+    // Those elements are gone, so what they used to hold is not something the
+    // user could still want back.
+    resetFillJournal();
     // A step change can introduce a form where there was none.
     void announceFrame();
   };
