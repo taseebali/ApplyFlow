@@ -17,6 +17,7 @@ import {
   WorkHistorySection,
 } from './ProfileForm';
 import { ResumeImportSection } from './ResumeImportSection';
+import { BankSection } from './BankSection';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
@@ -114,6 +115,13 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       title: 'Your projects',
       blurb: 'Details here are what the AI draws on when drafting answers. The more specific, the better the drafts.',
       render: () => <ProjectsSection profile={profile} onChange={setProfile} />,
+    },
+    {
+      id: 'bank',
+      title: 'Tailoring bank',
+      blurb:
+        'Optional, and it needs AI set up. Writes several versions of each achievement once, so tailoring a resume later is a matter of choosing rather than generating.',
+      render: () => <BankSection />,
     },
     {
       id: 'languages',

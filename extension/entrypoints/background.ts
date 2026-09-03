@@ -7,6 +7,8 @@ import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/li
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
 import { rankFrames, type FrameReport } from '@/lib/frames';
 import { updateApplication } from '@/lib/application-log';
+import { runBankGeneration } from '@/lib/bank-run';
+import type { TargetFamily } from '@/lib/target-families';
 
 /**
  * Which frames of which tab hold a fillable form. Held in the worker because
@@ -35,6 +37,14 @@ export interface ChooseOptionMessage {
 export interface StartDraftMessage {
   type: 'start-draft';
   tabId: number;
+}
+
+export interface StartBankMessage {
+  type: 'start-bank';
+  /** Skips inference when the user has already approved a family list. */
+  families?: TargetFamily[];
+  /** Regenerate only these items, leaving the rest of the bank alone. */
+  onlySourceIds?: string[];
 }
 
 /**
@@ -186,6 +196,15 @@ export default defineBackground(() => {
       return true;
     }
   );
+
+  // Bank generation is the slowest thing this extension does and lands at
+  // onboarding. It runs here so closing the panel does not abandon it.
+  browser.runtime.onMessage.addListener((message: StartBankMessage, _sender, sendResponse) => {
+    if (message?.type !== 'start-bank') return undefined;
+    void runBankGeneration({ families: message.families, onlySourceIds: message.onlySourceIds });
+    sendResponse({ started: true });
+    return true;
+  });
 
   browser.runtime.onMessage.addListener((message: StartDraftMessage, sender, sendResponse) => {
     if (message?.type !== 'start-draft') return undefined;
