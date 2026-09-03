@@ -42,6 +42,16 @@ is then a *preferred mix of angles*, not its own bank. Keying on title alone has
 an unbounded tail and no answer for a title we have never seen; composing from
 angles always has one.
 
+**But domain is not only emphasis, so it gets its own handle.** A full-stack
+project holds frontend facts *and* backend facts; framing it for a frontend role
+means surfacing different facts, not rewording the same ones. So the profile is
+analysed once to infer the families the user plausibly targets, and that result
+does two jobs: it feeds generation (which vocabulary to use, which facts to
+surface) and it sets the default angle mix per family. Each variant carries a
+`domainHint` so selection can prefer frontend-flavoured framings for a frontend
+posting. Storage stays angle-keyed, so composability survives — the domain is a
+preference, never a lookup key.
+
 **Facts come from the user; phrasing comes from the model.** The model may
 rewrite and reframe freely, but every number and claim traces to the imported
 resume or to an answer the user typed. Nothing is invented. This is the one
@@ -133,8 +143,16 @@ export interface BulletVariant {
   id: string;
   sourceId: string;   // the project or role this reframes
   angle: Angle;
+  /**
+   * The family this framing leans towards, when it leans at all. A preference
+   * for selection, never a key — a posting whose family we have no variants
+   * for still gets served from the angle mix.
+   */
+  domainHint: string | null;
   text: string;
   openingVerb: string;  // precomputed, so selection can enforce variety cheaply
+  /** Lowercased content words, precomputed for the Phase 3 shortlist. */
+  terms: string[];
   hasMetric: boolean;
 }
 ```
@@ -142,9 +160,20 @@ export interface BulletVariant {
 Held in `chrome.storage.local` alongside the profile, with a `generatedAt` and
 the model used, so staleness is visible.
 
+**New** `extension/lib/target-families.ts`
+- `inferTargetFamilies(profile, llm)` — one call, run before generation, naming
+  the three or four families this profile plausibly applies to and the angle mix
+  each prefers. Cheap, and its output is reviewable: the user sees the inferred
+  list and can add or remove a family before anything is generated.
+- Wrong inference here propagates into the whole bank, so it is shown rather
+  than assumed. A profile with no clear direction falls back to the plain angle
+  set with no domain hints, which is the current design unchanged.
+
 **New** `extension/lib/bank-generation.ts`
-- One call per source item, producing all angles for it — roughly eight calls
-  for a typical profile, well inside even the un-credited free daily cap.
+- One call per source item, producing all angles for it, told which families the
+  user targets so it knows which facts to surface and which vocabulary to reach
+  for — roughly eight calls for a typical profile, well inside even the
+  un-credited free daily cap.
 - Strict JSON out, parsed with the same defensive approach as
   `parseLlmResponse` — a model returning prose must not lose the run.
 - **Every generated variant is scored by Phase 1 before it enters the bank.**
@@ -166,9 +195,18 @@ usable while it does.
 ## Phase 3 — Selection and assembly
 
 **New** `extension/lib/resume-selection.ts`
-- `rankVariants(jobDescription, bank, llm)` — the model returns an ordered list
-  of variant ids per section. Small prompt, structured output, cheap enough for
-  free models.
+- `shortlist(jobDescription, bank, limit)` — **pure, no model.** A full bank runs
+  to several hundred variants, and sending all of them to the ranking call every
+  application is both slow and needlessly expensive. Score each variant on term
+  overlap with the posting and on whether its `domainHint` matches the posting's
+  inferred family, then take the best N per source item. The model only ever
+  sees a shortlist.
+- `rankVariants(jobDescription, shortlisted, llm)` — the model returns an ordered
+  list of variant ids per section. Small prompt, structured output, cheap enough
+  for free models.
+- The shortlist must never drop a source item entirely: a project with no term
+  overlap still contributes its best-scoring variant, so a real role cannot
+  vanish from the resume because its wording happened not to match.
 - `enforceConstraints(selected)` — **pure, and where quality is actually
   defended.** No two bullets in a section share an opening verb; prefer variants
   with metrics; cap bullets per role. A collision is resolved by taking the
@@ -224,10 +262,14 @@ Named because they are what will hurt when this scales.
    interview is the mitigation and it is only partial.
 2. **A variant generated for one company transfers to another.** Mostly true
    within a family; the per-application re-rank absorbs the rest.
-3. **The bank goes stale.** A finished project or a new job invalidates it
+3. **Inferred target families are right.** A wrong inference biases the whole
+   bank's vocabulary. Mitigated by showing the inferred list for approval before
+   generation, and by keeping domain a preference rather than a key — a bad
+   guess degrades ranking, it does not remove anything from the bank.
+4. **The bank goes stale.** A finished project or a new job invalidates it
    silently. Needs an explicit regeneration trigger and a visible `generatedAt`.
-4. **Front-loaded cost lands at onboarding**, where churn is highest.
-5. **The resume stops being one canonical document.** Every claim stays true,
+5. **Front-loaded cost lands at onboarding**, where churn is highest.
+6. **The resume stops being one canonical document.** Every claim stays true,
    but the artefact varies per posting. That is tailoring taken further than
    most people take it, and it should be a deliberate choice rather than
    something we drift into — particularly if this ships to other people.
@@ -243,11 +285,12 @@ The expensive-looking part of this feature is the part that costs nothing.
 
 ## Verification
 
-**Automated** — the fixture-corpus philosophy applied to prose. `scoreBullet`
-and `enforceConstraints` are pure and get real coverage: a section of seven
-bullets all opening with "Built" must come back with six collisions; constraint
-enforcement must never return two colliding bullets; a bank entry with a weak
-opener must never survive the gate.
+**Automated** — the fixture-corpus philosophy applied to prose. `scoreBullet`,
+`shortlist` and `enforceConstraints` are pure and get real coverage: a section of
+seven bullets all opening with "Built" must come back with six collisions;
+constraint enforcement must never return two colliding bullets; a bank entry with
+a weak opener must never survive the gate; and the shortlist must never return
+zero variants for a source item, however unrelated the posting.
 
 **A quality baseline, like the form corpus.** Score a real resume, record the
 number, and fail the suite if it drops. The 40/100 becomes a number that can go
