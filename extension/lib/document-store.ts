@@ -46,6 +46,64 @@ export async function ensureReadPermission(handle: FileSystemDirectoryHandle): P
 }
 
 /**
+ * Ensures we can write into the folder, prompting if the existing grant is
+ * read-only.
+ *
+ * Kept separate from the read grant on purpose: attaching documents needs only
+ * to read, and asking for write access up front would be asking for more than
+ * the feature in front of the user requires. The prompt appears the first time
+ * a generated resume is actually saved.
+ */
+export async function ensureWritePermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  const options = { mode: 'readwrite' as const };
+  if ((await handle.queryPermission(options)) === 'granted') return true;
+  return (await handle.requestPermission(options)) === 'granted';
+}
+
+/**
+ * Writes a generated document into the linked folder, where the existing
+ * attach path will find it like any other file.
+ *
+ * Never overwrites: a name already taken gains a numeric suffix. Silently
+ * replacing a resume the user tailored by hand would be the worst kind of
+ * data loss — invisible until they opened the file.
+ */
+export async function saveToDocumentsFolder(
+  handle: FileSystemDirectoryHandle,
+  filename: string,
+  blob: Blob
+): Promise<string> {
+  if (!(await ensureWritePermission(handle))) {
+    throw new Error('Permission to write into your documents folder was not granted.');
+  }
+
+  const finalName = await freeFilename(handle, filename);
+  const file = await handle.getFileHandle(finalName, { create: true });
+  const writable = await file.createWritable();
+  await writable.write(blob);
+  await writable.close();
+  return finalName;
+}
+
+/** `Resume_Enpal.docx` → `Resume_Enpal (2).docx` when the first is taken. */
+async function freeFilename(handle: FileSystemDirectoryHandle, filename: string): Promise<string> {
+  const dot = filename.lastIndexOf('.');
+  const stem = dot === -1 ? filename : filename.slice(0, dot);
+  const ext = dot === -1 ? '' : filename.slice(dot);
+
+  for (let n = 1; n < 100; n++) {
+    const candidate = n === 1 ? filename : `${stem} (${n})${ext}`;
+    try {
+      await handle.getFileHandle(candidate);
+    } catch {
+      // Not found is the outcome we want: the name is free.
+      return candidate;
+    }
+  }
+  return `${stem} (${Date.now()})${ext}`;
+}
+
+/**
  * Whether this browser can link a documents folder at all.
  *
  * The File System Access API is Chromium-only. The Firefox build scripts

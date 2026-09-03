@@ -38,6 +38,7 @@ import { formatCost, summarizeRunCost } from '@/lib/run-cost';
 import { getModels, type CatalogModel } from '@/lib/openrouter-catalog';
 import { useTabState } from '@/components/useTabState';
 import { ActionCard } from '@/components/ActionCard';
+import { TailorCard } from '@/components/TailorCard';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
 
 type DocStatus =
@@ -1056,6 +1057,7 @@ export function DailyView({ onOpenSetup }: { onOpenSetup: () => void }) {
   return (
     <div className="daily-actions">
       <FillAndAttachSection onOpenSetup={onOpenSetup} />
+      <TailorCard onOpenSetup={onOpenSetup} />
       <LogToNotionSection onOpenSetup={onOpenSetup} />
       <DraftAnswersCard onOpenSetup={onOpenSetup} />
     </div>
