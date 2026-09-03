@@ -480,3 +480,30 @@ body {
 .panel .tailor-actions .btn {
   flex: 1;
 }
+
+.panel .enrichment {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.panel .enrichment .hint {
+  margin: 0 0 6px;
+}
+
+.panel .enrichment textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}

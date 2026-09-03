@@ -1,5 +1,9 @@
 # ApplyFlow: Tailored Resume and Cover Letter Generation
 
+> **Status: all five phases built (2026-09-02).** 506 tests. Not yet exercised
+> in a browser — the acceptance test below (put a generated resume through the
+> same external ATS scorer that produced the 40) has not been run.
+
 ## Context
 
 The last unbuilt feature from the product review (6.3). Everything else in this

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ageInDays, getBank, missingSources, type BulletBank } from '@/lib/bullet-bank';
-import { bankScore, sourcesFrom } from '@/lib/bank-generation';
+import { bankScore, sourcesFrom, sourcesMissingMetrics } from '@/lib/bank-generation';
 import { getBankRun, type BankRunState } from '@/lib/bank-run';
 import type { StartBankMessage } from '@/entrypoints/background';
-import { getProfile } from '@/lib/storage';
-import type { Profile } from '@/lib/schema';
+import { type Profile } from '@/lib/schema';
+import { askForMetrics, fallbackQuestion, type EnrichmentQuestion } from '@/lib/enrichment';
+import { getSettings } from '@/lib/settings';
+import { getProfile, setProfile } from '@/lib/storage';
 
 /**
  * Generating and reviewing the bullet bank.
@@ -18,6 +20,9 @@ export function BankSection() {
   const [run, setRun] = useState<BankRunState | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [starting, setStarting] = useState(false);
+  const [questions, setQuestions] = useState<EnrichmentQuestion[] | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
@@ -42,6 +47,65 @@ export function BankSection() {
   };
 
   const sources = profile ? sourcesFrom(profile) : [];
+  const missingMetrics = sourcesMissingMetrics(sources);
+
+  /**
+   * A number is the one thing generation cannot supply, so it is asked for
+   * rather than invented — once, here, not once per application.
+   */
+  const ask = async () => {
+    setAsking(true);
+    try {
+      const settings = await getSettings();
+      setQuestions(
+        settings.llm.backend
+          ? await askForMetrics(missingMetrics, settings.llm)
+          : missingMetrics.map((source) => ({
+              sourceId: source.id,
+              label: source.label,
+              question: fallbackQuestion(source),
+            }))
+      );
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  /**
+   * Answers become the user's own bullets, then that item is regenerated so
+   * every framing of it can use the number.
+   */
+  const saveAnswers = async () => {
+    if (!profile) return;
+    const answered = Object.entries(answers).filter(([, text]) => text.trim().length > 0);
+    if (answered.length === 0) return;
+
+    const byId = new Map(answered);
+    const next: Profile = {
+      ...profile,
+      workHistory: profile.workHistory.map((role) =>
+        byId.has(role.id)
+          ? { ...role, bullets: [...role.bullets, { id: crypto.randomUUID(), text: byId.get(role.id)!.trim() }] }
+          : role
+      ),
+      projects: profile.projects.map((project) =>
+        byId.has(project.id)
+          ? {
+              ...project,
+              bullets: [...project.bullets, { id: crypto.randomUUID(), text: byId.get(project.id)!.trim() }],
+            }
+          : project
+      ),
+    };
+
+    await setProfile(next);
+    setQuestions(null);
+    setAnswers({});
+    await browser.runtime.sendMessage({
+      type: 'start-bank',
+      onlySourceIds: answered.map(([id]) => id),
+    } satisfies StartBankMessage);
+  };
   const uncovered = missingSources(bank, sources.map((s) => s.id));
   const running = run?.status === 'inferring' || run?.status === 'generating';
 
@@ -101,13 +165,40 @@ export function BankSection() {
         </div>
       )}
 
-      {!running && run?.needMetrics && run.needMetrics.length > 0 && (
+      {!running && missingMetrics.length > 0 && !questions && (
         <div className="notice notice-warning" style={{ marginTop: 10 }}>
           <p>
-            Nothing measurable in: <strong>{run.needMetrics.map((s) => s.label).join(', ')}</strong>. A number is the
-            one thing a model cannot supply for you — add one to those achievements and regenerate, and every future
-            application improves.
+            Nothing measurable in: <strong>{missingMetrics.map((s) => s.label).join(', ')}</strong>. A number is the
+            one thing generation cannot supply for you, and it is what separates a strong bullet from a vague one.
           </p>
+          <button type="button" className="btn" disabled={asking} onClick={() => void ask()}>
+            {asking ? 'Thinking of questions…' : `Answer ${missingMetrics.length} quick question${missingMetrics.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      )}
+
+      {questions && questions.length > 0 && (
+        <div className="enrichment">
+          {questions.map((q) => (
+            <label className="field" key={q.sourceId}>
+              <span>{q.label}</span>
+              <p className="hint">{q.question}</p>
+              <textarea
+                rows={2}
+                value={answers[q.sourceId] ?? ''}
+                placeholder="About 500 documents; lookup went from minutes to seconds."
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [q.sourceId]: e.target.value }))}
+              />
+            </label>
+          ))}
+          <div className="tailor-actions">
+            <button type="button" className="btn" onClick={() => setQuestions(null)}>
+              Not now
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void saveAnswers()}>
+              Save and regenerate those
+            </button>
+          </div>
         </div>
       )}
 
