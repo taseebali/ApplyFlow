@@ -11,6 +11,7 @@ import {
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getActiveTabId } from './DailyView';
+import { openReviewTab, putReview } from '@/lib/review-handoff';
 
 type Status =
   | { kind: 'idle' }
@@ -205,6 +206,24 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
           )}
 
           <div className="tailor-actions">
+            <button
+              type="button"
+              className="btn"
+              onClick={async () => {
+                if (status.kind !== 'ready') return;
+                // Editing a resume in a 400px panel is not reviewing it.
+                await putReview({
+                  result: status.result,
+                  letter,
+                  company: status.company,
+                  role: status.role,
+                  jobDescription: status.jobDescription,
+                });
+                await openReviewTab();
+              }}
+            >
+              Review in a tab
+            </button>
             {!letter && (
               <button type="button" className="btn" disabled={writingLetter} onClick={write}>
                 {writingLetter ? 'Writing…' : 'Write a cover letter'}

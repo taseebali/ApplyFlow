@@ -1,0 +1,103 @@
+/* Wider than the side panel by design: this page exists because a resume
+   cannot be read or edited in 400px. */
+.review {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.review-head h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+  text-wrap: balance;
+}
+
+.review .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.review section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.review section h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+.review-section {
+  margin-bottom: 20px;
+}
+
+.review-heading {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.review-bullet {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+  margin-bottom: 12px;
+}
+
+.review-bullet textarea,
+.review-letter {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 9px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.review-letter {
+  min-height: 320px;
+  margin-top: 8px;
+}
+
+.review-bullet-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.review-bullet-foot .btn-plain {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.review-actions {
+  display: flex;
+  gap: 10px;
+}

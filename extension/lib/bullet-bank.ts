@@ -151,3 +151,36 @@ export function missingSources(bank: BulletBank | null, sourceIds: string[]): st
   const covered = new Set((bank?.variants ?? []).map((v) => v.sourceId));
   return sourceIds.filter((id) => !covered.has(id));
 }
+
+/**
+ * Replaces one variant's wording with the user's own edit.
+ *
+ * This is how the bank improves without anyone maintaining it as a chore. A
+ * resume gets edited before it is sent anyway; keeping that edit means every
+ * future application inherits it, and the alternative — a separate curation
+ * screen nobody opens — does not survive contact with real use.
+ *
+ * The derived fields are recomputed, so an edit that changes the opening verb
+ * is respected by the next selection rather than quietly ignored.
+ */
+export function reviseVariant(bank: BulletBank, variantId: string, text: string): BulletBank {
+  return {
+    ...bank,
+    variants: bank.variants.map((variant) =>
+      variant.id === variantId
+        ? {
+            ...variant,
+            ...makeVariant({
+              sourceId: variant.sourceId,
+              angle: variant.angle,
+              text,
+              domainHint: variant.domainHint,
+            }),
+            // The id is the handle a selection already holds; changing it would
+            // orphan the bullet mid-review.
+            id: variant.id,
+          }
+        : variant
+    ),
+  };
+}

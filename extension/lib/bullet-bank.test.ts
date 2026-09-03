@@ -5,6 +5,7 @@ import {
   makeVariant,
   missingSources,
   replaceSource,
+  reviseVariant,
   variantsFor,
   type BulletBank,
 } from './bullet-bank';
@@ -105,5 +106,41 @@ describe('staleness', () => {
 
   it('treats every source as missing when there is no bank', () => {
     expect(missingSources(null, ['a', 'b'])).toEqual(['a', 'b']);
+  });
+});
+
+describe('reviseVariant', () => {
+  it('keeps an edit the user made while reviewing', () => {
+    // The bank improves as a byproduct of applying, rather than through a
+    // curation chore nobody performs.
+    const original = variant('a', 'Built a thing');
+    const bank = bankOf([original, variant('b')]);
+
+    const next = reviseVariant(bank, original.id, 'Rebuilt the ingest path, cutting lag 60%');
+    const revised = next.variants.find((v) => v.id === original.id)!;
+
+    expect(revised.text).toBe('Rebuilt the ingest path, cutting lag 60%');
+    expect(next.variants).toHaveLength(2);
+  });
+
+  it('recomputes what selection depends on', () => {
+    const original = variant('a', 'Built a thing');
+    const revised = reviseVariant(bankOf([original]), original.id, 'Rebuilt it, cutting lag 60%').variants[0]!;
+
+    expect(revised.openingVerb).toBe('rebuilt');
+    expect(revised.hasMetric).toBe(true);
+    expect(revised.terms).toContain('lag');
+  });
+
+  it('keeps the id, so a selection holding it is not orphaned', () => {
+    const original = variant('a', 'Built a thing');
+    const revised = reviseVariant(bankOf([original]), original.id, 'Changed entirely').variants[0]!;
+    expect(revised.id).toBe(original.id);
+    expect(revised.sourceId).toBe('a');
+  });
+
+  it('leaves the bank alone for an id it does not know', () => {
+    const bank = bankOf([variant('a')]);
+    expect(reviseVariant(bank, 'nope', 'x')).toEqual(bank);
   });
 });
