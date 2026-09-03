@@ -169,3 +169,50 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
 
   return Packer.toBlob(doc);
 }
+
+/**
+ * Renders a cover letter to .docx — same reasoning as the resume: Word parses
+ * reliably, and the user can edit what comes out.
+ */
+export async function coverLetterToDocxBlob(input: {
+  name: string;
+  contactLine: string;
+  body: string;
+}): Promise<Blob> {
+  const { Document, Packer, Paragraph, TextRun, AlignmentType } = await import('docx');
+
+  const paragraphs = input.body
+    .split(/\n{2,}/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .map((text) => new Paragraph({ text, spacing: { after: 160 } }));
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: input.name, bold: true, size: 28 })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 240 },
+            children: [new TextRun({ text: input.contactLine, size: 20 })],
+          }),
+          ...paragraphs,
+        ],
+      },
+    ],
+    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+  });
+
+  return Packer.toBlob(doc);
+}
+
+/** Companion to `resumeFilename`, so the pair sit together in the folder. */
+export function coverLetterFilename(document: ResumeDocument, company: string): string {
+  const safe = (text: string) => text.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+  return [safe(document.name), 'CoverLetter', safe(company)].filter(Boolean).join('_') + '.docx';
+}

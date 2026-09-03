@@ -14,6 +14,13 @@ import {
 import { anglesForFamily, DEFAULT_ANGLES, type TargetFamily } from './target-families';
 import { assembleResume, type ResumeDocument } from './resume-document';
 import { scoreSection } from './bullet-quality';
+import {
+  buildCoverLetterPrompt,
+  coverLetterFaults,
+  isAcceptable,
+  type LetterFault,
+} from './cover-letter';
+import type { BulletVariant } from './bullet-bank';
 
 /**
  * Producing one application's resume, end to end.
@@ -26,6 +33,8 @@ import { scoreSection } from './bullet-quality';
 
 export interface TailorResult {
   document: ResumeDocument;
+  /** The variants that made it onto the resume — what the letter must not repeat. */
+  selected: BulletVariant[];
   gap: GapReport;
   /** The finished document's own quality, by the same measure as everything else. */
   score: number;
@@ -77,8 +86,61 @@ export async function tailorResume(input: {
 
   return {
     document,
+    selected,
     gap: analyseGap({ jobDescription, profileText }),
     score: scoreSection(selected.map((v) => v.text)).score,
     offline,
   };
+}
+
+export interface CoverLetterResult {
+  text: string;
+  /** What is still wrong with it after generation, for the user to judge. */
+  faults: LetterFault[];
+  /** True when a second attempt was needed, so a poor result is explicable. */
+  retried: boolean;
+}
+
+/**
+ * Writes the cover letter for this posting.
+ *
+ * Retried once when the result has a structural fault — a templated opening,
+ * three sentences starting the same way, a restatement of the resume. Retrying
+ * once rather than repeatedly is the same judgement as bank generation: a model
+ * that produces the same fault twice will not fix it on the third attempt, and
+ * the user can edit what comes back.
+ */
+export async function writeCoverLetter(input: {
+  jobDescription: string;
+  company: string;
+  role: string;
+  resumeBullets: BulletVariant[];
+}): Promise<CoverLetterResult> {
+  const [profile, settings] = await Promise.all([getProfile(), getSettings()]);
+  if (!settings.llm.backend) {
+    throw new Error('A cover letter needs an AI backend. Set one up in Settings.');
+  }
+
+  const prompt = buildCoverLetterPrompt({
+    jobDescription: input.jobDescription,
+    profile,
+    company: input.company,
+    role: input.role,
+    resumeBullets: input.resumeBullets,
+  });
+
+  const bulletTexts = input.resumeBullets.map((v) => v.text);
+
+  const first = (await runPrompt(prompt, settings.llm)).trim();
+  if (isAcceptable(first, bulletTexts)) {
+    return { text: first, faults: coverLetterFaults(first, bulletTexts), retried: false };
+  }
+
+  const second = (await runPrompt(prompt, settings.llm)).trim();
+  // Keep whichever is less wrong, so a retry can never make things worse.
+  const best = coverLetterFaults(second, bulletTexts).length < coverLetterFaults(first, bulletTexts).length
+    ? second
+    : first;
+
+  return { text: best, faults: coverLetterFaults(best, bulletTexts), retried: true };
 }

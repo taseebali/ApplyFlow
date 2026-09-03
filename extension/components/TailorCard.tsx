@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { ActionCard } from '@/components/ActionCard';
 import { DraftIcon } from '@/components/icons';
-import { tailorResume, type TailorResult } from '@/lib/tailor-run';
-import { resumeFilename, toDocxBlob } from '@/lib/resume-document';
+import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
+import {
+  coverLetterFilename,
+  coverLetterToDocxBlob,
+  resumeFilename,
+  toDocxBlob,
+} from '@/lib/resume-document';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getActiveTabId } from './DailyView';
@@ -10,8 +15,8 @@ import { getActiveTabId } from './DailyView';
 type Status =
   | { kind: 'idle' }
   | { kind: 'working' }
-  | { kind: 'ready'; result: TailorResult; company: string }
-  | { kind: 'saved'; filename: string }
+  | { kind: 'ready'; result: TailorResult; company: string; role: string; jobDescription: string }
+  | { kind: 'saved'; filenames: string[] }
   | { kind: 'error'; message: string };
 
 /**
@@ -34,10 +39,39 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         type: 'get-job-info',
       } satisfies GetJobInfoMessage);
 
-      const result = await tailorResume({ jobDescription: info.jobDescription ?? '' });
-      setStatus({ kind: 'ready', result, company: info.companyName ?? '' });
+      const jobDescription = info.jobDescription ?? '';
+      const result = await tailorResume({ jobDescription });
+      setStatus({
+        kind: 'ready',
+        result,
+        company: info.companyName ?? '',
+        role: info.jobTitle ?? '',
+        jobDescription,
+      });
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not build a resume.' });
+    }
+  };
+
+  const [letter, setLetter] = useState<CoverLetterResult | null>(null);
+  const [writingLetter, setWritingLetter] = useState(false);
+
+  const write = async () => {
+    if (status.kind !== 'ready') return;
+    setWritingLetter(true);
+    try {
+      setLetter(
+        await writeCoverLetter({
+          jobDescription: status.jobDescription,
+          company: status.company,
+          role: status.role,
+          resumeBullets: status.result.selected,
+        })
+      );
+    } catch (err) {
+      setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not write a letter.' });
+    } finally {
+      setWritingLetter(false);
     }
   };
 
@@ -54,14 +88,34 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         return;
       }
 
-      const blob = await toDocxBlob(status.result.document);
-      const filename = await saveToDocumentsFolder(
-        handle,
-        resumeFilename(status.result.document, status.company),
-        blob
+      const saved: string[] = [];
+
+      saved.push(
+        await saveToDocumentsFolder(
+          handle,
+          resumeFilename(status.result.document, status.company),
+          await toDocxBlob(status.result.document)
+        )
       );
-      // Now in the documents folder, so Attach documents finds it like any other.
-      setStatus({ kind: 'saved', filename });
+
+      // Saved as a pair when a letter exists, so they sit together and the
+      // attach path finds both by company name.
+      if (letter) {
+        saved.push(
+          await saveToDocumentsFolder(
+            handle,
+            coverLetterFilename(status.result.document, status.company),
+            await coverLetterToDocxBlob({
+              name: status.result.document.name,
+              contactLine: status.result.document.contactLine,
+              body: letter.text,
+            })
+          )
+        );
+      }
+
+      // Now in the documents folder, so Attach documents finds them like any other.
+      setStatus({ kind: 'saved', filenames: saved });
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not save the file.' });
     }
@@ -83,7 +137,11 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
       >
         {status.kind === 'working' && <span className="pill pill-neutral">Choosing…</span>}
         {status.kind === 'error' && <span className="pill pill-danger">{status.message}</span>}
-        {status.kind === 'saved' && <span className="pill pill-success">Saved {status.filename}</span>}
+        {status.kind === 'saved' && (
+          <span className="pill pill-success">
+            Saved {status.filenames.length === 1 ? status.filenames[0] : `${status.filenames.length} files`}
+          </span>
+        )}
         {result && (
           <>
             <span className={`pill ${result.score >= 80 ? 'pill-success' : 'pill-warning'}`}>
@@ -126,9 +184,36 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
             </div>
           ))}
 
-          <button type="button" className="btn btn-primary" onClick={save}>
-            Save to documents folder
-          </button>
+          {letter && (
+            <div className="tailor-letter">
+              <p className="tailor-heading">Cover letter</p>
+              {letter.faults.length > 0 && (
+                <p className="status-row">
+                  {letter.faults.map((fault) => (
+                    <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
+                      {fault.kind.replace(/-/g, ' ')}
+                    </span>
+                  ))}
+                </p>
+              )}
+              <textarea
+                className="tailor-letter-text"
+                value={letter.text}
+                onChange={(e) => setLetter({ ...letter, text: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div className="tailor-actions">
+            {!letter && (
+              <button type="button" className="btn" disabled={writingLetter} onClick={write}>
+                {writingLetter ? 'Writing…' : 'Write a cover letter'}
+              </button>
+            )}
+            <button type="button" className="btn btn-primary" onClick={save}>
+              Save to documents folder
+            </button>
+          </div>
         </div>
       )}
     </>
