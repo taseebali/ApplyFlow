@@ -10,12 +10,21 @@ describe('applyProfileDefaults', () => {
     expect(result.contact.firstName).toBe('Jordan');
   });
 
-  it('preserves projects that are already stored', () => {
+  it('turns a legacy description into bullets rather than losing it', () => {
     const stored = {
       projects: [
-        { id: 'a', name: 'ApplyFlow', role: 'Author', description: 'd', techStack: 't', outcomes: 'o' },
+        {
+          id: 'a',
+          name: 'ApplyFlow',
+          role: 'Author',
+          description: 'first thing\nsecond thing',
+          techStack: 't',
+          outcomes: 'o',
+        },
       ],
     };
-    expect(applyProfileDefaults(stored).projects).toHaveLength(1);
+    const [project] = applyProfileDefaults(stored).projects;
+    expect(project!.name).toBe('ApplyFlow');
+    expect(project!.bullets.map((b) => b.text)).toEqual(['first thing', 'second thing']);
   });
 });

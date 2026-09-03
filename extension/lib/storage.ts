@@ -1,20 +1,50 @@
-import { EMPTY_PROFILE, type Profile } from './schema';
+import {
+  EMPTY_PROFILE,
+  textToBullets,
+  type BulletEntry,
+  type Profile,
+  type ProjectEntry,
+  type WorkHistoryEntry,
+} from './schema';
 
 const PROFILE_KEY = 'profile';
 
 /** Backfills any top-level sections added to Profile after a user's data was last saved. */
-export function applyProfileDefaults(stored: Partial<Profile>): Profile {
+/** A legacy entry still holding `description` instead of `bullets`. */
+type MaybeLegacy<T> = T & { description?: string };
+
+function withBullets<T extends { bullets?: BulletEntry[] }>(entry: MaybeLegacy<T>): T {
+  if (entry.bullets && entry.bullets.length > 0) return entry;
+  const bullets = entry.description ? textToBullets(entry.description) : [];
+  const { description: _dropped, ...rest } = entry;
+  return { ...(rest as T), bullets };
+}
+
+/**
+ * A profile as it may exist on disk: roles and projects saved before tailoring
+ * existed still carry `description` and no `bullets`. Naming that here keeps
+ * the migration honest rather than casting it away at the call site.
+ */
+export type StoredProfile = Omit<Partial<Profile>, 'workHistory' | 'projects'> & {
+  workHistory?: Array<MaybeLegacy<Partial<WorkHistoryEntry>>>;
+  projects?: Array<MaybeLegacy<Partial<ProjectEntry>>>;
+};
+
+export function applyProfileDefaults(stored: StoredProfile): Profile {
   return {
     contact: { ...EMPTY_PROFILE.contact, ...stored.contact },
     links: { ...EMPTY_PROFILE.links, ...stored.links },
-    workHistory: stored.workHistory ?? EMPTY_PROFILE.workHistory,
+    // Roles and projects saved before tailoring existed carry one description
+    // blob. Split it rather than drop it: those sentences are the user's own
+    // writing and are the seed for everything the bank generates.
+    workHistory: (stored.workHistory ?? EMPTY_PROFILE.workHistory).map(withBullets) as Profile['workHistory'],
     // Entries saved before `current` existed default to finished, which is
     // the safe reading: it never claims someone is still studying.
     education: (stored.education ?? EMPTY_PROFILE.education).map((entry) => ({
       ...entry,
       current: entry.current ?? false,
     })),
-    projects: stored.projects ?? EMPTY_PROFILE.projects,
+    projects: (stored.projects ?? EMPTY_PROFILE.projects).map(withBullets) as Profile['projects'],
     languages: stored.languages ?? EMPTY_PROFILE.languages,
     workAuthorization: { ...EMPTY_PROFILE.workAuthorization, ...stored.workAuthorization },
     logistics: { ...EMPTY_PROFILE.logistics, ...stored.logistics },

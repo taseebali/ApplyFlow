@@ -1,4 +1,4 @@
-import type { Profile } from './schema';
+import { bulletsToText, type Profile } from './schema';
 import type { LlmSettings } from './settings';
 import {
   describeOpenRouterFailure,
@@ -82,11 +82,11 @@ export function buildPrompt(context: DraftContext): string {
   const { question, jobDescription, profile, previousAnswers = [], maxLength } = context;
 
   const work = profile.workHistory
-    .map((w) => `- ${w.title} at ${w.company} (${w.startDate}-${w.current ? 'present' : w.endDate}): ${w.description}`)
+    .map((w) => `- ${w.title} at ${w.company} (${w.startDate}-${w.current ? 'present' : w.endDate}): ${bulletsToText(w.bullets)}`)
     .join('\n');
 
   const projects = profile.projects
-    .map((p) => `- ${p.name} (${p.role}) - ${p.description}. Tech: ${p.techStack}. Outcome: ${p.outcomes}`)
+    .map((p) => `- ${p.name} (${p.role}) - ${bulletsToText(p.bullets)}. Tech: ${p.techStack}. Outcome: ${p.outcomes}`)
     .join('\n');
 
   const education = profile.education

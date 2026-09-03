@@ -7,6 +7,7 @@ import {
   parseResumeHeuristic,
   splitSections,
 } from './resume-parser';
+import { bulletsToText } from './schema';
 
 const RESUME = `Jordan Avery
 Munich, Germany
@@ -188,7 +189,8 @@ python, fastapi, anthropic-api
 
   it('treats a wrapped bullet as continuation, not a new project', () => {
     const projects = parseProjectsSection(SECTION);
-    expect(projects[0]!.description).toContain('text-to-speech)');
+    // The wrapped line joins the bullet it continues rather than starting one.
+    expect(bulletsToText(projects[0]!.bullets)).toContain('text-to-speech)');
     expect(projects.map((p) => p.name)).not.toContain(
       'text-to-speech) — a full multimodal pipeline, not a single-model demo.'
     );

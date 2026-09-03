@@ -17,6 +17,7 @@ import type { LlmSettings, Settings } from '@/lib/settings';
 import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { LocationFields } from './LocationFields';
+import { BulletsField } from './BulletsField';
 import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
 import {
   clearApplications,
@@ -198,7 +199,7 @@ export function WorkHistorySection({ profile, onChange }: { profile: Profile; on
           startDate: '',
           endDate: '',
           current: false,
-          description: '',
+          bullets: [],
         },
       ],
     });
@@ -230,13 +231,7 @@ export function WorkHistorySection({ profile, onChange }: { profile: Profile; on
               <span>Current role</span>
             </label>
           </div>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              value={entry.description}
-              onChange={(e) => update(entry.id, { description: e.target.value })}
-            />
-          </label>
+          <BulletsField bullets={entry.bullets} onChange={(bullets) => update(entry.id, { bullets })} />
           <button type="button" className="btn btn-danger remove" onClick={() => remove(entry.id)}>
             Remove
           </button>
@@ -331,7 +326,7 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
       ...profile,
       projects: [
         ...profile.projects,
-        { id: crypto.randomUUID(), name: '', role: '', description: '', techStack: '', outcomes: '' },
+        { id: crypto.randomUUID(), name: '', role: '', bullets: [], techStack: '', outcomes: '' },
       ],
     });
 
@@ -352,13 +347,7 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
             <TextField label="Your role" value={entry.role} onChange={(v) => update(entry.id, { role: v })} />
             <TextField label="Tech stack" value={entry.techStack} onChange={(v) => update(entry.id, { techStack: v })} />
           </div>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              value={entry.description}
-              onChange={(e) => update(entry.id, { description: e.target.value })}
-            />
-          </label>
+          <BulletsField bullets={entry.bullets} onChange={(bullets) => update(entry.id, { bullets })} />
           <label className="field">
             <span>Outcomes</span>
             <textarea value={entry.outcomes} onChange={(e) => update(entry.id, { outcomes: e.target.value })} />

@@ -377,3 +377,55 @@ body {
   font-family: inherit;
   font-size: 12px;
 }
+
+.panel .bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.panel .bullets-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.panel .bullet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+.panel .bullet-text {
+  width: 100%;
+  resize: vertical;
+  min-height: 46px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+.panel .bullet-text:focus {
+  border-color: var(--text-muted);
+}
+
+.panel .bullet-faults {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.panel .bullet-remove {
+  align-self: flex-start;
+  font-size: 11.5px;
+}

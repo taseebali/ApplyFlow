@@ -1,4 +1,10 @@
-import type { EducationEntry, ProjectEntry, Profile, WorkHistoryEntry } from './schema';
+import {
+  textToBullets,
+  type EducationEntry,
+  type Profile,
+  type ProjectEntry,
+  type WorkHistoryEntry,
+} from './schema';
 import { runPrompt } from './llm-client';
 import type { LlmSettings } from './settings';
 
@@ -169,7 +175,7 @@ function headingSegments(line: string, splitOnDash = false): string[] {
  * the same code reads "Name | Python, Docker" and "Name GitHub" alike.
  */
 export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
-  const entry = { name: '', role: '', description: '', techStack: '', outcomes: '' };
+  const entry: Omit<ProjectEntry, 'id'> = { name: '', role: '', bullets: [], techStack: '', outcomes: '' };
 
   for (const segment of headingSegments(line)) {
     if (!entry.techStack && isTechList(segment) && !isUrlish(segment)) entry.techStack = segment;
@@ -204,16 +210,17 @@ export function parseProjectsSection(section: string): ProjectEntry[] {
     if (isBullet(line)) {
       sawBullet = true;
       if (current) {
-        const text = line.replace(BULLET, '').trim();
-        current.description = current.description ? `${current.description}\n${text}` : text;
+        // Kept as separate bullets, which is what they already were on the page.
+        current.bullets.push({ id: crypto.randomUUID(), text: line.replace(BULLET, '').trim() });
       }
       continue;
     }
 
     // A bullet that wraps onto a second line looks exactly like a new title
     // apart from one thing: the line it continues did not finish its sentence.
-    if (current && sawBullet && current.description && !/[.!?]\s*$/.test(current.description)) {
-      current.description = `${current.description} ${line}`.trim();
+    const last = current?.bullets[current.bullets.length - 1];
+    if (current && sawBullet && last && !/[.!?]\s*$/.test(last.text)) {
+      last.text = `${last.text} ${line}`.trim();
       continue;
     }
 
@@ -396,7 +403,7 @@ function toWorkHistory(value: unknown): WorkHistoryEntry[] {
       startDate: str(e.startDate),
       endDate: str(e.endDate),
       current: e.current === true,
-      description: str(e.description),
+      bullets: textToBullets(str(e.description)),
     }))
     .filter((e) => e.company || e.title);
 }
@@ -421,7 +428,7 @@ function toProjects(value: unknown): ProjectEntry[] {
       id: crypto.randomUUID(),
       name: str(e.name),
       role: str(e.role),
-      description: str(e.description),
+      bullets: textToBullets(str(e.description)),
       techStack: str(e.techStack),
       outcomes: str(e.outcomes),
     }))

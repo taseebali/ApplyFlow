@@ -1,3 +1,32 @@
+/**
+ * One achievement, on its own.
+ *
+ * Replaces the single description blob a role used to carry. Tailoring works by
+ * choosing which achievements appear for a given posting and in what order, and
+ * that is only possible if they are separate things rather than one paragraph.
+ */
+export interface BulletEntry {
+  id: string;
+  text: string;
+}
+
+/**
+ * Splits a legacy description blob into bullets, on line breaks or bullet
+ * characters. Written once as a migration, and reused by the resume importer.
+ */
+export function textToBullets(text: string): BulletEntry[] {
+  return text
+    .split(/\r?\n|(?:^|\s)[•·▪]\s*/)
+    .map((line) => line.replace(/^[-*\s]+/, '').trim())
+    .filter((line) => line.length > 0)
+    .map((line) => ({ id: crypto.randomUUID(), text: line }));
+}
+
+/** The blob form, for the places that still want one — an AI prompt, say. */
+export function bulletsToText(bullets: BulletEntry[]): string {
+  return bullets.map((b) => b.text).join('\n');
+}
+
 export interface WorkHistoryEntry {
   id: string;
   company: string;
@@ -6,7 +35,7 @@ export interface WorkHistoryEntry {
   startDate: string;
   endDate: string;
   current: boolean;
-  description: string;
+  bullets: BulletEntry[];
 }
 
 export interface EducationEntry {
@@ -50,7 +79,7 @@ export interface ProjectEntry {
   id: string;
   name: string;
   role: string;
-  description: string;
+  bullets: BulletEntry[];
   techStack: string;
   outcomes: string;
 }
