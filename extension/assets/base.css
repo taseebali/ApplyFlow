@@ -34,7 +34,6 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
-  --space-8: 32px;
 
   --radius-sm: 6px;   /* controls: inputs, buttons */
   --radius-md: 10px;  /* cards, panels, notices */
@@ -44,17 +43,13 @@
   --text-sm: 12px;    /* hints, meta lines */
   --text-base: 13px;  /* copy inside components */
   --text-md: 14px;    /* document body */
-  --text-lg: 18px;    /* section titles */
-  --text-xl: 24px;    /* the title of a screen */
+  --text-lg: 24px;    /* the title of a screen */
 
   /* The stylesheet had no box-shadow at all, so every surface sat flat on the
      ground and separation came from borders alone. Kept low-alpha and soft. */
   --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.06);
-  --shadow-md: 0 2px 8px rgba(15, 15, 15, 0.08);
-  --shadow-lg: 0 8px 24px rgba(15, 15, 15, 0.12);
 
   --z-sticky: 10;
-  --z-overlay: 100;
 
   color-scheme: light dark;
   font-synthesis: none;
@@ -91,8 +86,6 @@
     /* A shadow tuned for a white ground disappears on a dark one; these read
        as depth rather than as smudges. */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
   }
 }
 

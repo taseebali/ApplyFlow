@@ -198,21 +198,6 @@ export function takeValidationProblems(): ValidationProblem[] {
   return problems;
 }
 
-/** Writes a value, then checks the form accepted it. Returns false if not. */
-export function setAndValidate(
-  el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
-  value: string,
-  label: string
-): boolean {
-  setNativeFieldValue(el, value);
-  const problem = validateWritten(el, label);
-  if (problem) {
-    validationProblems.push(problem);
-    return false;
-  }
-  return true;
-}
-
 /**
  * Why the last dropdown attempt failed. Scripted dropdowns cannot be tested
  * outside a real browser, so when one fails the panel needs to say where it

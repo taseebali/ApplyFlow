@@ -17,7 +17,7 @@
 }
 
 .review-head h1 {
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 6px 0 0;

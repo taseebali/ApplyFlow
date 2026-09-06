@@ -22,11 +22,9 @@ export interface Posting {
   role: string;
   ats: string | null;
   url: string;
-  /** False when detection found nothing, so the panel can say so plainly. */
-  detected: boolean;
 }
 
-export const EMPTY_POSTING: Posting = { company: '', role: '', ats: null, url: '', detected: false };
+const EMPTY_POSTING: Posting = { company: '', role: '', ats: null, url: '' };
 
 /** Reads the posting for a tab: what was detected, with the user's edits on top. */
 export async function readPosting(tabId: number): Promise<Posting> {
@@ -47,7 +45,6 @@ export async function readPosting(tabId: number): Promise<Posting> {
     role: override?.role ?? detected?.jobTitle ?? '',
     ats: url ? atsFromUrl(url) : null,
     url,
-    detected: Boolean(detected?.companyName || detected?.jobTitle),
   };
 }
 

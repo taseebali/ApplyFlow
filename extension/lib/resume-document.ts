@@ -149,9 +149,11 @@ function degreeLine(degree: string, fieldOfStudy: string): string {
     : `${trimmedDegree} in ${field}`;
 }
 
+/** Filename-safe, and the same rule for both documents so the pair match. */
+const safe = (text: string) => text.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+
 /** A filename that sorts sensibly in a folder and says what it is. */
 export function resumeFilename(document: ResumeDocument, company: string): string {
-  const safe = (text: string) => text.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
   const owner = safe(document.name);
   // Without a name on the profile, "Resume_Resume_Acme" is what the obvious
   // version produces.
@@ -348,6 +350,5 @@ export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promis
 
 /** Companion to `resumeFilename`, so the pair sit together in the folder. */
 export function coverLetterFilename(document: ResumeDocument, company: string): string {
-  const safe = (text: string) => text.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
   return [safe(document.name), 'CoverLetter', safe(company)].filter(Boolean).join('_') + '.docx';
 }
