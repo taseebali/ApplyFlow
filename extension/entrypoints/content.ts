@@ -24,6 +24,8 @@ import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
 import type { DocumentKind } from '@/lib/document-matcher';
 import { detectQuestions } from '@/lib/question-detector';
+import { planForm } from '@/lib/plan-form';
+import type { FormPlan } from '@/lib/field-plan';
 import type { ChooseOptionMessage } from '@/entrypoints/background';
 import { frameHasWork, summarizeFrame } from '@/lib/frames';
 
@@ -47,6 +49,11 @@ export interface FillPageResponse {
   aiChoices: Array<{ label: string; answer: string }>;
   hostname: string;
 }
+
+export interface PlanFormMessage {
+  type: 'plan-form';
+}
+export type PlanFormResponse = FormPlan;
 
 export interface GetJobInfoMessage {
   type: 'get-job-info';
@@ -108,6 +115,7 @@ export interface InsertAnswerResponse {
 type IncomingMessage =
   | FillPageMessage
   | GetJobInfoMessage
+  | PlanFormMessage
   | AttachDocumentsMessage
   | GetQuestionsMessage
   | UndoFillMessage
@@ -324,6 +332,16 @@ export default defineContentScript({
             hostname: location.hostname,
           };
           sendResponse(response);
+        })();
+        return true;
+      }
+
+      if (message?.type === 'plan-form') {
+        // Reads only. Nothing is written until the user approves the diff.
+        (async () => {
+          const profile = await getProfile();
+          const overrides = await getOverridesForHost(location.hostname);
+          sendResponse(planForm(profile, overrides));
         })();
         return true;
       }

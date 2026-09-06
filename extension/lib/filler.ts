@@ -38,8 +38,12 @@ function primaryEducation(profile: Profile) {
   return [...profile.education].sort((a, b) => (b.endDate || '').localeCompare(a.endDate || ''))[0];
 }
 
-/** Text-valued fields, including ones derived rather than stored directly on Profile. */
-function resolveText(profile: Profile, path: string): string | undefined {
+/**
+ * Text-valued fields, including ones derived rather than stored directly on
+ * Profile. Exported so the plan can say what *would* be written without
+ * writing it, using exactly the resolution the fill itself uses.
+ */
+export function resolveText(profile: Profile, path: string): string | undefined {
   if (path === 'contact.fullName') {
     const full = `${profile.contact.firstName} ${profile.contact.lastName}`.trim();
     return full.length > 0 ? full : undefined;
@@ -73,6 +77,22 @@ function resolveText(profile: Profile, path: string): string | undefined {
 function resolveBoolean(profile: Profile, path: string): boolean | null {
   const value = getRawByPath(profile, path);
   return typeof value === 'boolean' ? value : null;
+}
+
+/**
+ * What the fill would put in a field, as display text.
+ *
+ * The one place text and yes/no resolution meet, so the plan shown to the user
+ * and the write that follows it cannot disagree. Without the boolean arm every
+ * sponsorship and authorisation question reported as needing the user, when the
+ * profile answers them.
+ */
+export function plannedValue(profile: Profile, path: string): string {
+  const text = resolveText(profile, path);
+  if (text) return text;
+  const flag = resolveBoolean(profile, path);
+  if (flag === null) return '';
+  return flag ? 'Yes' : 'No';
 }
 
 function resolvePreferenceList(profile: Profile, path: string): string[] {
