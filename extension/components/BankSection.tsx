@@ -196,6 +196,7 @@ export function BankSection() {
               <p className="hint">{q.question}</p>
               <textarea
                 rows={2}
+                aria-label={q.question}
                 value={answers[q.sourceId] ?? ''}
                 placeholder="About 500 documents; lookup went from minutes to seconds."
                 onChange={(e) => setAnswers((prev) => ({ ...prev, [q.sourceId]: e.target.value }))}

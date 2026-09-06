@@ -47,7 +47,7 @@ export function ReadinessBar({ onOpen }: { onOpen: (group: GroupId, step?: strin
 
   if (state.blockers.length === 0) {
     return (
-      <p className="readiness readiness-ok">
+      <p className="readiness readiness-ok" role="status" aria-live="polite">
         <span aria-hidden="true">✓</span> Ready — {state.summary}
       </p>
     );
@@ -56,7 +56,7 @@ export function ReadinessBar({ onOpen }: { onOpen: (group: GroupId, step?: strin
   const count = state.blockers.length;
 
   return (
-    <div className="readiness readiness-blocked">
+    <div className="readiness readiness-blocked" role="status" aria-live="polite">
       <p className="readiness-title">
         {state.ready
           ? `${count} thing${count === 1 ? '' : 's'} worth fixing`

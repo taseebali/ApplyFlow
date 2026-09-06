@@ -414,24 +414,24 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
                   <span className="pill pill-neutral">{fill.unmatchedCount} need attention</span>
                 )}
                 {(fill.invalid?.length ?? 0) > 0 && (
-                  <span
-                    className="pill pill-danger"
-                    title={fill.invalid!.map((problem) => `${problem.label}: ${problem.reason}`).join(', ')}
-                  >
-                    {fill.invalid!.length} rejected by the form
+                  <span className="pill pill-danger">{fill.invalid!.length} rejected by the form</span>
+                )}
+                {(fill.frameCount ?? 1) > 1 && (
+                  <span className="pill pill-neutral">across {fill.frameCount} frames</span>
+                )}
+                {(fill.invalid?.length ?? 0) > 0 && (
+                  <span className="unmatched-labels">
+                    Rejected: {fill.invalid!.map((problem) => `${problem.label} (${problem.reason})`).join(' · ')}
                   </span>
                 )}
                 {(fill.frameCount ?? 1) > 1 && (
-                  <span
-                    className="pill pill-neutral"
-                    title="This application is split across embedded frames; all of them were filled."
-                  >
-                    across {fill.frameCount} frames
+                  <span className="unmatched-labels">
+                    This application is split across embedded frames; all of them were filled.
                   </span>
                 )}
                 {fill.unmatchedLabels.length > 0 && (
-                  <span className="unmatched-labels" title="Recognized but has no data in your profile yet">
-                    {fill.unmatchedLabels.join(' · ')}
+                  <span className="unmatched-labels">
+                    Recognised but not in your profile yet: {fill.unmatchedLabels.join(' · ')}
                   </span>
                 )}
               </>
@@ -804,6 +804,7 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
               {!status.form.jobDescription && <span className="pill pill-warning">couldn't auto-detect — paste it</span>}
             </span>
             <textarea
+              aria-label="Job description"
               value={status.form.jobDescription}
               onChange={(e) => updateForm({ jobDescription: e.target.value })}
               rows={5}
@@ -1019,6 +1020,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
                   ) : (
                     <>
                       <textarea
+                        aria-label={`Answer to: ${draft.question}`}
                         value={draft.text}
                         onChange={(e) => updateDraft(draft.id, { text: e.target.value })}
                       />

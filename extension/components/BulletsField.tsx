@@ -73,6 +73,7 @@ export function BulletsField({
           <div className="bullet-row" key={bullet.id}>
             <textarea
               className="bullet-text"
+              aria-label={`Achievement ${index + 1}`}
               rows={2}
               value={bullet.text}
               placeholder="Cut checkout latency 40% by replacing 3 synchronous calls with a queue."

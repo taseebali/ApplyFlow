@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActionRow } from '@/components/ActionRow';
+import { KeywordChips, ScoreRing, verdictFor } from '@/components/ScoreRing';
 import { DraftIcon } from '@/components/icons';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import {
@@ -165,10 +166,10 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
         )}
         {result && (
           <>
-            <span className={`pill ${result.score >= 80 ? 'pill-success' : 'pill-warning'}`}>
-              {result.score}/100
+            <span className={`pill ${verdictFor(result.score) === 'weak' ? 'pill-danger' : verdictFor(result.score) === 'fair' ? 'pill-warning' : 'pill-success'}`}>
+              {result.score}
             </span>
-            {result.offline && <span className="pill pill-neutral">ordered without AI</span>}
+            {result.offline && <span className="pill pill-neutral">no AI</span>}
           </>
         )}
       </ActionRow>
@@ -190,14 +191,19 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
             <p className="hint">Names both files — {resumeFilename(result.document, posting.company)}</p>
           )}
 
+          <ScoreRing
+            score={result.score}
+            detail={`${result.gap.covered.length} of ${result.gap.covered.length + result.gap.missing.length} things the posting asks for`}
+          />
+          <KeywordChips
+            covered={result.gap.covered.slice(0, 8).map((g) => g.term)}
+            missing={result.gap.missing.map((g) => g.term)}
+          />
           {result.gap.missing.length > 0 && (
-            <div className="notice notice-warning">
-              <p>
-                This posting asks for <strong>{result.gap.missing.map((g) => g.term).join(', ')}</strong> and nothing
-                in your profile mentions {result.gap.missing.length === 1 ? 'it' : 'them'}. Tailoring can reorder what
-                you have; it cannot cover a gap.
-              </p>
-            </div>
+            <p className="hint">
+              Dashed means the posting asks and your profile never mentions it. Tailoring reorders what you have;
+              it cannot cover a gap.
+            </p>
           )}
 
           {untailored.length > 0 && (
@@ -247,6 +253,7 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
               </p>
               <textarea
                 className="tailor-letter-text"
+                aria-label="Cover letter body"
                 value={letter.text}
                 onChange={(e) => setLetter({ ...letter, text: e.target.value })}
               />

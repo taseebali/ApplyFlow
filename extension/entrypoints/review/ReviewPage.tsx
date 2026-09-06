@@ -12,6 +12,7 @@ import {
 } from '@/lib/resume-document';
 import { assembleResume } from '@/lib/resume-document';
 import { getProfile } from '@/lib/storage';
+import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { Profile } from '@/lib/schema';
 
@@ -129,19 +130,27 @@ export function ReviewPage() {
           <p className="eyebrow">Review before sending</p>
           <h1>{[handoff.role, handoff.company].filter(Boolean).join(' · ') || 'Tailored application'}</h1>
         </div>
-        <span className={`pill ${score >= 80 ? 'pill-success' : score >= 55 ? 'pill-warning' : 'pill-danger'}`}>
-          {score}/100
-        </span>
+        <ScoreRing
+          score={score}
+          detail={`${handoff.result.gap.covered.length} of ${
+            handoff.result.gap.covered.length + handoff.result.gap.missing.length
+          } things the posting asks for`}
+        />
       </header>
 
-      {handoff.result.gap.missing.length > 0 && (
-        <div className="notice notice-warning">
-          <p>
-            This posting asks for <strong>{handoff.result.gap.missing.map((g) => g.term).join(', ')}</strong> and
-            nothing in your profile mentions {handoff.result.gap.missing.length === 1 ? 'it' : 'them'}.
+      <section>
+        <h2>Match</h2>
+        <KeywordChips
+          covered={handoff.result.gap.covered.slice(0, 12).map((g) => g.term)}
+          missing={handoff.result.gap.missing.map((g) => g.term)}
+        />
+        {handoff.result.gap.missing.length > 0 && (
+          <p className="hint mt-2">
+            Dashed means the posting asks for it and your profile never mentions it. Tailoring reorders what you
+            have; it cannot cover a gap.
           </p>
-        </div>
-      )}
+        )}
+      </section>
 
       <section>
         <h2>Resume</h2>

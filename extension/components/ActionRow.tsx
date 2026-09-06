@@ -49,8 +49,14 @@ export function ActionRow({
           <span className="action-row-desc">{description}</span>
         </span>
         {/* Status lives at the end of the row, so a column of rows can be
-            scanned down its right edge. */}
-        {children && <span className="action-row-status">{children}</span>}
+            scanned down its right edge — and it is a live region, because
+            every async result in this app is a pill that changes in place and
+            was previously announced to nobody. */}
+        {children && (
+          <span className="action-row-status" role="status" aria-live="polite">
+            {children}
+          </span>
+        )}
       </button>
 
       {collapsible ? (
