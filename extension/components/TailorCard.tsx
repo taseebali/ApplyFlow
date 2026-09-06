@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActionCard } from '@/components/ActionCard';
+import { TextField } from '@/components/ProfileForm';
 import { DraftIcon } from '@/components/icons';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import {
@@ -56,6 +57,11 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   const [letter, setLetter] = useState<CoverLetterResult | null>(null);
   const [writingLetter, setWritingLetter] = useState(false);
+  const [needsCompany, setNeedsCompany] = useState(false);
+
+  /** Detection misses; typing the company must always be possible. */
+  const setPosting = (patch: { company?: string; role?: string }) =>
+    setStatus((current) => (current.kind === 'ready' ? { ...current, ...patch } : current));
 
   const write = async () => {
     if (status.kind !== 'ready') return;
@@ -78,6 +84,12 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   const save = async () => {
     if (status.kind !== 'ready') return;
+    // A company-less filename collides with the last one and is invisible to
+    // the attach step, which finds documents by scanning names for the company.
+    if (!status.company.trim()) {
+      setNeedsCompany(true);
+      return;
+    }
     try {
       const handle = await getDocumentsFolderHandle();
       if (!handle) {
@@ -167,8 +179,30 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         </button>
       )}
 
-      {!closed && result && (
+      {!closed && result && status.kind === 'ready' && (
         <div className="tailor-preview">
+          <div className="grid">
+            <TextField
+              label="Company"
+              required
+              value={status.company}
+              onChange={(v) => {
+                setPosting({ company: v });
+                setNeedsCompany(false);
+              }}
+            />
+            <TextField label="Role" value={status.role} onChange={(v) => setPosting({ role: v })} />
+          </div>
+          {needsCompany ? (
+            <p className="error">
+              Add the company before saving. It names both files, and Attach documents finds them by it.
+            </p>
+          ) : (
+            <p className="hint">
+              Names both files — {resumeFilename(result.document, status.company)}
+            </p>
+          )}
+
           {result.gap.missing.length > 0 && (
             <div className="notice notice-warning">
               <p>
