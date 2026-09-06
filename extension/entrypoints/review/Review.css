@@ -101,3 +101,13 @@
   display: flex;
   gap: 10px;
 }
+
+/* The letter's fixed parts — assembled from the application, shown so the
+   review matches the file rather than only the paragraphs that were written. */
+.review-letter-head p {
+  margin: 4px 0;
+}
+
+.review-letter-head {
+  margin: 12px 0;
+}

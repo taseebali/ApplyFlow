@@ -20,6 +20,7 @@ import {
   isAcceptable,
   type LetterFault,
 } from './cover-letter';
+import { detectLanguage, type LetterLanguage } from './letter-language';
 import type { BulletVariant } from './bullet-bank';
 
 /**
@@ -99,6 +100,8 @@ export interface CoverLetterResult {
   faults: LetterFault[];
   /** True when a second attempt was needed, so a poor result is explicable. */
   retried: boolean;
+  /** Detected from the posting, and overridable before anything is saved. */
+  language: LetterLanguage;
 }
 
 /**
@@ -115,32 +118,36 @@ export async function writeCoverLetter(input: {
   company: string;
   role: string;
   resumeBullets: BulletVariant[];
+  /** Overrides detection, for a bilingual posting where detection is a coin flip. */
+  language?: LetterLanguage;
 }): Promise<CoverLetterResult> {
   const [profile, settings] = await Promise.all([getProfile(), getSettings()]);
   if (!settings.llm.backend) {
     throw new Error('A cover letter needs an AI backend. Set one up in Settings.');
   }
 
+  const language = input.language ?? detectLanguage(input.jobDescription);
   const prompt = buildCoverLetterPrompt({
     jobDescription: input.jobDescription,
     profile,
     company: input.company,
     role: input.role,
     resumeBullets: input.resumeBullets,
+    language,
   });
 
   const bulletTexts = input.resumeBullets.map((v) => v.text);
+  const posting = { company: input.company, role: input.role };
+  const faultsOf = (text: string) => coverLetterFaults(text, bulletTexts, posting);
 
   const first = (await runPrompt(prompt, settings.llm)).trim();
-  if (isAcceptable(first, bulletTexts)) {
-    return { text: first, faults: coverLetterFaults(first, bulletTexts), retried: false };
+  if (isAcceptable(first, bulletTexts, posting)) {
+    return { text: first, faults: faultsOf(first), retried: false, language };
   }
 
   const second = (await runPrompt(prompt, settings.llm)).trim();
   // Keep whichever is less wrong, so a retry can never make things worse.
-  const best = coverLetterFaults(second, bulletTexts).length < coverLetterFaults(first, bulletTexts).length
-    ? second
-    : first;
+  const best = faultsOf(second).length < faultsOf(first).length ? second : first;
 
-  return { text: best, faults: coverLetterFaults(best, bulletTexts), retried: true };
+  return { text: best, faults: faultsOf(best), retried: true, language };
 }

@@ -4,6 +4,7 @@ import { getBank, reviseVariant, setBank, type BulletVariant } from '@/lib/bulle
 import { scoreBullet, scoreSection } from '@/lib/bullet-quality';
 import { coverLetterFaults } from '@/lib/cover-letter';
 import {
+  assembleCoverLetter,
   coverLetterFilename,
   coverLetterToDocxBlob,
   resumeFilename,
@@ -70,9 +71,22 @@ export function ReviewPage() {
     setKept((current) => new Set(current).add(variant.id));
   };
 
-  const document = assembleResume(profile, bullets);
+  const document = assembleResume(profile, bullets, handoff.jobDescription);
   const score = scoreSection(bullets.map((b) => b.text)).score;
-  const letterFaults = coverLetterFaults(letter, bullets.map((b) => b.text));
+  const letterFaults = coverLetterFaults(letter, bullets.map((b) => b.text), {
+    company: handoff.company,
+    role: handoff.role,
+  });
+  // Assembled here too, so what is reviewed is exactly what gets written.
+  const letterDocument = letter.trim()
+    ? assembleCoverLetter({
+        profile,
+        company: handoff.company,
+        role: handoff.role,
+        body: letter,
+        language: handoff.letter?.language ?? 'en',
+      })
+    : null;
 
   const save = async () => {
     setError(null);
@@ -96,11 +110,7 @@ export function ReviewPage() {
           await saveToDocumentsFolder(
             handle,
             coverLetterFilename(document, handoff.company),
-            await coverLetterToDocxBlob({
-              name: document.name,
-              contactLine: document.contactLine,
-              body: letter,
-            })
+            await coverLetterToDocxBlob(letterDocument!)
           )
         );
       }
@@ -142,6 +152,7 @@ export function ReviewPage() {
               <p className="review-heading">
                 {section.heading}
                 {section.meta && <span className="hint"> · {section.meta}</span>}
+                {!section.tailored && <span className="pill pill-neutral">your wording</span>}
               </p>
               {owned.map((variant) => {
                 const faults = scoreBullet(variant.text);
@@ -149,6 +160,7 @@ export function ReviewPage() {
                   <div className="review-bullet" key={variant.id}>
                     <textarea
                       rows={2}
+                      aria-label={`Bullet under ${section.heading}`}
                       value={variant.text}
                       onChange={(e) => editBullet(variant.id, e.target.value)}
                     />
@@ -173,19 +185,60 @@ export function ReviewPage() {
             </div>
           );
         })}
+
+        {document.education.length > 0 && (
+          <div className="review-section">
+            <p className="review-heading">Education</p>
+            {document.education.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        )}
+
+        {document.skills && (
+          <div className="review-section">
+            <p className="review-heading">Skills</p>
+            <p>{document.skills}</p>
+          </div>
+        )}
       </section>
 
-      {letter && (
+      {letterDocument && (
         <section>
           <h2>Cover letter</h2>
           <div className="status-row">
+            <span className="pill pill-neutral">
+              {letterDocument.language === 'de' ? 'German' : 'English'}
+            </span>
             {letterFaults.map((fault) => (
               <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
                 {fault.kind.replace(/-/g, ' ')}
               </span>
             ))}
           </div>
-          <textarea className="review-letter" value={letter} onChange={(e) => setLetter(e.target.value)} />
+
+          {/* Shown, not editable: this is assembled from the application rather
+              than written, which is why it can no longer come out missing. */}
+          <div className="review-letter-head">
+            <p className="hint">{letterDocument.recipientLines.join(' · ')}</p>
+            <p className="hint">{letterDocument.date}</p>
+            <p>
+              <strong>{letterDocument.subject}</strong>
+            </p>
+            <p>{letterDocument.salutation}</p>
+          </div>
+
+          <textarea
+            className="review-letter"
+            aria-label="Cover letter body"
+            value={letter}
+            onChange={(e) => setLetter(e.target.value)}
+          />
+
+          <div className="review-letter-head">
+            <p>{letterDocument.closing}</p>
+            <p>{letterDocument.signature}</p>
+          </div>
         </section>
       )}
 

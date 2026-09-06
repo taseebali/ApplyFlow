@@ -4,6 +4,7 @@ import { TextField } from '@/components/ProfileForm';
 import { DraftIcon } from '@/components/icons';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import {
+  assembleCoverLetter,
   coverLetterFilename,
   coverLetterToDocxBlob,
   resumeFilename,
@@ -13,6 +14,7 @@ import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder }
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getActiveTabId } from './DailyView';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
+import { getProfile } from '@/lib/storage';
 
 type Status =
   | { kind: 'idle' }
@@ -118,11 +120,15 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
           await saveToDocumentsFolder(
             handle,
             coverLetterFilename(status.result.document, status.company),
-            await coverLetterToDocxBlob({
-              name: status.result.document.name,
-              contactLine: status.result.document.contactLine,
-              body: letter.text,
-            })
+            await coverLetterToDocxBlob(
+              assembleCoverLetter({
+                profile: await getProfile(),
+                company: status.company,
+                role: status.role,
+                body: letter.text,
+                language: letter.language,
+              })
+            )
           )
         );
       }

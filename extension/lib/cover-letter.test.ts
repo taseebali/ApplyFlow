@@ -97,6 +97,7 @@ describe('buildCoverLetterPrompt', () => {
     company: 'Raisin',
     role: 'Operations Analyst',
     resumeBullets: [makeVariant({ sourceId: 's1', angle: 'impact', text: 'Cut reconciliation time 40%.' })],
+    language: 'en' as const,
   };
 
   it('names the role and company it is writing for', () => {
@@ -127,7 +128,44 @@ describe('buildCoverLetterPrompt', () => {
     expect(prompt).toMatch(/do not state facts about the company/i);
   });
 
-  it('asks for the body only, with no letterhead or sign-off', () => {
-    expect(buildCoverLetterPrompt(context)).toMatch(/no "dear hiring manager", no sign-off/i);
+  it('asks for the paragraphs only, because the furniture is assembled in code', () => {
+    // The old rule forbade a salutation outright, and a letter shipped with no
+    // date, recipient, subject, greeting or sign-off at all.
+    expect(buildCoverLetterPrompt(context)).toMatch(/added automatically/i);
+  });
+
+  it('requires a paragraph about this employer specifically', () => {
+    expect(buildCoverLetterPrompt(context)).toMatch(/why THIS employer and THIS role/i);
+    expect(buildCoverLetterPrompt(context)).toContain('name Raisin');
+  });
+
+  it('asks for German when the letter is German', () => {
+    expect(buildCoverLetterPrompt({ ...context, language: 'de' })).toMatch(/write in german/i);
+    expect(buildCoverLetterPrompt({ ...context, language: 'de' })).toMatch(/anschreiben/i);
+  });
+});
+
+describe('coverLetterFaults — motivation', () => {
+  const posting = { company: 'Raisin', role: 'Operations Analyst' };
+
+  it('flags a letter that never names the company or the role', () => {
+    const generic =
+      'Most of my work has been where an LLM meets real systems. I instrument before I guess. ' +
+      'In the first month I would tighten the failure surface and measure what it costs.';
+    expect(coverLetterFaults(generic, [], posting).map((f) => f.kind)).toContain('no-motivation');
+  });
+
+  it('accepts a letter that names the company', () => {
+    const specific = 'What drew me to Raisin is the reconciliation problem described in the posting.';
+    expect(coverLetterFaults(specific, [], posting).map((f) => f.kind)).not.toContain('no-motivation');
+  });
+
+  it('accepts a letter that names the role instead', () => {
+    const specific = 'The Operations Analyst work described here is the part I have actually done.';
+    expect(coverLetterFaults(specific, [], posting).map((f) => f.kind)).not.toContain('no-motivation');
+  });
+
+  it('does not flag motivation when there is no posting to be specific about', () => {
+    expect(coverLetterFaults('Some prose.', []).map((f) => f.kind)).not.toContain('no-motivation');
   });
 });

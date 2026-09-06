@@ -1,4 +1,5 @@
 import { contentTerms, type BulletVariant } from './bullet-bank';
+import { CONVENTIONS, type LetterLanguage } from './letter-language';
 import type { BulletEntry, Profile } from './schema';
 
 /**
@@ -234,39 +235,107 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
 
   return Packer.toBlob(doc);
 }
+/**
+ * A cover letter with everything a letter has, not just its argument.
+ *
+ * The structure is assembled here rather than requested in the prompt. A model
+ * asked for a salutation sometimes writes one and sometimes does not, and asked
+ * *not* to — which is what the prompt used to say — reliably produces three
+ * paragraphs of prose with a name on top. That is not a letter, and it is what
+ * shipped. Date, recipient, subject, salutation and sign-off are facts about
+ * the application, so they are built from the application rather than hoped for.
+ */
+export interface CoverLetterDocument {
+  language: LetterLanguage;
+  senderLines: string[];
+  recipientLines: string[];
+  date: string;
+  dateOnRight: boolean;
+  subject: string;
+  salutation: string;
+  paragraphs: string[];
+  closing: string;
+  signature: string;
+}
+
+export function assembleCoverLetter(input: {
+  profile: Profile;
+  company: string;
+  role: string;
+  body: string;
+  language: LetterLanguage;
+  /** Injectable so the rendered date is testable. */
+  today?: Date;
+}): CoverLetterDocument {
+  const { profile, company, role, body, language, today = new Date() } = input;
+  const convention = CONVENTIONS[language];
+  const c = profile.contact;
+  const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
+
+  return {
+    language,
+    senderLines: [
+      name,
+      c.addressLine1,
+      c.addressLine2,
+      [c.postalCode, c.city].filter(Boolean).join(' '),
+      c.country,
+      c.email,
+      c.phone,
+    ].filter(Boolean),
+    // Only what we actually know. An invented street address on a cover letter
+    // is worse than no address block at all.
+    recipientLines: [company.trim(), 'Hiring Team'].filter(Boolean),
+    date: convention.formatDate(today),
+    dateOnRight: convention.dateOnRight,
+    subject: convention.subject(role.trim()),
+    salutation: convention.salutation(company.trim()),
+    paragraphs: splitParagraphs(body),
+    closing: convention.closing,
+    signature: name,
+  };
+}
+
+function splitParagraphs(body: string): string[] {
+  return body
+    .split(/\n{2,}/)
+    .map((text) => text.trim())
+    .filter(Boolean);
+}
 
 /**
  * Renders a cover letter to .docx — same reasoning as the resume: Word parses
  * reliably, and the user can edit what comes out.
  */
-export async function coverLetterToDocxBlob(input: {
-  name: string;
-  contactLine: string;
-  body: string;
-}): Promise<Blob> {
+export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promise<Blob> {
   const { Document, Packer, Paragraph, TextRun, AlignmentType } = await import('docx');
 
-  const paragraphs = input.body
-    .split(/\n{2,}/)
-    .map((text) => text.trim())
-    .filter(Boolean)
-    .map((text) => new Paragraph({ text, spacing: { after: 160 } }));
+  const line = (text: string, options: { bold?: boolean; after?: number; right?: boolean } = {}) =>
+    new Paragraph({
+      alignment: options.right ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      spacing: { after: options.after ?? 0 },
+      children: [new TextRun({ text, bold: options.bold, size: 21 })],
+    });
+
+  const last = (index: number, list: unknown[], gap: number) => (index === list.length - 1 ? gap : 0);
 
   const doc = new Document({
     sections: [
       {
         properties: {},
         children: [
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: input.name, bold: true, size: 28 })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 240 },
-            children: [new TextRun({ text: input.contactLine, size: 20 })],
-          }),
-          ...paragraphs,
+          ...letter.senderLines.map((text, index) =>
+            line(text, { bold: index === 0, after: last(index, letter.senderLines, 360) })
+          ),
+          ...letter.recipientLines.map((text, index) =>
+            line(text, { after: last(index, letter.recipientLines, 240) })
+          ),
+          line(letter.date, { right: letter.dateOnRight, after: 360 }),
+          line(letter.subject, { bold: true, after: 240 }),
+          line(letter.salutation, { after: 240 }),
+          ...letter.paragraphs.map((text) => new Paragraph({ text, spacing: { after: 200 } })),
+          line(letter.closing, { after: 360 }),
+          line(letter.signature),
         ],
       },
     ],
@@ -275,6 +344,7 @@ export async function coverLetterToDocxBlob(input: {
 
   return Packer.toBlob(doc);
 }
+
 
 /** Companion to `resumeFilename`, so the pair sit together in the folder. */
 export function coverLetterFilename(document: ResumeDocument, company: string): string {
