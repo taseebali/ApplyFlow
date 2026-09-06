@@ -275,7 +275,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
             </div>
           )}
 
-          <div className="tailor-actions">
+          <div className="actions">
             <button
               type="button"
               className="btn"

@@ -153,35 +153,35 @@ export function ResumeImportSection({
             style={{ display: 'none' }}
             onChange={handleFile}
           />
-          <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>
+          <p className="hint mt-2 mb-0">
             PDF, Word (.docx), or plain text.
           </p>
         </>
       )}
 
       {state.kind === 'working' && (
-        <p className="status-row" style={{ marginTop: 10 }}>
+        <p className="status-row mt-3">
           <span className="pill pill-neutral">{state.note}</span>
         </p>
       )}
       {state.kind === 'error' && (
-        <p className="status-row" style={{ marginTop: 10 }}>
+        <p className="status-row mt-3">
           <span className="pill pill-danger">{state.message}</span>
         </p>
       )}
       {state.kind === 'applied' && (
-        <p className="status-row" style={{ marginTop: 10 }}>
+        <p className="status-row mt-3">
           <span className="pill pill-success">{state.summary}</span>
         </p>
       )}
 
       {state.kind === 'review' && (
         <div className="import-review">
-          <p className="hint" style={{ marginBottom: 10 }}>
+          <p className="hint mb-3">
             Found in <strong>{state.fileName}</strong>. Untick anything you would rather fill in yourself.
           </p>
           {state.aiError && (
-            <p className="status-row" style={{ marginBottom: 10 }}>
+            <p className="status-row mb-3">
               <span className="pill pill-warning">
                 AI pass failed, so this is pattern matching only — {state.aiError}
               </span>
@@ -221,7 +221,7 @@ export function ResumeImportSection({
             );
           })}
 
-          <div className="import-actions">
+          <div className="actions mt-3">
             <button type="button" className="btn" onClick={() => setState({ kind: 'idle' })}>
               Discard
             </button>

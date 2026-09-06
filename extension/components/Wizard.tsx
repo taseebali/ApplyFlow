@@ -22,7 +22,7 @@ export function Wizard({ steps, onDone }: { steps: SetupStep[]; onDone: () => vo
         {step.render()}
       </div>
 
-      <div className="wizard-nav">
+      <div className="actions mt-4">
         {index > 0 && (
           <button type="button" className="btn" onClick={() => setIndex(index - 1)}>
             Back

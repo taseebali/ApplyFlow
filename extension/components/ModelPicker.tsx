@@ -18,7 +18,7 @@ function HealthNote({ health }: { health: ModelHealth | null }) {
   if (!health) return null;
   if (!health.anyLive) {
     return (
-      <p className="error" style={{ marginTop: 8 }}>
+      <p className="error mt-2">
         No provider is currently serving this model. It has probably been retired — pick another one.
       </p>
     );
@@ -26,11 +26,11 @@ function HealthNote({ health }: { health: ModelHealth | null }) {
   const uptime = health.bestUptime5m;
   const tone = uptime === null ? 'pill-neutral' : uptime >= 95 ? 'pill-success' : uptime >= 60 ? 'pill-warning' : 'pill-danger';
   return (
-    <p className="status-row" style={{ marginTop: 8 }}>
+    <p className="status-row mt-2">
       <span className={`pill ${tone}`}>
         {uptime === null ? 'live' : `${Math.round(uptime)}% uptime`}
       </span>
-      <span className="hint" style={{ marginLeft: 8 }}>
+      <span className="hint ml-2">
         {health.providers.join(', ')}
       </span>
     </p>
@@ -95,7 +95,7 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
 
   return (
     <div>
-      <label className="field" style={{ marginTop: 12 }}>
+      <label className="field mt-3">
         <span>How should a model be chosen?</span>
         <select
           value={policy.kind}
@@ -114,14 +114,14 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
 
       {policy.kind === 'free-pool' && (
         <>
-          <div className="notice notice-warning" style={{ marginTop: 10 }}>
+          <div className="notice notice-warning mt-3">
             <p>
               Free models are served by providers that may <strong>train on what is sent</strong> — which here
               includes your resume, work history, and the answers drafted from them. Choose a paid model or Ollama
               if that matters to you.
             </p>
           </div>
-          <label className="field" style={{ marginTop: 10 }}>
+          <label className="field mt-3">
             <span>Smallest context to accept</span>
             <select
               value={policy.minContext}
@@ -142,12 +142,12 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
 
       {policy.kind !== 'free-pool' && (
         <>
-          <div className="grid" style={{ marginTop: 10 }}>
+          <div className="grid mt-3">
             <label className="field">
               <span>Search models</span>
               <input type="text" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="gemini, llama…" />
             </label>
-            <label className="field checkbox" style={{ alignSelf: 'end' }}>
+            <label className="field checkbox self-end">
               <input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} />
               <span>Free only</span>
             </label>
@@ -156,7 +156,7 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
           {loading && <p className="hint">Loading the model list…</p>}
           {loadError && <p className="error">{loadError}</p>}
 
-          <label className="field" style={{ marginTop: 10 }}>
+          <label className="field mt-3">
             <span>{policy.kind === 'single' ? 'Model' : 'Add a model'}</span>
             <select
               value={policy.kind === 'single' ? policy.model : ''}
@@ -183,7 +183,7 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
           {policy.kind === 'single' && <HealthNote health={health} />}
 
           {policy.kind === 'list' && (
-            <div className="doc-results" style={{ marginTop: 10 }}>
+            <div className="doc-results mt-3">
               {policy.models.length === 0 && <p className="hint">No models chosen yet.</p>}
               {policy.models.map((id, i) => (
                 <div className="doc-row" key={id}>
@@ -204,7 +204,7 @@ export function ModelPicker({ policy, onChange }: { policy: ModelPolicy; onChang
         </>
       )}
 
-      <button type="button" className="btn" style={{ marginTop: 10 }} disabled={loading} onClick={() => void load(true)}>
+      <button type="button" className="btn mt-3" disabled={loading} onClick={() => void load(true)}>
         {loading ? 'Refreshing…' : 'Refresh model list'}
       </button>
     </div>

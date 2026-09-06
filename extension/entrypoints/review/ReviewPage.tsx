@@ -245,7 +245,7 @@ export function ReviewPage() {
       {error && <p className="error">{error}</p>}
       {saved && <p className="status-row"><span className="pill pill-success">Saved {saved.join(', ')}</span></p>}
 
-      <div className="review-actions">
+      <div className="actions">
         <button type="button" className="btn btn-primary" onClick={save}>
           Save to documents folder
         </button>

@@ -120,7 +120,7 @@ export function BankSection() {
       {run?.status === 'error' && <p className="error">{run.message}</p>}
 
       {run?.status === 'done-with-gaps' && run.failed.length > 0 && (
-        <div className="notice notice-warning" style={{ marginTop: 10 }}>
+        <div className="notice notice-warning mt-3">
           <p>
             Nothing could be written for <strong>{run.failed.map((f) => f.label).join(', ')}</strong>. Your own
             wording is used for {run.failed.length === 1 ? 'it' : 'them'} on a tailored resume, so nothing is lost —
@@ -155,19 +155,19 @@ export function BankSection() {
       )}
 
       {bank && (
-        <p className="status-row" style={{ marginTop: 10 }}>
+        <p className="status-row mt-3">
           <span className="pill pill-success">{bank.variants.length} variants</span>
           <span className={`pill ${bankScore(bank.variants) >= 80 ? 'pill-success' : 'pill-warning'}`}>
             {bankScore(bank.variants)}/100
           </span>
-          <span className="hint" style={{ marginLeft: 8 }}>
+          <span className="hint ml-2">
             {ageInDays(bank) === 0 ? 'generated today' : `generated ${ageInDays(bank)} days ago`}
           </span>
         </p>
       )}
 
       {!running && bank && uncovered.length > 0 && (
-        <div className="notice notice-warning" style={{ marginTop: 10 }}>
+        <div className="notice notice-warning mt-3">
           <p>
             {uncovered.length} {uncovered.length === 1 ? 'item is' : 'items are'} not in the bank yet, so tailoring
             cannot use {uncovered.length === 1 ? 'it' : 'them'}. Regenerate to include{' '}
@@ -177,7 +177,7 @@ export function BankSection() {
       )}
 
       {!running && missingMetrics.length > 0 && !questions && (
-        <div className="notice notice-warning" style={{ marginTop: 10 }}>
+        <div className="notice notice-warning mt-3">
           <p>
             Nothing measurable in: <strong>{missingMetrics.map((s) => s.label).join(', ')}</strong>. A number is the
             one thing generation cannot supply for you, and it is what separates a strong bullet from a vague one.
@@ -202,7 +202,7 @@ export function BankSection() {
               />
             </label>
           ))}
-          <div className="tailor-actions">
+          <div className="actions">
             <button type="button" className="btn" onClick={() => setQuestions(null)}>
               Not now
             </button>
@@ -219,8 +219,7 @@ export function BankSection() {
 
       <button
         type="button"
-        className="btn btn-primary"
-        style={{ marginTop: 12 }}
+        className="btn btn-primary mt-3"
         disabled={running || starting || sources.length === 0}
         onClick={() => void start()}
       >

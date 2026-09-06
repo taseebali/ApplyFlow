@@ -801,7 +801,7 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
               rows={5}
             />
           </label>
-          <div className="log-form-actions">
+          <div className="actions">
             <button className="btn" onClick={() => setStatus({ kind: 'idle' })}>
               Cancel
             </button>
@@ -1015,7 +1015,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                         onChange={(e) => updateDraft(draft.id, { text: e.target.value })}
                       />
                       {draft.similar && (
-                        <div className="notice notice-warning" style={{ marginTop: 8 }}>
+                        <div className="notice notice-warning mt-2">
                           <p>
                             You saved an answer to a similar question:{' '}
                             <strong>{draft.similar.question}</strong>
@@ -1030,7 +1030,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                         </div>
                       )}
                       {draft.insertError && <span className="pill pill-danger">{draft.insertError}</span>}
-                      <div className="draft-actions">
+                      <div className="actions mt-2">
                         <button className="btn btn-primary" onClick={() => handleInsert(draft.id, draft.text)}>
                           {draft.inserted ? 'Inserted' : 'Insert'}
                         </button>

@@ -296,7 +296,7 @@ export function EducationSection({ profile, onChange }: { profile: Profile; onCh
             </label>
           </div>
           {!entry.endDate && (
-            <p className="hint" style={{ margin: '8px 0 0' }}>
+            <p className="hint mt-2">
               {entry.current
                 ? 'Add the date you expect to finish — forms ask for it as your expected graduation date.'
                 : 'Add an end date so forms asking for a graduation date can be filled.'}
@@ -667,8 +667,7 @@ export function NotionSettingsSection({
       </label>
       <button
         type="button"
-        className="btn"
-        style={{ marginTop: 10 }}
+        className="btn mt-3"
         onClick={handleFindDatabases}
         disabled={!token || searchState === 'searching'}
       >
@@ -692,14 +691,13 @@ export function NotionSettingsSection({
           ))}
         </div>
       )}
-      <label className="field" style={{ marginTop: 10 }}>
+      <label className="field mt-3">
         <span>Database ID</span>
         <input type="text" value={databaseId} onChange={(e) => update({ databaseId: e.target.value })} />
       </label>
       <button
         type="button"
-        className="btn"
-        style={{ marginTop: 12 }}
+        className="btn mt-3"
         disabled={testing}
         onClick={async () => {
           setTesting(true);
@@ -723,11 +721,11 @@ export function NotionSettingsSection({
         {testing ? 'Testing…' : 'Test connection'}
       </button>
       {testResult && (
-        <p className="status-row" style={{ marginTop: 8 }}>
+        <p className="status-row mt-2">
           <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>{testResult.message}</span>
         </p>
       )}
-      <p className="hint" style={{ marginTop: 16 }}>
+      <p className="hint mt-4">
         Not using Notion? Skipping clears anything entered here and hides the tracker entirely, so the step never
         sits half-finished.
       </p>
@@ -874,14 +872,14 @@ export function LlmSettingsSection({
       </label>
 
       {llm.backend && provider.note && (
-        <p className="hint" style={{ marginTop: 10 }}>
+        <p className="hint mt-3">
           {provider.note}
         </p>
       )}
 
       {llm.backend && provider.id === 'custom' && (
         <>
-          <label className="field" style={{ marginTop: 10 }}>
+          <label className="field mt-3">
             <span>Base URL</span>
             <input
               type="text"
@@ -890,11 +888,11 @@ export function LlmSettingsSection({
               onChange={(e) => update({ baseUrl: e.target.value })}
             />
           </label>
-          <button type="button" className="btn" style={{ marginTop: 8 }} onClick={grantHost}>
+          <button type="button" className="btn mt-2" onClick={grantHost}>
             {hostGranted === true ? 'Access granted' : 'Allow access to this host'}
           </button>
           {hostGranted === false && (
-            <p className="error" style={{ marginTop: 8 }}>
+            <p className="error mt-2">
               Without permission for that host, requests to it will fail.
             </p>
           )}
@@ -902,7 +900,7 @@ export function LlmSettingsSection({
       )}
 
       {llm.backend && provider.needsKey && (
-        <label className="field" style={{ marginTop: 10 }}>
+        <label className="field mt-3">
           <span>API key</span>
           <input
             type="password"
@@ -913,7 +911,7 @@ export function LlmSettingsSection({
       )}
       {llm.backend && provider.id === 'anthropic' && (
         <>
-          <label className="field" style={{ marginTop: 10 }}>
+          <label className="field mt-3">
             <span>Workspace ID</span>
             <input
               type="text"
@@ -941,7 +939,7 @@ export function LlmSettingsSection({
 
       {llm.backend === 'ollama' && (
         <>
-          <p className="hint" style={{ marginTop: 12 , marginBottom: 10}}>
+          <p className="hint mt-3 mb-3">
             Requires <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> running locally with a
             model pulled. Nothing leaves your computer.
           </p>
@@ -979,19 +977,19 @@ export function LlmSettingsSection({
 
       {llm.backend && (
         <>
-          <button type="button" className="btn" style={{ marginTop: 12 }} disabled={testing} onClick={runTest}>
+          <button type="button" className="btn mt-3" disabled={testing} onClick={runTest}>
             {testing ? 'Testing…' : 'Test connection'}
           </button>
           {testResult && (
-            <p className="status-row" style={{ marginTop: 8 }}>
+            <p className="status-row mt-2">
               <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>
                 {testResult.ok ? 'Working' : 'Failed'}
               </span>
             </p>
           )}
-          {testResult && !testResult.ok && <p className="error" style={{ marginTop: 8 }}>{testResult.message}</p>}
+          {testResult && !testResult.ok && <p className="error mt-2">{testResult.message}</p>}
 
-          <label className="field" style={{ marginTop: 12 }}>
+          <label className="field mt-3">
             <span>If that fails, fall back to</span>
             <select
               value={llm.fallbackBackend ?? ''}
@@ -1005,12 +1003,12 @@ export function LlmSettingsSection({
             </select>
           </label>
           {llm.fallbackBackend === llm.backend ? (
-            <p className="hint" style={{ marginTop: 8 }}>
+            <p className="hint mt-2">
               That is the same as the primary, so it cannot help. Pick the other one, or none.
             </p>
           ) : (
             llm.fallbackBackend && (
-              <p className="hint" style={{ marginTop: 8 }}>
+              <p className="hint mt-2">
                 Used when the primary is rate-limited, offline, or slow. Its model and key need filling in too —
                 switch the dropdown above to configure it, then switch back.
               </p>
@@ -1050,15 +1048,15 @@ export function FieldMappingsSection() {
         Fields you have told ApplyFlow about on specific sites. It uses these before guessing from labels.
       </p>
       {hosts.length === 0 ? (
-        <p className="hint" style={{ marginBottom: 0 }}>
+        <p className="hint mb-0">
           Nothing learned yet. After filling a page, any field it could not place can be taught from the panel.
         </p>
       ) : (
         hosts.map((host) => (
           <div className="entry" key={host}>
-            <strong style={{ fontSize: 13 }}>{host}</strong>
+            <strong className="text-base">{host}</strong>
             {Object.entries(overrides[host] ?? {}).map(([signature, path]) => (
-              <p key={signature} className="hint" style={{ margin: '6px 0 0' }}>
+              <p key={signature} className="hint mt-2">
                 {signature} → {path}
               </p>
             ))}
@@ -1173,7 +1171,7 @@ export function ProfileHistorySection() {
         ))}
       </div>
 
-      {message && <p className="hint" style={{ marginTop: 10 }}>{message}</p>}
+      {message && <p className="hint mt-3">{message}</p>}
     </section>
   );
 }
@@ -1213,7 +1211,7 @@ export function ApplicationHistorySection() {
         <p className="hint">Nothing recorded yet. Fill a page and it will appear here.</p>
       ) : (
         <>
-          <p className="status-row" style={{ marginBottom: 12 }}>
+          <p className="status-row mb-3">
             <span className="pill pill-neutral">{stats.total} applications</span>
             <span className="pill pill-neutral">{stats.last30Days} in the last 30 days</span>
             <span className="pill pill-success">{stats.fieldsFilled} fields filled</span>
@@ -1238,7 +1236,7 @@ export function ApplicationHistorySection() {
             ))}
           </div>
 
-          <div className="setup-footer" style={{ marginTop: 12 }}>
+          <div className="setup-footer mt-3">
             <button type="button" className="btn" onClick={exportCsv}>
               Export CSV
             </button>

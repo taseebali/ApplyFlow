@@ -21,6 +21,41 @@
   --tint-amber-bg: #faf0d6;
   --tint-amber-text: #8a5d10;
 
+  /*
+   * Scales, added after an audit found what happens without them: seven radius
+   * values for three roles, ten font sizes including 9.5px and 12.5px, gaps of
+   * 3px and 5px off any grid, and fifty inline `style={{ marginTop }}` patches
+   * in the TSX because there was no other way to space anything.
+   *
+   * Colour was always tokenised and stays exactly as it is.
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-sm: 6px;   /* controls: inputs, buttons */
+  --radius-md: 10px;  /* cards, panels, notices */
+  --radius-full: 999px;
+
+  --text-xs: 11px;    /* pills, required tags */
+  --text-sm: 12px;    /* hints, meta lines */
+  --text-base: 13px;  /* copy inside components */
+  --text-md: 14px;    /* document body */
+  --text-lg: 18px;    /* section titles */
+  --text-xl: 24px;    /* the title of a screen */
+
+  /* The stylesheet had no box-shadow at all, so every surface sat flat on the
+     ground and separation came from borders alone. Kept low-alpha and soft. */
+  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.06);
+  --shadow-md: 0 2px 8px rgba(15, 15, 15, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 15, 15, 0.12);
+
+  --z-sticky: 10;
+  --z-overlay: 100;
+
   color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -52,6 +87,12 @@
     --tint-green-text: #9bd3a1;
     --tint-amber-bg: #332a14;
     --tint-amber-text: #e6c273;
+
+    /* A shadow tuned for a white ground disappears on a dark one; these read
+       as depth rather than as smudges. */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
   }
 }
 
@@ -65,7 +106,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
+  font-size: var(--text-md);
   line-height: 1.55;
 }
 
@@ -87,7 +128,7 @@ p {
 
 .loading-state {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 32px 20px;
   text-align: center;
 }
@@ -107,11 +148,11 @@ textarea:focus-visible {
 
 .btn {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 500;
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
@@ -167,10 +208,10 @@ textarea:focus-visible {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 9999px;
+  gap: var(--space-2);
+  border-radius: var(--radius-full);
   padding: 3px 10px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -202,11 +243,11 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  border-radius: 10px;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1.45;
 }
 
@@ -230,7 +271,7 @@ textarea:focus-visible {
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 14px;
   transition: border-color 0.15s ease, transform 0.1s ease;
@@ -248,13 +289,13 @@ textarea:focus-visible {
    primary action, so it resets everything the frame already provides. */
 .action-card-main {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   flex: 1;
   min-width: 0;
   padding: 14px;
   background: none;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   text-align: left;
   color: inherit;
   font: inherit;
@@ -280,7 +321,7 @@ textarea:focus-visible {
   padding: 0;
   background: none;
   border: none;
-  border-radius: 0 10px 0 0;
+  border-radius: 0 var(--radius-md) 0 0;
   color: var(--text-muted);
 }
 
@@ -309,25 +350,25 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .action-card-body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-1);
   min-width: 0;
   flex: 1;
 }
 
 .action-card-title {
-  font-size: 13.5px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text);
 }
 
 .action-card-desc {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.45;
 }
@@ -335,7 +376,7 @@ textarea:focus-visible {
 .action-card-result {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
   margin-top: 8px;
 }
 
@@ -373,3 +414,66 @@ textarea:focus-visible {
   background: var(--surface-hover);
   color: var(--text-muted);
 }
+
+/*
+ * Spacing utilities.
+ *
+ * These exist to delete something: fifty `style={{ marginTop: 10 }}` patches
+ * across six components, which is what a stylesheet with no spacing scale
+ * forces authors to write. Deliberately a short, closed set — the four gaps
+ * the app actually used, snapped to the 4px grid.
+ */
+.mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); }
+.mt-4 { margin-top: var(--space-4); }
+.mb-0 { margin-bottom: 0; }
+.mb-3 { margin-bottom: var(--space-3); }
+.ml-2 { margin-left: var(--space-2); }
+.self-end { align-self: end; }
+.text-base { font-size: var(--text-base); }
+
+/* A row of buttons at the foot of something. Replaces six identical classes —
+   .tailor-actions, .draft-actions, .import-actions, .log-form-actions,
+   .review-actions and .wizard-nav — that all expanded to exactly this. */
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.actions .btn {
+  flex: 1;
+  width: auto;
+}
+
+/*
+ * Every multi-line text control in the app.
+ *
+ * Replaces five near-identical rulesets that had drifted apart on background
+ * and font size alone — .draft textarea, .enrichment textarea, .bullet-text,
+ * .tailor-letter-text and .review-letter. Only their heights ever differed,
+ * and those stay where the component that needs them lives.
+ */
+.panel textarea,
+.review textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  padding: var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+
+.panel textarea:focus,
+.review textarea:focus {
+  border-color: var(--text-muted);
+}
+
+/* Heights, which are the only thing these ever genuinely differed on. */
+.panel .log-form textarea { min-height: 90px; }
+.panel .draft textarea { min-height: 110px; }
+.panel .bullet-text { min-height: 46px; }
+.panel .tailor-letter-text { min-height: 180px; }
