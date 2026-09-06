@@ -1,57 +1,69 @@
-:root {
-  --bg: #fbfbfa;
-  --surface: #ffffff;
-  --surface-hover: #f4f3f1;
-  --border: #eaeaea;
-  --text: #2f3437;
-  --text-muted: #787774;
-  --accent: #111111;
-  --accent-text: #ffffff;
-  --accent-hover: #333333;
-  --danger-bg: #fdebec;
-  --danger-text: #9f2f2d;
-  --success-bg: #edf3ec;
-  --success-text: #346538;
-  --warning-bg: #fbf3db;
-  --warning-text: #956400;
-  --tint-blue-bg: #e1f3fe;
-  --tint-blue-text: #1f6c9f;
-  --tint-green-bg: #e7f3e5;
-  --tint-green-text: #2f6b34;
-  --tint-amber-bg: #faf0d6;
-  --tint-amber-text: #8a5d10;
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 
-  /*
-   * Scales, added after an audit found what happens without them: seven radius
-   * values for three roles, ten font sizes including 9.5px and 12.5px, gaps of
-   * 3px and 5px off any grid, and fifty inline `style={{ marginTop }}` patches
-   * in the TSX because there was no other way to space anything.
-   *
-   * Colour was always tokenised and stays exactly as it is.
-   */
+/*
+ * Tokens follow the shadcn/ui variable contract, with values of our own.
+ *
+ * The rule that shapes everything: chrome carries no hue at all, and colour
+ * means state. Four state colours exist and each means exactly one thing, so a
+ * column of field rows reads down its left edge in about a second. The old
+ * palette spent colour on decoration - four tinted action cards competing as
+ * surfaces - and then had nothing left to say status with.
+ *
+ * The previous token names are aliased onto this contract rather than deleted,
+ * so every screen repalettes at once and the structural rebuild can go one
+ * screen at a time instead of in one unreviewable commit.
+ */
+:root {
+  --background: #fafafa;
+  --foreground: #0c0d0f;
+  --card: #ffffff;
+  --muted: #f1f2f4;
+  --muted-foreground: #6c727a;
+  --border: #e4e6e9;
+  --input: #e4e6e9;
+  --primary: #101215;
+  --primary-foreground: #ffffff;
+  --ring: #101215;
+
+  /* State. The only colour in the system. */
+  --ok: #0d7a4a;
+  --ok-bg: #e6f4ed;
+  --wait: #9a5b00;
+  --wait-bg: #fbf0dd;
+  --ai: #1f5fbf;
+  --ai-bg: #e7effb;
+  --bad: #b3261e;
+  --bad-bg: #fbe9e7;
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
 
-  --radius-sm: 6px;   /* controls: inputs, buttons */
-  --radius-md: 10px;  /* cards, panels, notices */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
   --radius-full: 999px;
 
-  --text-xs: 11px;    /* pills, required tags */
-  --text-sm: 12px;    /* hints, meta lines */
-  --text-base: 13px;  /* copy inside components */
-  --text-md: 14px;    /* document body */
-  --text-lg: 24px;    /* the title of a screen */
+  --text-2xs: 9.5px;
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 20px;
 
-  /* The stylesheet had no box-shadow at all, so every surface sat flat on the
-     ground and separation came from borders alone. Kept low-alpha and soft. */
-  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.06);
+  --shadow-sm: 0 1px 2px rgb(12 13 15 / 0.06);
 
   --z-sticky: 10;
+  --z-overlay: 100;
 
-  color-scheme: light dark;
+  --sans: 'Geist Variable', -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  /* Anything a machine produced: field names, counts, filenames, key hints. */
+  --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -59,34 +71,80 @@
   -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1c1c1a;
-    --surface: #242422;
-    --surface-hover: #2c2c29;
-    --border: rgba(255, 255, 255, 0.12);
-    --text: #ececea;
-    --text-muted: #a3a3a0;
-    --accent: #ececea;
-    --accent-text: #111111;
-    --accent-hover: #ffffff;
-    --danger-bg: #3a2323;
-    --danger-text: #f2a3a0;
-    --success-bg: #223124;
-    --success-text: #8fcf9a;
-    --warning-bg: #362e17;
-    --warning-text: #e0b856;
-    --tint-blue-bg: #16303f;
-    --tint-blue-text: #86c5ea;
-    --tint-green-bg: #1e2f1f;
-    --tint-green-text: #9bd3a1;
-    --tint-amber-bg: #332a14;
-    --tint-amber-text: #e6c273;
+/* The names the existing screens still use, pointed at the contract above. */
+:root {
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-hover: var(--muted);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --accent: var(--primary);
+  --accent-text: var(--primary-foreground);
+  --accent-hover: color-mix(in srgb, var(--primary) 84%, var(--muted-foreground));
+  --danger-bg: var(--bad-bg);
+  --danger-text: var(--bad);
+  --success-bg: var(--ok-bg);
+  --success-text: var(--ok);
+  --warning-bg: var(--wait-bg);
+  --warning-text: var(--wait);
+  --tint-blue-bg: var(--ai-bg);
+  --tint-blue-text: var(--ai);
+  --tint-green-bg: var(--ok-bg);
+  --tint-green-text: var(--ok);
+  --tint-amber-bg: var(--wait-bg);
+  --tint-amber-text: var(--wait);
+}
 
-    /* A shadow tuned for a white ground disappears on a dark one; these read
-       as depth rather than as smudges. */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+/*
+ * Three theme states, not two. An explicit choice stamps `data-theme`; with the
+ * theme left on system nothing is stamped and only the media query applies.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: #0c0d0f;
+    --foreground: #edeef0;
+    --card: #131518;
+    --muted: #1a1d21;
+    --muted-foreground: #8c939b;
+    --border: #23262b;
+    --input: #23262b;
+    --primary: #edeef0;
+    --primary-foreground: #0c0d0f;
+    --ring: #edeef0;
+    --ok: #4ade80;
+    --ok-bg: #10241a;
+    --wait: #fbbf4b;
+    --wait-bg: #2a1f0c;
+    --ai: #7fb0ff;
+    --ai-bg: #101a2b;
+    --bad: #ff8a80;
+    --bad-bg: #2a1412;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --background: #0c0d0f;
+  --foreground: #edeef0;
+  --card: #131518;
+  --muted: #1a1d21;
+  --muted-foreground: #8c939b;
+  --border: #23262b;
+  --input: #23262b;
+  --primary: #edeef0;
+  --primary-foreground: #0c0d0f;
+  --ring: #edeef0;
+  --ok: #4ade80;
+  --ok-bg: #10241a;
+  --wait: #fbbf4b;
+  --wait-bg: #2a1f0c;
+  --ai: #7fb0ff;
+  --ai-bg: #101a2b;
+  --bad: #ff8a80;
+  --bad-bg: #2a1412;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
 }
 
 * {
@@ -98,8 +156,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  font-size: var(--text-md);
+  font-family: var(--sans);
+  font-size: var(--text-base);
   line-height: 1.55;
 }
 
@@ -147,7 +205,7 @@ textarea:focus-visible {
   padding: 8px 14px;
   font-size: var(--text-base);
   font-weight: 500;
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  transition: background-color 0.16s cubic-bezier(0.32, 0.72, 0, 1), transform 0.14s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .btn:hover {
@@ -155,7 +213,7 @@ textarea:focus-visible {
 }
 
 .btn:active {
-  transform: scale(0.98);
+  transform: scale(0.985);
 }
 
 .btn-primary {
@@ -269,31 +327,97 @@ textarea:focus-visible {
 }
 
 /*
- * Tints, applied to the icon tile itself.
- *
- * They used to colour a whole card's background and border. Four tinted cards
- * stacked down a 400px panel read as four competing surfaces; on a row the
- * colour does the one job it is good at, which is telling the actions apart at
- * a glance.
+ * Icon tiles take their colour from the state they represent, not from a
+ * decorative palette. These four names are what the app already passes around;
+ * what changed is that each now means one thing.
  */
-.tint-blue {
-  background: var(--tint-blue-bg);
-  color: var(--tint-blue-text);
+.tint-blue { background: var(--ai-bg); color: var(--ai); }
+.tint-green { background: var(--ok-bg); color: var(--ok); }
+.tint-amber { background: var(--wait-bg); color: var(--wait); }
+.tint-neutral { background: var(--muted); color: var(--muted-foreground); }
+
+/*
+ * A tag names a state in words, the dot names it in colour. Both are always
+ * present, so meaning never rests on colour alone.
+ */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex: none;
 }
 
-.tint-green {
-  background: var(--tint-green-bg);
-  color: var(--tint-green-text);
+.tag-ok { background: var(--ok-bg); color: var(--ok); }
+.tag-wait { background: var(--wait-bg); color: var(--wait); }
+.tag-ai { background: var(--ai-bg); color: var(--ai); }
+.tag-bad { background: var(--bad-bg); color: var(--bad); }
+.tag-off { background: var(--muted); color: var(--muted-foreground); }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
 }
 
-.tint-amber {
-  background: var(--tint-amber-bg);
-  color: var(--tint-amber-text);
+.dot-ok { background: var(--ok); }
+.dot-wait { background: var(--wait); }
+.dot-ai { background: var(--ai); }
+.dot-bad { background: var(--bad); }
+.dot-off { background: var(--border); }
+
+/* A quiet inline control: Skip, Edit, Open. */
+.btn-mini {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  transition: color 0.16s, border-color 0.16s;
 }
 
-.tint-neutral {
-  background: var(--surface-hover);
-  color: var(--text-muted);
+.btn-mini:hover {
+  color: var(--foreground);
+  border-color: var(--muted-foreground);
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--muted-foreground);
+  background: var(--card);
+}
+
+.btn kbd {
+  border-color: color-mix(in srgb, var(--primary-foreground) 32%, transparent);
+  color: var(--primary-foreground);
+  background: none;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.group-label {
+  font-family: var(--mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding: 11px var(--space-3) 5px;
+  margin: 0;
 }
 
 /*
