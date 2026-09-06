@@ -679,3 +679,169 @@ body {
 .panel .primary-action .btn {
   width: 100%;
 }
+
+/* ================= the field mirror =================
+   Reading this list top to bottom is reading the form top to bottom. Rows are
+   hairline-separated rather than carded: fourteen cards do not fit in 400px
+   and would each claim to be a separate object. */
+.panel .tally {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.panel .tally > div {
+  padding: 9px 4px;
+  text-align: center;
+  border-left: 1px solid var(--border);
+}
+
+.panel .tally > div:first-child {
+  border-left: 0;
+}
+
+.panel .tally b {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.panel .tally span {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-top: 1px;
+}
+
+.panel .tally-ok b { color: var(--ok); }
+.panel .tally-wait b { color: var(--wait); }
+.panel .tally-ai b { color: var(--ai); }
+
+.panel .mirror {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.panel .mirror > div + div {
+  border-top: 1px solid var(--border);
+}
+
+.panel .field-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px var(--space-3);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border);
+  color: inherit;
+  transition: background-color 0.16s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.panel .group-label + .field-row {
+  border-top: 0;
+}
+
+.panel .field-row:hover {
+  background: var(--muted);
+}
+
+.panel .field-row:hover .field-go {
+  opacity: 1;
+}
+
+/* Fixed width so the column of names lines up and can be scanned as one. */
+.panel .field-name {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  width: 92px;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel .field-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel .field-value-wait { color: var(--wait); }
+.panel .field-value-ai { color: var(--ai); }
+.panel .field-value-off { color: var(--muted-foreground); }
+
+.panel .field-count { color: var(--muted-foreground); }
+
+.panel .field-go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 0.16s;
+}
+
+.panel .mirror-loading {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.panel .skel {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.panel .empty {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.panel .empty b {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--foreground);
+  margin-top: var(--space-2);
+}
+
+.panel .empty .hint {
+  margin-top: var(--space-1);
+}
+
+/* Present for a screen reader, absent for everyone else. The dot carries the
+   state visually; this carries the same state in words. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

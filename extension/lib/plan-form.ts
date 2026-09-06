@@ -65,11 +65,25 @@ function isOptional(element: FillableElement): boolean {
  * Order matters more than it looks: reading the panel top to bottom has to be
  * reading the form top to bottom, or the mirror stops being a mirror.
  */
+export interface PlanResult {
+  plan: FormPlan;
+  /** The control behind each row, so a click in the panel can focus it. */
+  elements: Map<string, FillableElement>;
+}
+
 export function planForm(
   profile: Profile,
   overrides: Record<string, string> = {},
   root: ParentNode = document
 ): FormPlan {
+  return planWithElements(profile, overrides, root).plan;
+}
+
+export function planWithElements(
+  profile: Profile,
+  overrides: Record<string, string> = {},
+  root: ParentNode = document
+): PlanResult {
   const matches = matchFields(root, overrides);
   const byElement = new Map<FillableElement, string>(matches.map((m) => [m.element, m.path]));
 
@@ -92,6 +106,7 @@ export function planForm(
 
   const fields: PlannedField[] = [];
   const claimed = new Map<string, PlannedField>();
+  const elements = new Map<string, FillableElement>();
 
   for (const [index, element] of ordered.entries()) {
     if (isOffLimits(element)) continue;
@@ -127,8 +142,9 @@ export function planForm(
     };
 
     fields.push(field);
+    elements.set(field.id, element);
     if (path) claimed.set(path, field);
   }
 
-  return { fields, hostname: location.hostname };
+  return { plan: { fields, hostname: location.hostname }, elements };
 }

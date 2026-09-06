@@ -24,8 +24,9 @@ import { scrapeCompanyName } from '@/lib/company-scraper';
 import { scrapeJobDescription, scrapeJobTitle } from '@/lib/jd-scraper';
 import type { DocumentKind } from '@/lib/document-matcher';
 import { detectQuestions } from '@/lib/question-detector';
-import { planForm } from '@/lib/plan-form';
+import { planWithElements } from '@/lib/plan-form';
 import type { FormPlan } from '@/lib/field-plan';
+import type { FillableElement } from '@/lib/field-matcher';
 import type { ChooseOptionMessage } from '@/entrypoints/background';
 import { frameHasWork, summarizeFrame } from '@/lib/frames';
 
@@ -54,6 +55,14 @@ export interface PlanFormMessage {
   type: 'plan-form';
 }
 export type PlanFormResponse = FormPlan;
+
+export interface JumpToFieldMessage {
+  type: 'jump-to-field';
+  fieldId: string;
+}
+export interface JumpToFieldResponse {
+  found: boolean;
+}
 
 export interface GetJobInfoMessage {
   type: 'get-job-info';
@@ -116,10 +125,14 @@ type IncomingMessage =
   | FillPageMessage
   | GetJobInfoMessage
   | PlanFormMessage
+  | JumpToFieldMessage
   | AttachDocumentsMessage
   | GetQuestionsMessage
   | UndoFillMessage
   | InsertAnswerMessage;
+
+/** The controls behind the last plan, so the panel can address one of them. */
+let plannedElements = new Map<string, FillableElement>();
 
 // Detected question elements can't cross the message boundary, so they're kept
 // here and referenced by id when the side panel asks to insert an answer.
@@ -341,8 +354,24 @@ export default defineContentScript({
         (async () => {
           const profile = await getProfile();
           const overrides = await getOverridesForHost(location.hostname);
-          sendResponse(planForm(profile, overrides));
+          const { plan, elements } = planWithElements(profile, overrides);
+          // Held so a click in the panel can reach the control it names. Kept
+          // until the next plan, which is also when the ids stop being valid.
+          plannedElements = elements;
+          sendResponse(plan);
         })();
+        return true;
+      }
+
+      if (message?.type === 'jump-to-field') {
+        const element = plannedElements.get(message.fieldId);
+        if (element) {
+          element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          // Focus after the scroll starts: focusing first makes the browser
+          // jump instantly and the smooth scroll never happens.
+          setTimeout(() => element.focus({ preventScroll: true }), 120);
+        }
+        sendResponse({ found: Boolean(element) } satisfies JumpToFieldResponse);
         return true;
       }
 
