@@ -105,6 +105,51 @@ describe('assembleResume', () => {
   });
 });
 
+describe('assembleResume when the bank is incomplete', () => {
+  // The failure that produced a one-project resume from a full profile: one
+  // failed generation call left a source with no variants, and the whole job
+  // silently vanished from the document.
+  const written: Profile = {
+    ...profile,
+    workHistory: profile.workHistory.map((role) => ({
+      ...role,
+      bullets: [{ id: `${role.id}-b`, text: `What I did at ${role.company}.` }],
+    })),
+    projects: profile.projects.map((project) => ({
+      ...project,
+      bullets: [{ id: `${project.id}-b`, text: `What ${project.name} does.` }],
+    })),
+  };
+
+  it('keeps a role the bank has nothing for, using the user’s own words', () => {
+    const resume = assembleResume(written, [v('w1', 'Cut latency 40%.')]);
+    expect(resume.experience.map((s) => s.heading)).toEqual(['Engineer — Revel8', 'Intern — Older']);
+    expect(resume.experience[1]!.bullets).toEqual(['What I did at Older.']);
+  });
+
+  it('keeps a project the bank has nothing for', () => {
+    const resume = assembleResume(written, [v('p1', 'Built an autofiller.')]);
+    expect(resume.projects.map((s) => s.heading)).toEqual(['ApplyFlow', 'Unused']);
+  });
+
+  it('loses nothing at all when the bank is completely empty', () => {
+    const resume = assembleResume(written, []);
+    expect(resume.experience).toHaveLength(2);
+    expect(resume.projects).toHaveLength(2);
+  });
+
+  it('says which sections were tailored and which fell back', () => {
+    // The review screen needs this to be honest about what it produced.
+    const resume = assembleResume(written, [v('w1', 'Cut latency 40%.')]);
+    expect(resume.experience.map((s) => s.tailored)).toEqual([true, false]);
+  });
+
+  it('still drops a section with no bullets and no variants', () => {
+    // Nothing written and nothing generated means there is nothing to say.
+    expect(assembleResume(profile, []).experience).toEqual([]);
+  });
+});
+
 describe('resumeFilename', () => {
   const resume = assembleResume(profile, []);
 

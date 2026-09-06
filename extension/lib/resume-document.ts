@@ -1,5 +1,5 @@
 import type { BulletVariant } from './bullet-bank';
-import type { Profile } from './schema';
+import type { BulletEntry, Profile } from './schema';
 
 /**
  * Assembling and exporting the tailored resume.
@@ -20,6 +20,12 @@ export interface ResumeSection {
   /** The right-hand line: dates, or a technology list. */
   meta: string;
   bullets: string[];
+  /**
+   * False when this section fell back to the user's own wording because the
+   * bank had nothing for it. The document is still complete; it just was not
+   * tailored here, and the review screen says so rather than hiding it.
+   */
+  tailored: boolean;
 }
 
 export interface ResumeDocument {
@@ -38,6 +44,13 @@ export interface ResumeDocument {
  * Sections keep the profile's own order — chronology is the user's, not
  * something relevance ranking should rearrange. Only *which* bullets appear,
  * and their order within a section, comes from selection.
+ *
+ * A source with no selected variant falls back to the bullets the user wrote
+ * themselves. This matters more than anything else here: generation can fail
+ * for one item — a rate-limited model, a parse failure — and when it did, the
+ * old behaviour dropped that whole job off the resume without saying so. The
+ * bank is an optimisation; the profile is the truth. Untailored wording is a
+ * small problem, a missing job is a serious one.
  */
 export function assembleResume(profile: Profile, selected: BulletVariant[]): ResumeDocument {
   const bySource = new Map<string, BulletVariant[]>();
@@ -47,21 +60,28 @@ export function assembleResume(profile: Profile, selected: BulletVariant[]): Res
     bySource.set(variant.sourceId, list);
   }
 
+  const linesFor = (id: string, own: BulletEntry[]) => {
+    const chosen = bySource.get(id);
+    if (chosen && chosen.length > 0) return { bullets: chosen.map((v) => v.text), tailored: true };
+    return { bullets: own.map((b) => b.text).filter(Boolean), tailored: false };
+  };
+
   const experience = profile.workHistory
-    .filter((role) => bySource.has(role.id))
     .map((role) => ({
       heading: [role.title, role.company].filter(Boolean).join(' — '),
       meta: [role.startDate, role.current ? 'present' : role.endDate].filter(Boolean).join(' – '),
-      bullets: bySource.get(role.id)!.map((v) => v.text),
-    }));
+      ...linesFor(role.id, role.bullets),
+    }))
+    // Nothing written and nothing generated means there is nothing to say.
+    .filter((section) => section.bullets.length > 0);
 
   const projects = profile.projects
-    .filter((project) => bySource.has(project.id))
     .map((project) => ({
       heading: project.name,
       meta: project.techStack,
-      bullets: bySource.get(project.id)!.map((v) => v.text),
-    }));
+      ...linesFor(project.id, project.bullets),
+    }))
+    .filter((section) => section.bullets.length > 0);
 
   const education = profile.education.map((e) =>
     [
