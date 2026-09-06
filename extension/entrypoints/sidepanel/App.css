@@ -1096,3 +1096,27 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Import sits above the settings groups, not inside one. It is how the profile
+   gets filled and refreshed, and burying it made it a thing you do once and
+   can never find again. */
+.panel .import-lead {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-3);
+}
+
+.panel .import-lead h2 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin-bottom: var(--space-1);
+}
+
+.review .review-company {
+  max-width: 220px;
+  margin-top: var(--space-2);
+}

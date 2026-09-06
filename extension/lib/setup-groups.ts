@@ -36,8 +36,8 @@ export const SETUP_GROUPS: SetupGroup[] = [
   {
     id: 'documents',
     title: 'Documents',
-    blurb: 'Folder, resume import, tailoring bank',
-    steps: ['documents', 'import', 'bank'],
+    blurb: 'Folder and tailoring bank',
+    steps: ['documents', 'bank'],
   },
   {
     id: 'ai',

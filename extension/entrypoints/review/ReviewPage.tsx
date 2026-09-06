@@ -28,6 +28,7 @@ import type { Profile } from '@/lib/schema';
  */
 export function ReviewPage() {
   const [handoff, setHandoff] = useState<ReviewHandoff | null>(null);
+  const [company, setCompany] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bullets, setBullets] = useState<BulletVariant[]>([]);
   const [letter, setLetter] = useState('');
@@ -39,6 +40,7 @@ export function ReviewPage() {
   useEffect(() => {
     void takeReview().then((data) => {
       setHandoff(data);
+      setCompany(data?.company ?? '');
       setBullets(data?.result.selected ?? []);
       setLetter(data?.letter?.text ?? '');
     });
@@ -77,14 +79,14 @@ export function ReviewPage() {
   const document = assembleResume(profile, bullets, handoff.jobDescription);
   const score = scoreSection(bullets.map((b) => b.text)).score;
   const letterFaults = coverLetterFaults(letter, bullets.map((b) => b.text), {
-    company: handoff.company,
+    company,
     role: handoff.role,
   });
   // Assembled here too, so what is reviewed is exactly what gets written.
   const letterDocument = letter.trim()
     ? assembleCoverLetter({
         profile,
-        company: handoff.company,
+        company,
         role: handoff.role,
         body: letter,
         language: handoff.letter?.language ?? 'en',
@@ -93,6 +95,12 @@ export function ReviewPage() {
 
   const save = async () => {
     setError(null);
+    if (!company.trim()) {
+      setError(
+        'Add the company before saving. It names both files, and Attach documents finds them by it.'
+      );
+      return;
+    }
     try {
       const handle = await getDocumentsFolderHandle();
       if (!handle) {
@@ -106,13 +114,13 @@ export function ReviewPage() {
 
       const names: string[] = [];
       names.push(
-        await saveToDocumentsFolder(handle, resumeFilename(document, handoff.company), await toDocxBlob(document))
+        await saveToDocumentsFolder(handle, resumeFilename(document, company), await toDocxBlob(document))
       );
       if (letter.trim()) {
         names.push(
           await saveToDocumentsFolder(
             handle,
-            coverLetterFilename(document, handoff.company),
+            coverLetterFilename(document, company),
             await coverLetterToDocxBlob(letterDocument!)
           )
         );
@@ -124,22 +132,38 @@ export function ReviewPage() {
   };
 
   const sections = document.experience.concat(document.projects);
+  const asked = handoff.result.gap.covered.length + handoff.result.gap.missing.length;
 
   return (
     <main className="review">
       <header className="review-head">
         <div>
           <p className="eyebrow">Review before sending</p>
-          <h1>{[handoff.role, handoff.company].filter(Boolean).join(' · ') || 'Tailored application'}</h1>
+          <h1>{[handoff.role, company].filter(Boolean).join(' · ') || 'Tailored application'}</h1>
+          {/* Editable here as well as in the panel: this is the last screen
+              before the files are named, and a blank company is what produced
+              Jordan_Avery_Resume (5).docx. */}
+          <label className="field review-company">
+            <span>Company</span>
+            <input
+              type="text"
+              value={company}
+              placeholder="Enpal"
+              onChange={(event) => setCompany(event.target.value)}
+            />
+          </label>
         </div>
         <ScoreRing
           score={score}
-          detail={`${handoff.result.gap.covered.length} of ${
-            handoff.result.gap.covered.length + handoff.result.gap.missing.length
-          } things the posting asks for`}
+          detail={
+            asked > 0
+              ? `${handoff.result.gap.covered.length} of ${asked} things the posting asks for`
+              : 'Writing quality only. No posting text to compare against.'
+          }
         />
       </header>
 
+      {asked > 0 && (
       <section>
         <h2>Match</h2>
         <KeywordChips
@@ -153,6 +177,7 @@ export function ReviewPage() {
           </p>
         )}
       </section>
+      )}
 
       <section>
         <h2>Resume</h2>

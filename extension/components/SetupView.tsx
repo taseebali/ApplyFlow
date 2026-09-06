@@ -345,6 +345,15 @@ export function SetupView({
             {missing.length > 0 && <span className="hint">Missing: {missing.map((f) => f.label).join(', ')}</span>}
           </p>
 
+          <section className="import-lead">
+            <h2>Start from your resume</h2>
+            <p className="hint">
+              Fills your contact details, work history, education and projects from one file. You review
+              everything before it is used, and nothing leaves this computer.
+            </p>
+            <ResumeImportSection profile={profile} onChange={setProfile} llm={llm} />
+          </section>
+
           <nav className="action-rows" aria-label="Settings">
             {SETUP_GROUPS.map((entry) => (
               <button

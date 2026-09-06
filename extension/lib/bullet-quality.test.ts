@@ -138,3 +138,34 @@ describe('isPublishable', () => {
     expect(isPublishable('Worked with 5 cross-functional teams.')).toBe(false);
   });
 });
+
+describe('isPublishable, as the bank gate', () => {
+  // The regression this guards: MAX_LENGTH was tightened to 160 while the gate
+  // demanded every fault be `no-metric`, so a normal-length model sentence was
+  // thrown away and whole projects reported "every framing failed the quality
+  // check".
+  const realistic =
+    'Evaluated the agent against 10 real, verified bug fixes and reached a 90% file-match rate at an ' +
+    'average of 7.4 tool calls per case.';
+
+  it('keeps a well-written bullet that runs past the ideal length', () => {
+    expect(realistic.length).toBeGreaterThan(120);
+    expect(isPublishable(realistic)).toBe(true);
+  });
+
+  it('keeps a bullet with no number, because the model cannot invent one', () => {
+    expect(isPublishable('Containerised the service with Docker for one-command deployment.')).toBe(true);
+  });
+
+  it('rejects a weak opener, which is the model ignoring the prompt', () => {
+    expect(isPublishable('Responsible for the deployment pipeline and its documentation.')).toBe(false);
+  });
+
+  it('rejects a cliche', () => {
+    expect(isPublishable('Collaborated with cross-functional teams to deliver 40% faster releases.')).toBe(false);
+  });
+
+  it('still rejects an actual paragraph', () => {
+    expect(isPublishable('Built a thing. '.repeat(30))).toBe(false);
+  });
+});

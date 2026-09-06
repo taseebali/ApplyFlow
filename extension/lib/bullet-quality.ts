@@ -190,9 +190,30 @@ function ordinal(n: number): string {
 }
 
 /** True when a bullet is good enough to enter the generated bank. */
+/**
+ * Faults that are the model ignoring the prompt, rather than the writing being
+ * imperfect. Only these throw a variant away.
+ */
+const DISQUALIFYING: FaultKind[] = ['verb-collision', 'weak-opener', 'cliche'];
+
+/**
+ * Whether a generated variant is worth keeping in the bank.
+ *
+ * The bank is a pool and selection is what is selective, so this gate has to be
+ * the more permissive of the two. It was the stricter one, which is backwards:
+ * it demanded that every fault be `no-metric`, so a single `too-long` threw the
+ * sentence away. Tightening MAX_LENGTH to 160 then rejected essentially
+ * everything a model writes, and whole projects came back with "every framing
+ * failed the quality check".
+ *
+ * Length and passive voice are now score deductions that ranking uses, not
+ * grounds for deletion. A missing metric never was: the model cannot invent
+ * the number, and asking the user is the right response.
+ */
 export function isPublishable(text: string): boolean {
-  // A missing metric is a reason to ask the user for one, not a reason to
-  // throw away a correctly written sentence — the model cannot invent the
-  // number. Everything else is the model's own fault and gets regenerated.
-  return scoreBullet(text).every((fault) => fault.kind === 'no-metric');
+  const faults = scoreBullet(text);
+  if (faults.some((fault) => DISQUALIFYING.includes(fault.kind))) return false;
+  // A hard ceiling still applies. Past roughly three lines it is a paragraph,
+  // and no amount of ranking rescues a paragraph on a resume.
+  return text.trim().length <= 320;
 }

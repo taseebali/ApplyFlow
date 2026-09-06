@@ -136,6 +136,8 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
   };
 
   const result = status.kind === 'ready' ? status.result : null;
+  // Nothing was scraped from the page, so there is nothing to match against.
+  const asked = result ? result.gap.covered.length + result.gap.missing.length : 0;
   // Sections that fell back to the user's own bullets because the bank had
   // nothing for them — worth saying, since the resume looks complete either way.
   const untailored = result
@@ -193,12 +195,18 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
 
           <ScoreRing
             score={result.score}
-            detail={`${result.gap.covered.length} of ${result.gap.covered.length + result.gap.missing.length} things the posting asks for`}
+            detail={
+              asked > 0
+                ? `${result.gap.covered.length} of ${asked} things the posting asks for`
+                : 'Writing quality only. No posting text to compare against.'
+            }
           />
-          <KeywordChips
-            covered={result.gap.covered.slice(0, 8).map((g) => g.term)}
-            missing={result.gap.missing.map((g) => g.term)}
-          />
+          {asked > 0 && (
+            <KeywordChips
+              covered={result.gap.covered.slice(0, 8).map((g) => g.term)}
+              missing={result.gap.missing.map((g) => g.term)}
+            />
+          )}
           {result.gap.missing.length > 0 && (
             <p className="hint">
               Dashed means the posting asks and your profile never mentions it. Tailoring reorders what you have;
