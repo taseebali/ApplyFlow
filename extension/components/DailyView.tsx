@@ -41,6 +41,7 @@ import { ActionRow } from '@/components/ActionRow';
 import type { GroupId } from '@/lib/setup-groups';
 import { TailorCard } from '@/components/TailorCard';
 import { ReadinessBar } from '@/components/ReadinessBar';
+import { usePrimaryAction } from '@/components/PrimaryAction';
 import type { Posting } from '@/components/JobContext';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
 
@@ -164,6 +165,13 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
       },
     });
   };
+
+  // Published to the sticky footer, so the panel's main action does not scroll
+  // away the moment a result opens underneath it.
+  usePrimaryAction(
+    { label: 'Fill this application', onClick: () => void handleFillClick(), busy: filling, busyLabel: 'Filling…' },
+    [filling, missing.length]
+  );
 
   const handleFillClick = async () => {
     // A profile missing the essentials produces a half-filled application that
@@ -391,8 +399,8 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
       )}
       <ActionRow
         icon={<FillIcon />}
-        title="Fill this page"
-        description="Fills the form from your saved profile."
+        title="Fill this application"
+        description="Writes your saved answers into the form."
         tint="blue"
         onClick={handleFillClick}
         disabled={filling}

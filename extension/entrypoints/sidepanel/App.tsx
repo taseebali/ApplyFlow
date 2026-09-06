@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DailyView, getActiveTabId } from '@/components/DailyView';
 import { SetupView } from '@/components/SetupView';
 import { JobContextBar, usePosting } from '@/components/JobContext';
+import { PrimaryActionBar, PrimaryActionProvider } from '@/components/PrimaryAction';
 import { GearIcon } from '@/components/icons';
 import { getSettings } from '@/lib/settings';
 import type { GroupId } from '@/lib/setup-groups';
@@ -58,18 +59,21 @@ function App() {
         {isDaily && <JobContextBar posting={posting} onChange={setPosting} />}
       </header>
 
-      <main className="panel-body">
-        {isDaily ? (
-          <DailyView posting={posting} onOpenSetup={openSetup} />
-        ) : (
-          <SetupView
-            mode={view.mode}
-            group={view.mode === 'tabs' ? view.group : undefined}
-            step={view.mode === 'tabs' ? view.step : undefined}
-            onDone={() => setView({ kind: 'daily' })}
-          />
-        )}
-      </main>
+      <PrimaryActionProvider>
+        <main className="panel-body">
+          {isDaily ? (
+            <DailyView posting={posting} onOpenSetup={openSetup} />
+          ) : (
+            <SetupView
+              mode={view.mode}
+              group={view.mode === 'tabs' ? view.group : undefined}
+              step={view.mode === 'tabs' ? view.step : undefined}
+              onDone={() => setView({ kind: 'daily' })}
+            />
+          )}
+        </main>
+        {isDaily && <PrimaryActionBar />}
+      </PrimaryActionProvider>
     </div>
   );
 }
