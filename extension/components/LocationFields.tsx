@@ -2,14 +2,16 @@ import { COUNTRIES, isoForCountry, statesOf } from '@/lib/locations';
 import { FieldLabel } from './ProfileForm';
 
 /**
- * Country and state as dropdowns; city as free text.
+ * Country as a dropdown, state as whichever control the country warrants, city
+ * as free text.
  *
  * The city list used to come from `country-state-city`, which weighed 8.7MB —
  * more than three quarters of the whole extension — and was downloaded by
  * every user, then parsed the moment this section opened. Application forms
  * take a city as free text anyway, and this is typed once during setup, so the
- * dataset was paying for nothing. Countries and subdivisions are small enough
- * to carry as generated data (see `lib/locations.ts`).
+ * dataset was paying for nothing. The subdivision list went the same way: 197
+ * countries and 96KB became the seven whose forms present a dropdown, and a
+ * text input everywhere else (see `lib/locations.ts`).
  */
 export function LocationFields({
   country,
@@ -49,18 +51,22 @@ export function LocationFields({
 
       <label className="field">
         <FieldLabel label="State / province" />
-        <select
-          value={state}
-          disabled={!iso || states.length === 0}
-          onChange={(e) => onChange({ state: e.target.value })}
-        >
-          <option value="">{states.length ? 'Not set' : 'None for this country'}</option>
-          {withCurrent(states, state).map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+        {/* A dropdown only where one exists. Everywhere else this is a text
+            input rather than a disabled select saying "None for this country",
+            which left anyone outside the listed countries unable to enter a
+            state at all — and is how the forms themselves ask for it. */}
+        {states.length > 0 ? (
+          <select value={state} onChange={(e) => onChange({ state: e.target.value })}>
+            <option value="">Not set</option>
+            {withCurrent(states, state).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input type="text" value={state} onChange={(e) => onChange({ state: e.target.value })} />
+        )}
       </label>
 
       <label className="field">
