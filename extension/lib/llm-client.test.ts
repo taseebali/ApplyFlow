@@ -16,6 +16,7 @@ describe('buildPrompt', () => {
             role: 'Author',
             bullets: [{ id: 'b1', text: 'A job application autofiller' }],
             techStack: 'TypeScript',
+            link: '',
             outcomes: 'Cut application time',
           },
         ],

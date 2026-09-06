@@ -82,6 +82,20 @@ export interface ProjectEntry {
   bullets: BulletEntry[];
   techStack: string;
   outcomes: string;
+  /**
+   * Where the work can be seen. A repository or demo under a project is the
+   * difference between a claim and a claim somebody can check, and it is the
+   * first thing a technical reader clicks.
+   */
+  link: string;
+}
+
+export interface CertificationEntry {
+  id: string;
+  name: string;
+  issuer: string;
+  /** Free text, because certificates are dated inconsistently. */
+  date: string;
 }
 
 export interface Profile {
@@ -126,6 +140,7 @@ export interface Profile {
    * the work history entirely.
    */
   skills: string[];
+  certifications: CertificationEntry[];
   languages: LanguageEntry[];
   workAuthorization: {
     /** A yes/no answer, for forms that ask "are you authorised to work here?". */
@@ -178,6 +193,7 @@ export const EMPTY_PROFILE: Profile = {
   education: [],
   projects: [],
   skills: [],
+  certifications: [],
   languages: [],
   workAuthorization: {
     authorizedToWorkInCountry: null,

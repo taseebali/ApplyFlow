@@ -138,6 +138,7 @@ describe('sourcesFrom', () => {
           bullets: [{ id: 'b2', text: 'Built an autofiller.' }],
           techStack: 'TypeScript',
           outcomes: '',
+          link: '',
         },
       ],
     };
@@ -150,7 +151,7 @@ describe('sourcesFrom', () => {
   it('skips anything with no facts, rather than asking the model to invent from a title', () => {
     const profile = {
       ...EMPTY_PROFILE,
-      projects: [{ id: 'p1', name: 'Empty', role: '', bullets: [], techStack: '', outcomes: '' }],
+      projects: [{ id: 'p1', name: 'Empty', role: '', bullets: [], techStack: '', outcomes: '' , link: ''}],
     };
     expect(sourcesFrom(profile)).toEqual([]);
   });

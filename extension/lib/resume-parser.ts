@@ -175,7 +175,7 @@ function headingSegments(line: string, splitOnDash = false): string[] {
  * the same code reads "Name | Python, Docker" and "Name GitHub" alike.
  */
 export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
-  const entry: Omit<ProjectEntry, 'id'> = { name: '', role: '', bullets: [], techStack: '', outcomes: '' };
+  const entry: Omit<ProjectEntry, 'id'> = { name: '', role: '', bullets: [], techStack: '', outcomes: '' , link: ''};
 
   for (const segment of headingSegments(line)) {
     if (!entry.techStack && isTechList(segment) && !isUrlish(segment)) entry.techStack = segment;
@@ -431,6 +431,7 @@ function toProjects(value: unknown): ProjectEntry[] {
       bullets: textToBullets(str(e.description)),
       techStack: str(e.techStack),
       outcomes: str(e.outcomes),
+      link: str(e.link),
     }))
     .filter((e) => e.name);
 }

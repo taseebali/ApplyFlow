@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  CertificationsSection,
   ContactSection,
   EducationSection,
   LanguagesSection,
@@ -229,6 +230,12 @@ export function SetupView({
       title: 'Skills and headline',
       blurb: 'The skills line on your resume, in the order you want it read.',
       render: () => <SkillsSection profile={profile} onChange={setProfile} />,
+    },
+    {
+      id: 'certifications',
+      title: 'Certifications',
+      blurb: 'Named on a tailored resume under their own heading.',
+      render: () => <CertificationsSection profile={profile} onChange={setProfile} />,
     },
     {
       id: 'languages',

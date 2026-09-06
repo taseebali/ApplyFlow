@@ -57,13 +57,18 @@ export function applyProfileDefaults(stored: StoredProfile): Profile {
       ...entry,
       current: entry.current ?? false,
     })),
-    projects: (stored.projects ?? EMPTY_PROFILE.projects).map(withBullets) as Profile['projects'],
+    // Projects saved before `link` existed have none, and an undefined would
+    // print as the string "undefined" on a resume.
+    projects: (stored.projects ?? EMPTY_PROFILE.projects)
+      .map(withBullets)
+      .map((project) => ({ link: '', ...project })) as Profile['projects'],
     headline: stored.headline ?? EMPTY_PROFILE.headline,
     summary: stored.summary ?? EMPTY_PROFILE.summary,
     // Seeded from the project tech stacks only for a profile that predates the
     // skills field — `[]` is a deliberate empty list and is left alone, so a
     // skill the user removed does not reappear on the next load.
     skills: stored.skills ?? seedSkills(stored.projects ?? []),
+    certifications: stored.certifications ?? EMPTY_PROFILE.certifications,
     languages: stored.languages ?? EMPTY_PROFILE.languages,
     workAuthorization: { ...EMPTY_PROFILE.workAuthorization, ...stored.workAuthorization },
     logistics: { ...EMPTY_PROFILE.logistics, ...stored.logistics },

@@ -15,6 +15,7 @@ const profile: Profile = {
       bullets: [{ id: 'b', text: 'Evaluated against 10 verified fixes at a 90% file-match rate.' }],
       techStack: 'Python, FastAPI',
       outcomes: '',
+      link: '',
     },
   ],
 };

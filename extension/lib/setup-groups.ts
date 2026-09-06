@@ -25,7 +25,7 @@ export const SETUP_GROUPS: SetupGroup[] = [
     id: 'profile',
     title: 'Profile',
     blurb: 'Contact, work, education, projects, skills',
-    steps: ['contact', 'links', 'work', 'education', 'projects', 'skills', 'languages'],
+    steps: ['contact', 'links', 'work', 'education', 'projects', 'skills', 'certifications', 'languages'],
   },
   {
     id: 'answers',

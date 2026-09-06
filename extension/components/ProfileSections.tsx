@@ -1,4 +1,4 @@
-import { LANGUAGE_LEVELS, type EducationEntry, type LanguageEntry, type Profile, type ProjectEntry, type WorkHistoryEntry } from '@/lib/schema';
+import { LANGUAGE_LEVELS, type CertificationEntry, type EducationEntry, type LanguageEntry, type Profile, type ProjectEntry, type WorkHistoryEntry } from '@/lib/schema';
 import { LocationFields } from './LocationFields';
 import { BulletsField } from './BulletsField';
 import { TextField, SelectField } from '@/components/fields';
@@ -199,7 +199,7 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
       ...profile,
       projects: [
         ...profile.projects,
-        { id: crypto.randomUUID(), name: '', role: '', bullets: [], techStack: '', outcomes: '' },
+        { id: crypto.randomUUID(), name: '', role: '', bullets: [], techStack: '', outcomes: '', link: '' },
       ],
     });
 
@@ -218,6 +218,11 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
           <div className="grid">
             <TextField label="Name" value={entry.name} onChange={(v) => update(entry.id, { name: v })} />
             <TextField label="Your role" value={entry.role} onChange={(v) => update(entry.id, { role: v })} />
+            <TextField
+              label="Link"
+              value={entry.link}
+              onChange={(v) => update(entry.id, { link: v })}
+            />
             <TextField label="Tech stack" value={entry.techStack} onChange={(v) => update(entry.id, { techStack: v })} />
           </div>
           <BulletsField bullets={entry.bullets} onChange={(bullets) => update(entry.id, { bullets })} />
@@ -342,6 +347,65 @@ export function LanguagesSection({ profile, onChange }: { profile: Profile; onCh
       ))}
       <button type="button" className="btn" onClick={add}>
         + Add language
+      </button>
+    </section>
+  );
+}
+
+/**
+ * Certificates a resume names.
+ *
+ * Small, but the reference resume this was measured against carries three of
+ * them, and they are the cheapest credibility on the page for someone whose
+ * experience is mostly projects.
+ */
+export function CertificationsSection({
+  profile,
+  onChange,
+}: {
+  profile: Profile;
+  onChange: (p: Profile) => void;
+}) {
+  const update = (id: string, patch: Partial<CertificationEntry>) =>
+    onChange({
+      ...profile,
+      certifications: profile.certifications.map((entry) =>
+        entry.id === id ? { ...entry, ...patch } : entry
+      ),
+    });
+
+  const add = () =>
+    onChange({
+      ...profile,
+      certifications: [
+        ...profile.certifications,
+        { id: crypto.randomUUID(), name: '', issuer: '', date: '' },
+      ],
+    });
+
+  const remove = (id: string) =>
+    onChange({ ...profile, certifications: profile.certifications.filter((entry) => entry.id !== id) });
+
+  return (
+    <section>
+      <h2>Certifications</h2>
+      <p className="hint">
+        Named on a tailored resume under their own heading. Leave this empty and the heading does not appear.
+      </p>
+      {profile.certifications.map((entry) => (
+        <div className="entry" key={entry.id}>
+          <div className="grid">
+            <TextField label="Name" value={entry.name} onChange={(v) => update(entry.id, { name: v })} />
+            <TextField label="Issuer" value={entry.issuer} onChange={(v) => update(entry.id, { issuer: v })} />
+            <TextField label="Date" value={entry.date} onChange={(v) => update(entry.id, { date: v })} />
+          </div>
+          <button type="button" className="btn btn-danger remove" onClick={() => remove(entry.id)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn" onClick={add}>
+        + Add certification
       </button>
     </section>
   );

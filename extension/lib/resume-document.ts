@@ -21,6 +21,8 @@ export interface ResumeSection {
   /** The right-hand line: dates, or a technology list. */
   meta: string;
   bullets: string[];
+  /** Where the work can be seen. The first thing a technical reader clicks. */
+  link?: string;
   /**
    * False when this section fell back to the user's own wording because the
    * bank had nothing for it. The document is still complete; it just was not
@@ -47,6 +49,7 @@ export interface ResumeDocument {
   projects: ResumeSection[];
   education: string[];
   skills: SkillGroup[];
+  certifications: string[];
   /** Sections left off because the page only has room for so many. */
   omitted: string[];
 }
@@ -109,6 +112,7 @@ export function assembleResume(
     .map((project) => ({
       heading: project.name,
       meta: project.techStack,
+      link: project.link.trim(),
       ...linesFor(project.id, project.bullets),
     }))
     .filter((section) => section.bullets.length > 0);
@@ -152,6 +156,9 @@ export function assembleResume(
     projects,
     education,
     skills: groupSkills(orderSkills(profile.skills, jobDescription)),
+    certifications: profile.certifications
+      .map((entry) => [entry.name, entry.issuer, entry.date].filter(Boolean).join(', '))
+      .filter(Boolean),
     omitted,
   };
 }
@@ -286,6 +293,14 @@ async function resumeParagraphs(resume: ResumeDocument) {
     ...section.bullets.map(
       (text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 40 } })
     ),
+    ...(section.link
+      ? [
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [new TextRun({ text: section.link, size: 19, color: '555555' })],
+          }),
+        ]
+      : []),
   ];
 
   const children = [
@@ -325,6 +340,15 @@ async function resumeParagraphs(resume: ResumeDocument) {
     ...(resume.education.length > 0
       ? [heading('Education'), ...resume.education.map((line) => new Paragraph({ text: line, spacing: { after: 40 } }))]
       : []),
+    ...(resume.certifications.length > 0
+      ? [
+          heading('Certifications'),
+          ...resume.certifications.map(
+            (line) => new Paragraph({ text: line, bullet: { level: 0 }, spacing: { after: 40 } })
+          ),
+        ]
+      : []),
+
     ...(resume.skills.length > 0
       ? [
           heading('Skills'),

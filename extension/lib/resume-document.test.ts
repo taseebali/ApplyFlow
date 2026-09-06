@@ -38,8 +38,8 @@ const profile: Profile = {
     },
   ],
   projects: [
-    { id: 'p1', name: 'ApplyFlow', role: '', bullets: [], techStack: 'TypeScript, React', outcomes: '' },
-    { id: 'p2', name: 'Unused', role: '', bullets: [], techStack: 'Rust', outcomes: '' },
+    { id: 'p1', name: 'ApplyFlow', role: '', bullets: [], techStack: 'TypeScript, React', outcomes: '', link: '' },
+    { id: 'p2', name: 'Unused', role: '', bullets: [], techStack: 'Rust', outcomes: '' , link: ''},
   ],
   education: [
     { id: 'e1', school: 'Hochschule Berlin', degree: 'BSc', fieldOfStudy: 'CS', startDate: '2024', endDate: '2027', current: true },
@@ -118,6 +118,44 @@ describe('assembleResume', () => {
       { label: 'Languages', items: ['Python', 'SQL'] },
       { label: 'Technical', items: ['Docker', 'Git'] },
     ]);
+  });
+
+  it('carries a project link, which is what a technical reader clicks first', () => {
+    const linked: Profile = {
+      ...profile,
+      projects: [
+        {
+          id: 'p1',
+          name: 'Agent',
+          role: '',
+          bullets: [{ id: 'b', text: 'Cut triage time 40%.' }],
+          techStack: '',
+          outcomes: '',
+          link: 'github.com/jordanavery/repo-triage',
+        },
+      ],
+    };
+    expect(assembleResume(linked, []).projects[0]!.link).toBe('github.com/jordanavery/repo-triage');
+  });
+
+  it('lists certifications as one line each', () => {
+    const certified: Profile = {
+      ...profile,
+      certifications: [
+        { id: 'c1', name: 'Intermediate SQL', issuer: 'DataCamp', date: 'June 2026' },
+      ],
+    };
+    expect(assembleResume(certified, []).certifications).toEqual([
+      'Intermediate SQL, DataCamp, June 2026',
+    ]);
+  });
+
+  it('leaves out a certification with nothing in it', () => {
+    const blank: Profile = {
+      ...profile,
+      certifications: [{ id: 'c1', name: '', issuer: '', date: '' }],
+    };
+    expect(assembleResume(blank, []).certifications).toEqual([]);
   });
 
   it('carries a summary through to the document', () => {
@@ -219,6 +257,7 @@ describe('assembleResume when the bank is incomplete', () => {
         bullets: [{ id: `b${i}`, text: `Built project ${i} and shipped it.` }],
         techStack: 'Python',
         outcomes: '',
+        link: '',
       })),
     };
     const resume = assembleResume(many, []);
@@ -237,7 +276,7 @@ describe('assembleResume when the bank is incomplete', () => {
     const wall: Profile = {
       ...profile,
       projects: [
-        { id: 'p1', name: 'Agent', role: '', bullets: [{ id: 'b', text: blob }], techStack: '', outcomes: '' },
+        { id: 'p1', name: 'Agent', role: '', bullets: [{ id: 'b', text: blob }], techStack: '', outcomes: '' , link: ''},
       ],
     };
     const bullets = assembleResume(wall, []).projects[0]!.bullets;
@@ -249,7 +288,7 @@ describe('assembleResume when the bank is incomplete', () => {
     const short: Profile = {
       ...profile,
       projects: [
-        { id: 'p1', name: 'X', role: '', bullets: [{ id: 'b', text: 'Cut latency 40%.' }], techStack: '', outcomes: '' },
+        { id: 'p1', name: 'X', role: '', bullets: [{ id: 'b', text: 'Cut latency 40%.' }], techStack: '', outcomes: '' , link: ''},
       ],
     };
     expect(assembleResume(short, []).projects[0]!.bullets).toEqual(['Cut latency 40%.']);
