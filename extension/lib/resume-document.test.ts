@@ -93,18 +93,36 @@ describe('assembleResume', () => {
     // Deriving from project tech stacks put 40 terms on a real resume,
     // including projects that had been cut from it.
     const withSkills = { ...profile, skills: ['Python', 'FastAPI', 'Docker'] };
-    expect(assembleResume(withSkills, []).skills).toBe('Python, FastAPI, Docker');
+    expect(assembleResume(withSkills, []).skills).toEqual([
+      { items: ['Python', 'FastAPI', 'Docker'] },
+    ]);
   });
 
   it('leads with the skills the posting asks for', () => {
     const withSkills = { ...profile, skills: ['Rust', 'Python', 'Docker'] };
     const resume = assembleResume(withSkills, [], 'We need strong Python and Docker experience.');
-    expect(resume.skills).toBe('Python, Docker, Rust');
+    expect(resume.skills[0]!.items).toEqual(['Python', 'Docker', 'Rust']);
   });
 
   it('keeps the user’s own skill order when there is no posting', () => {
     const withSkills = { ...profile, skills: ['Rust', 'Python'] };
-    expect(assembleResume(withSkills, []).skills).toBe('Rust, Python');
+    expect(assembleResume(withSkills, []).skills[0]!.items).toEqual(['Rust', 'Python']);
+  });
+
+  it('reads "Label: a, b" as a group, which is what keeps forty terms legible', () => {
+    const withSkills = {
+      ...profile,
+      skills: ['Languages: Python, SQL', 'Technical: Docker, Git'],
+    };
+    expect(assembleResume(withSkills, []).skills).toEqual([
+      { label: 'Languages', items: ['Python', 'SQL'] },
+      { label: 'Technical', items: ['Docker', 'Git'] },
+    ]);
+  });
+
+  it('carries a summary through to the document', () => {
+    const withSummary = { ...profile, summary: 'Builds agent systems, not prompt demos.' };
+    expect(assembleResume(withSummary, []).summary).toBe('Builds agent systems, not prompt demos.');
   });
 
   it('carries a headline when the profile has one', () => {
@@ -187,6 +205,54 @@ describe('assembleResume when the bank is incomplete', () => {
     // The review screen needs this to be honest about what it produced.
     const resume = assembleResume(written, [v('w1', 'Cut latency 40%.')]);
     expect(resume.experience.map((s) => s.tailored)).toEqual([true, false]);
+  });
+
+  it('caps how many projects reach the page, and says which were left off', () => {
+    // Eleven projects rendered as eleven paragraphs is what came out when the
+    // bank was empty and nothing trimmed the list.
+    const many: Profile = {
+      ...profile,
+      projects: Array.from({ length: 9 }, (_, i) => ({
+        id: `p${i}`,
+        name: `Project ${i}`,
+        role: '',
+        bullets: [{ id: `b${i}`, text: `Built project ${i} and shipped it.` }],
+        techStack: 'Python',
+        outcomes: '',
+      })),
+    };
+    const resume = assembleResume(many, []);
+    expect(resume.projects).toHaveLength(4);
+    expect(resume.omitted).toHaveLength(5);
+  });
+
+  it('splits an imported paragraph into bullets rather than printing the blob', () => {
+    // Resume import stores one blob per project. Printing it whole is how the
+    // resume became a wall of prose.
+    const blob =
+      'Built an autonomous agent on the tool-use protocol that plans and iterates. ' +
+      'Exposed it through a FastAPI backend returning a structured triage report. ' +
+      'Built an evaluation harness scoring it against real verified bug fixes. ' +
+      'Containerised the whole thing with Docker for one-command deployment.';
+    const wall: Profile = {
+      ...profile,
+      projects: [
+        { id: 'p1', name: 'Agent', role: '', bullets: [{ id: 'b', text: blob }], techStack: '', outcomes: '' },
+      ],
+    };
+    const bullets = assembleResume(wall, []).projects[0]!.bullets;
+    expect(bullets.length).toBeGreaterThan(1);
+    expect(bullets.every((line) => line.length < 200)).toBe(true);
+  });
+
+  it('leaves a short written bullet alone', () => {
+    const short: Profile = {
+      ...profile,
+      projects: [
+        { id: 'p1', name: 'X', role: '', bullets: [{ id: 'b', text: 'Cut latency 40%.' }], techStack: '', outcomes: '' },
+      ],
+    };
+    expect(assembleResume(short, []).projects[0]!.bullets).toEqual(['Cut latency 40%.']);
   });
 
   it('still drops a section with no bullets and no variants', () => {

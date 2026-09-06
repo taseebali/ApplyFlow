@@ -108,6 +108,12 @@ export interface Profile {
    * and the user's own words: a headline is positioning, not a fact to derive.
    */
   headline: string;
+  /**
+   * Two or three lines under the name. The one part of a resume a recruiter
+   * reads in full, and the only place to say what you build rather than what
+   * you have built.
+   */
+  summary: string;
   workHistory: WorkHistoryEntry[];
   education: EducationEntry[];
   projects: ProjectEntry[];
@@ -167,6 +173,7 @@ export const EMPTY_PROFILE: Profile = {
     website: '',
   },
   headline: '',
+  summary: '',
   workHistory: [],
   education: [],
   projects: [],

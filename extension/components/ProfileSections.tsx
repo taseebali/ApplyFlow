@@ -249,13 +249,27 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
 export function SkillsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   return (
     <section>
-      <h2>Skills and headline</h2>
+      <h2>Summary, skills and headline</h2>
       <TextField
         label="Headline"
         value={profile.headline}
         onChange={(v) => onChange({ ...profile, headline: v })}
       />
-      <p className="hint">One line under your name on a tailored resume — "AI Engineer · Berlin". Optional.</p>
+      <p className="hint">One line under your name on a tailored resume, like "AI Engineer · Berlin". Optional.</p>
+
+      <label className="field">
+        <span>Summary</span>
+        <textarea
+          rows={4}
+          value={profile.summary}
+          placeholder="What you build, in two or three lines. The part a recruiter actually reads."
+          onChange={(e) => onChange({ ...profile, summary: e.target.value })}
+        />
+      </label>
+      <p className="hint">
+        Sits under your name. Say what you build rather than listing what you have built, and say what you are
+        still learning if that is honest.
+      </p>
 
       <label className="field">
         <span>Skills</span>
@@ -275,8 +289,9 @@ export function SkillsSection({ profile, onChange }: { profile: Profile; onChang
         />
       </label>
       <p className="hint">
-        Separated by commas. Order matters — a skills line is read left to right and often cut short, so put what
-        you want seen first. Tailoring moves the ones a posting asks for to the front automatically.
+        One group per line, as <span className="mono">Label: item, item</span>. Grouping is what keeps forty terms
+        readable; a single comma run is not. A line with no label is fine too. Tailoring moves the ones a posting
+        asks for to the front.
       </p>
     </section>
   );

@@ -5,6 +5,8 @@ import { DraftIcon } from '@/components/icons';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import {
   assembleCoverLetter,
+  combinedFilename,
+  combinedToDocxBlob,
   coverLetterFilename,
   coverLetterToDocxBlob,
   resumeFilename,
@@ -79,6 +81,13 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
     }
   };
 
+  /**
+   * Plenty of postings have one upload slot and no second field for a letter.
+   * Saving them combined is the only thing that fits, and it is what people
+   * already do by hand.
+   */
+  const [combine, setCombine] = useState(false);
+
   const save = async () => {
     if (status.kind !== 'ready') return;
     // A company-less filename collides with the last one and is invisible to
@@ -99,6 +108,25 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
       }
 
       const saved: string[] = [];
+
+      if (combine && letter) {
+        const document = assembleCoverLetter({
+          profile: await getProfile(),
+          company: posting.company,
+          role: posting.role,
+          body: letter.text,
+          language: letter.language,
+        });
+        saved.push(
+          await saveToDocumentsFolder(
+            handle,
+            combinedFilename(status.result.document, posting.company),
+            await combinedToDocxBlob(status.result.document, document)
+          )
+        );
+        setStatus({ kind: 'saved', filenames: saved });
+        return;
+      }
 
       saved.push(
         await saveToDocumentsFolder(
@@ -184,13 +212,30 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
 
       {!closed && result && status.kind === 'ready' && (
         <div className="tailor-preview">
+          {letter && (
+            <label className="field checkbox">
+              <input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} />
+              <span>Save as one file, letter first</span>
+            </label>
+          )}
+          {letter && combine && (
+            <p className="hint">
+              For a form with a single upload slot. Attaching only the resume throws the letter away.
+            </p>
+          )}
+
           {needsCompany ? (
             <p className="error">
               Add the company at the top of the panel before saving. It names both files, and Attach documents
               finds them by it.
             </p>
           ) : (
-            <p className="hint">Names both files — {resumeFilename(result.document, posting.company)}</p>
+            <p className="hint">
+              Saves as{' '}
+              {combine && letter
+                ? combinedFilename(result.document, posting.company)
+                : resumeFilename(result.document, posting.company)}
+            </p>
           )}
 
           <ScoreRing

@@ -29,16 +29,26 @@ export interface ResumeSection {
   tailored: boolean;
 }
 
+export interface SkillGroup {
+  /** "Languages", "AI and automation". Absent for an ungrouped list. */
+  label?: string;
+  items: string[];
+}
+
 export interface ResumeDocument {
   name: string;
   /** "AI Engineer · Berlin", when the profile has one. */
   headline: string;
+  /** Two or three lines under the name saying what this person builds. */
+  summary: string;
   contactLine: string;
   linksLine: string;
   experience: ResumeSection[];
   projects: ResumeSection[];
   education: string[];
-  skills: string;
+  skills: SkillGroup[];
+  /** Sections left off because the page only has room for so many. */
+  omitted: string[];
 }
 
 /**
@@ -55,10 +65,20 @@ export interface ResumeDocument {
  * bank is an optimisation; the profile is the truth. Untailored wording is a
  * small problem, a missing job is a serious one.
  */
+/**
+ * How many project sections a resume shows.
+ *
+ * A resume is a page, not an archive. Eleven projects rendered as eleven
+ * paragraphs is what came out when the bank was empty and every source fell
+ * back to its own wording with nothing trimming the list.
+ */
+const MAX_PROJECTS = 4;
+
 export function assembleResume(
   profile: Profile,
   selected: BulletVariant[],
-  jobDescription = ''
+  jobDescription = '',
+  maxProjects = MAX_PROJECTS
 ): ResumeDocument {
   const bySource = new Map<string, BulletVariant[]>();
   for (const variant of selected) {
@@ -70,7 +90,10 @@ export function assembleResume(
   const linesFor = (id: string, own: BulletEntry[]) => {
     const chosen = bySource.get(id);
     if (chosen && chosen.length > 0) return { bullets: chosen.map((v) => v.text), tailored: true };
-    return { bullets: own.map((b) => b.text).filter(Boolean), tailored: false };
+    // Imported descriptions arrive as one blob per project, and printing that
+    // blob is how a resume becomes a wall of prose. Split it into sentences and
+    // keep the first few, which is what a bullet list is.
+    return { bullets: own.flatMap((b) => asBullets(b.text)).slice(0, 4), tailored: false };
   };
 
   const experience = profile.workHistory
@@ -82,13 +105,28 @@ export function assembleResume(
     // Nothing written and nothing generated means there is nothing to say.
     .filter((section) => section.bullets.length > 0);
 
-  const projects = profile.projects
+  const allProjects = profile.projects
     .map((project) => ({
       heading: project.name,
       meta: project.techStack,
       ...linesFor(project.id, project.bullets),
     }))
     .filter((section) => section.bullets.length > 0);
+
+  // Tailored sections first, then whichever of the rest speaks to the posting.
+  // Order within each band is the profile's own, so nothing is shuffled for the
+  // sake of it.
+  const postingTerms = new Set(contentTerms(jobDescription));
+  const relevance = (section: ResumeSection) =>
+    (section.tailored ? 1000 : 0) +
+    contentTerms(`${section.heading} ${section.meta} ${section.bullets.join(' ')}`).filter((term) =>
+      postingTerms.has(term)
+    ).length;
+
+  const ranked = [...allProjects].sort((a, b) => relevance(b) - relevance(a));
+  const kept = new Set(ranked.slice(0, maxProjects));
+  const projects = allProjects.filter((section) => kept.has(section));
+  const omitted = allProjects.filter((section) => !kept.has(section)).map((section) => section.heading);
 
   const education = profile.education.map((e) =>
     [
@@ -105,6 +143,7 @@ export function assembleResume(
   return {
     name: [c.firstName, c.lastName].filter(Boolean).join(' '),
     headline: profile.headline.trim(),
+    summary: profile.summary.trim(),
     contactLine: [c.email, c.phone, [c.city, c.country].filter(Boolean).join(', ')].filter(Boolean).join('  ·  '),
     linksLine: [profile.links.linkedin, profile.links.github, profile.links.portfolio || profile.links.website]
       .filter(Boolean)
@@ -112,8 +151,53 @@ export function assembleResume(
     experience,
     projects,
     education,
-    skills: orderSkills(profile.skills, jobDescription).join(', '),
+    skills: groupSkills(orderSkills(profile.skills, jobDescription)),
+    omitted,
   };
+}
+
+/**
+ * Splits a paragraph into the bullets it should have been.
+ *
+ * Resume import stores one blob per project, and the fallback printed it
+ * whole. Sentence boundaries are the only structure such a blob has, and they
+ * are usually the right ones.
+ */
+function asBullets(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= 200) return [trimmed];
+  return trimmed
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 20);
+}
+
+/**
+ * "Languages: Python, SQL" on its own line becomes a labelled group.
+ *
+ * A flat comma run of forty terms is unreadable, and grouping is what a real
+ * resume does. The syntax is the one people already type, so it costs no
+ * schema change and no new editor.
+ */
+function groupSkills(skills: string[]): SkillGroup[] {
+  const groups: SkillGroup[] = [];
+  const loose: string[] = [];
+
+  for (const entry of skills) {
+    const match = entry.match(/^([^:]{2,40}):\s*(.+)$/);
+    if (match) {
+      groups.push({
+        label: match[1]!.trim(),
+        items: match[2]!.split(',').map((item) => item.trim()).filter(Boolean),
+      });
+    } else if (entry.trim()) {
+      loose.push(entry.trim());
+    }
+  }
+
+  if (loose.length > 0) groups.push({ items: loose });
+  return groups;
 }
 
 /**
@@ -149,7 +233,7 @@ function degreeLine(degree: string, fieldOfStudy: string): string {
     : `${trimmedDegree} in ${field}`;
 }
 
-/** Filename-safe, and the same rule for both documents so the pair match. */
+/** Filename-safe, and the same rule for every document so they sort together. */
 const safe = (text: string) => text.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
 
 /** A filename that sorts sensibly in a folder and says what it is. */
@@ -166,7 +250,21 @@ export function resumeFilename(document: ResumeDocument, company: string): strin
  * Lazy-imported: `docx` is megabytes, and most sessions never export anything.
  */
 export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
+  const { Document, Packer } = await import('docx');
+  const doc = new Document({
+    sections: [{ properties: {}, children: await resumeParagraphs(resume) }],
+    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+  });
+  return Packer.toBlob(doc);
+}
+
+/**
+ * The resume's paragraphs, separately from the document that wraps them, so
+ * the combined export can place them after the letter rather than rebuilding
+ * the layout a second time and drifting from it.
+ */
+async function resumeParagraphs(resume: ResumeDocument) {
+  const { Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
 
   const heading = (text: string) =>
     new Paragraph({
@@ -216,6 +314,10 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
         ]
       : []),
 
+    ...(resume.summary
+      ? [heading('Summary'), new Paragraph({ text: resume.summary, spacing: { after: 40 } })]
+      : []),
+
     ...(resume.experience.length > 0
       ? [heading('Experience'), ...resume.experience.flatMap(sectionParagraphs)]
       : []),
@@ -223,19 +325,26 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
     ...(resume.education.length > 0
       ? [heading('Education'), ...resume.education.map((line) => new Paragraph({ text: line, spacing: { after: 40 } }))]
       : []),
-    ...(resume.skills ? [heading('Skills'), new Paragraph({ text: resume.skills })] : []),
+    ...(resume.skills.length > 0
+      ? [
+          heading('Skills'),
+          // One line per group, the label bold, so forty terms read as four
+          // categories rather than one comma run.
+          ...resume.skills.map(
+            (group) =>
+              new Paragraph({
+                spacing: { after: 40 },
+                children: [
+                  ...(group.label ? [new TextRun({ text: `${group.label}: `, bold: true })] : []),
+                  new TextRun({ text: group.items.join(', ') }),
+                ],
+              })
+          ),
+        ]
+      : []),
   ];
 
-  const doc = new Document({
-    sections: [{ properties: {}, children }],
-    styles: {
-      default: {
-        document: { run: { font: 'Calibri', size: 21 } },
-      },
-    },
-  });
-
-  return Packer.toBlob(doc);
+  return children;
 }
 /**
  * A cover letter with everything a letter has, not just its argument.
@@ -310,7 +419,17 @@ function splitParagraphs(body: string): string[] {
  * reliably, and the user can edit what comes out.
  */
 export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promise<Blob> {
-  const { Document, Packer, Paragraph, TextRun, AlignmentType } = await import('docx');
+  const { Document, Packer } = await import('docx');
+  const doc = new Document({
+    sections: [{ properties: {}, children: await letterParagraphs(letter) }],
+    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+  });
+  return Packer.toBlob(doc);
+}
+
+/** As `resumeParagraphs`, for the letter. */
+async function letterParagraphs(letter: CoverLetterDocument) {
+  const { Paragraph, TextRun, AlignmentType } = await import('docx');
 
   const line = (text: string, options: { bold?: boolean; after?: number; right?: boolean } = {}) =>
     new Paragraph({
@@ -321,23 +440,49 @@ export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promis
 
   const last = (index: number, list: unknown[], gap: number) => (index === list.length - 1 ? gap : 0);
 
+  return [
+    ...letter.senderLines.map((text, index) =>
+      line(text, { bold: index === 0, after: last(index, letter.senderLines, 360) })
+    ),
+    ...letter.recipientLines.map((text, index) =>
+      line(text, { after: last(index, letter.recipientLines, 240) })
+    ),
+    line(letter.date, { right: letter.dateOnRight, after: 360 }),
+    line(letter.subject, { bold: true, after: 240 }),
+    line(letter.salutation, { after: 240 }),
+    ...letter.paragraphs.map((text) => new Paragraph({ text, spacing: { after: 200 } })),
+    line(letter.closing, { after: 360 }),
+    line(letter.signature),
+  ];
+}
+
+
+/**
+ * The letter and the resume as one file, letter first, page break between.
+ *
+ * Plenty of postings have exactly one upload slot and no second field for a
+ * cover letter - the Enpal form is one. Attaching only the resume throws the
+ * letter away; attaching only the letter throws the resume away. Combining
+ * them is what people already do by hand, and it is the only thing that fits.
+ */
+export async function combinedToDocxBlob(
+  resume: ResumeDocument,
+  letter: CoverLetterDocument
+): Promise<Blob> {
+  const { Document, Packer, Paragraph, TextRun, PageBreak } = await import('docx');
+  const [letterChildren, resumeChildren] = await Promise.all([
+    letterParagraphs(letter),
+    resumeParagraphs(resume),
+  ]);
+
   const doc = new Document({
     sections: [
       {
         properties: {},
         children: [
-          ...letter.senderLines.map((text, index) =>
-            line(text, { bold: index === 0, after: last(index, letter.senderLines, 360) })
-          ),
-          ...letter.recipientLines.map((text, index) =>
-            line(text, { after: last(index, letter.recipientLines, 240) })
-          ),
-          line(letter.date, { right: letter.dateOnRight, after: 360 }),
-          line(letter.subject, { bold: true, after: 240 }),
-          line(letter.salutation, { after: 240 }),
-          ...letter.paragraphs.map((text) => new Paragraph({ text, spacing: { after: 200 } })),
-          line(letter.closing, { after: 360 }),
-          line(letter.signature),
+          ...letterChildren,
+          new Paragraph({ children: [new PageBreak()] }),
+          ...resumeChildren,
         ],
       },
     ],
@@ -347,6 +492,10 @@ export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promis
   return Packer.toBlob(doc);
 }
 
+/** `Jordan_Avery_Application_Enpal.docx` - one file, both documents. */
+export function combinedFilename(document: ResumeDocument, company: string): string {
+  return [safe(document.name), 'Application', safe(company)].filter(Boolean).join('_') + '.docx';
+}
 
 /** Companion to `resumeFilename`, so the pair sit together in the folder. */
 export function coverLetterFilename(document: ResumeDocument, company: string): string {

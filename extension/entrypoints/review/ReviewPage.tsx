@@ -231,11 +231,22 @@ export function ReviewPage() {
           </div>
         )}
 
-        {document.skills && (
+        {document.skills.length > 0 && (
           <div className="review-section">
             <p className="review-heading">Skills</p>
-            <p>{document.skills}</p>
+            {document.skills.map((group, index) => (
+              <p key={group.label ?? index}>
+                {group.label && <strong>{group.label}: </strong>}
+                {group.items.join(', ')}
+              </p>
+            ))}
           </div>
+        )}
+
+        {document.omitted.length > 0 && (
+          <p className="hint mt-2">
+            Left off to keep this to a page: {document.omitted.join(', ')}.
+          </p>
         )}
       </section>
 

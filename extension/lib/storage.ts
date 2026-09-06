@@ -59,6 +59,7 @@ export function applyProfileDefaults(stored: StoredProfile): Profile {
     })),
     projects: (stored.projects ?? EMPTY_PROFILE.projects).map(withBullets) as Profile['projects'],
     headline: stored.headline ?? EMPTY_PROFILE.headline,
+    summary: stored.summary ?? EMPTY_PROFILE.summary,
     // Seeded from the project tech stacks only for a profile that predates the
     // skills field — `[]` is a deliberate empty list and is left alone, so a
     // skill the user removed does not reappear on the next load.
