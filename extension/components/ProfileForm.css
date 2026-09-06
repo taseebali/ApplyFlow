@@ -1,3 +1,7 @@
+/* The side panel's own column. The review page is full width and sets its
+   own — everything below this is shared form styling, which the review page
+   needs too: it imports this file but has no .panel ancestor, so its hints,
+   errors and status rows rendered completely unstyled. */
 .panel {
   max-width: 760px;
   margin: 0 auto;
@@ -13,7 +17,7 @@
   margin-bottom: 24px;
 }
 
-.panel section {
+:is(.panel, .review) section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -21,7 +25,7 @@
   margin-bottom: 16px;
 }
 
-.panel section h2 {
+:is(.panel, .review) section h2 {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -30,19 +34,19 @@
   margin-bottom: 14px;
 }
 
-.panel .hint {
+:is(.panel, .review) .hint {
   color: var(--text-muted);
   font-size: 12.5px;
   margin: -6px 0 14px;
 }
 
-.panel .grid {
+:is(.panel, .review) .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 12px;
 }
 
-.panel .field {
+:is(.panel, .review) .field {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -50,12 +54,12 @@
   text-align: left;
 }
 
-.panel .field > span {
+:is(.panel, .review) .field > span {
   color: var(--text-muted);
   font-weight: 500;
 }
 
-.panel .field > span {
+:is(.panel, .review) .field > span {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -63,7 +67,7 @@
 
 /* Reuses the warning tokens rather than introducing a colour of its own, so
    the tag reads the same as the incomplete-profile warning on the Fill card. */
-.panel .required-tag {
+:is(.panel, .review) .required-tag {
   background: var(--warning-bg);
   color: var(--warning-text);
   border-radius: 4px;
@@ -74,15 +78,15 @@
   letter-spacing: 0.04em;
 }
 
-.panel .field.checkbox {
+:is(.panel, .review) .field.checkbox {
   flex-direction: row;
   align-items: center;
   gap: 8px;
 }
 
-.panel .field input,
-.panel .field select,
-.panel .field textarea {
+:is(.panel, .review) .field input,
+:is(.panel, .review) .field select,
+:is(.panel, .review) .field textarea {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
@@ -92,18 +96,18 @@
   font-size: 13px;
 }
 
-.panel .field input:focus,
-.panel .field select:focus,
-.panel .field textarea:focus {
+:is(.panel, .review) .field input:focus,
+:is(.panel, .review) .field select:focus,
+:is(.panel, .review) .field textarea:focus {
   border-color: var(--text-muted);
 }
 
-.panel .field textarea {
+:is(.panel, .review) .field textarea {
   resize: vertical;
   min-height: 64px;
 }
 
-.panel .entry {
+:is(.panel, .review) .entry {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -111,19 +115,19 @@
   padding: 14px;
 }
 
-.panel .entry:last-of-type {
+:is(.panel, .review) .entry:last-of-type {
   margin-bottom: 4px;
 }
 
-.panel .entry .field {
+:is(.panel, .review) .entry .field {
   margin-top: 10px;
 }
 
-.panel .remove {
+:is(.panel, .review) .remove {
   margin-top: 12px;
 }
 
-.panel .error {
+:is(.panel, .review) .error {
   background: var(--danger-bg);
   color: var(--danger-text);
   border-radius: 6px;
@@ -132,25 +136,25 @@
   margin-bottom: 14px;
 }
 
-.panel .database-options {
+:is(.panel, .review) .database-options {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 10px;
 }
 
-.panel .database-option {
+:is(.panel, .review) .database-option {
   width: 100%;
   text-align: left;
 }
 
-.panel .database-option-selected {
+:is(.panel, .review) .database-option-selected {
   background: var(--accent);
   color: var(--accent-text);
   border-color: var(--accent);
 }
 
-.panel .setup-steps {
+:is(.panel, .review) .setup-steps {
   margin: 0 0 14px;
   padding-left: 18px;
   font-size: 12.5px;
@@ -158,15 +162,15 @@
   line-height: 1.6;
 }
 
-.panel .setup-steps li {
+:is(.panel, .review) .setup-steps li {
   margin-bottom: 5px;
 }
 
-.panel .status-row {
+:is(.panel, .review) .status-row {
   margin: 0;
 }
 
-.panel .import-review {
+:is(.panel, .review) .import-review {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -174,17 +178,17 @@
   margin-top: 12px;
 }
 
-.panel .import-row {
+:is(.panel, .review) .import-row {
   margin-bottom: 8px;
   font-size: 12.5px;
 }
 
-.panel .import-actions {
+:is(.panel, .review) .import-actions {
   display: flex;
   gap: 8px;
   margin-top: 14px;
 }
 
-.panel .import-actions .btn {
+:is(.panel, .review) .import-actions .btn {
   flex: 1;
 }

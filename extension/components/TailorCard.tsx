@@ -14,6 +14,7 @@ import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder }
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getActiveTabId } from './DailyView';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
+import type { LetterLanguage } from '@/lib/letter-language';
 import { getProfile } from '@/lib/storage';
 
 type Status =
@@ -65,7 +66,8 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   const setPosting = (patch: { company?: string; role?: string }) =>
     setStatus((current) => (current.kind === 'ready' ? { ...current, ...patch } : current));
 
-  const write = async () => {
+  /** `language` overrides detection, which is a coin flip on a bilingual posting. */
+  const write = async (language?: LetterLanguage) => {
     if (status.kind !== 'ready') return;
     setWritingLetter(true);
     try {
@@ -75,6 +77,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
           company: status.company,
           role: status.role,
           resumeBullets: status.result.selected,
+          language,
         })
       );
     } catch (err) {
@@ -246,15 +249,24 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
           {letter && (
             <div className="tailor-letter">
               <p className="tailor-heading">Cover letter</p>
-              {letter.faults.length > 0 && (
-                <p className="status-row">
-                  {letter.faults.map((fault) => (
-                    <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
-                      {fault.kind.replace(/-/g, ' ')}
-                    </span>
-                  ))}
-                </p>
-              )}
+              <p className="status-row">
+                <span className="pill pill-neutral">{letter.language === 'de' ? 'German' : 'English'}</span>
+                {letter.faults.map((fault) => (
+                  <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
+                    {fault.kind.replace(/-/g, ' ')}
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  className="btn-plain"
+                  disabled={writingLetter}
+                  onClick={() => void write(letter.language === 'de' ? 'en' : 'de')}
+                >
+                  {writingLetter
+                    ? 'Rewriting…'
+                    : `Rewrite in ${letter.language === 'de' ? 'English' : 'German'}`}
+                </button>
+              </p>
               <textarea
                 className="tailor-letter-text"
                 value={letter.text}
@@ -283,7 +295,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
               Review in a tab
             </button>
             {!letter && (
-              <button type="button" className="btn" disabled={writingLetter} onClick={write}>
+              <button type="button" className="btn" disabled={writingLetter} onClick={() => void write()}>
                 {writingLetter ? 'Writing…' : 'Write a cover letter'}
               </button>
             )}
