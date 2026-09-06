@@ -4,7 +4,7 @@ import { TailorCard } from '@/components/TailorCard';
 import { DraftAnswersCard } from '@/components/DraftAnswersSection';
 import { LogToNotionSection } from '@/components/NotionSection';
 import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
-import { FieldMirror, Tally, useFormPlan } from '@/components/FieldMirror';
+import { FieldMirror, Tally, type FormPlanState } from '@/components/FieldMirror';
 import { DiffSheet } from '@/components/DiffSheet';
 import { usePrimaryAction } from '@/components/PrimaryAction';
 import { writable } from '@/lib/field-plan';
@@ -22,8 +22,18 @@ import type { OpenSetup } from '@/components/panel-types';
  * Each section owns its own logic in its own file. This was one 1088-line
  * module holding four unrelated ones.
  */
-export function DailyView({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
-  const { plan, loading, refresh } = useFormPlan();
+export function DailyView({
+  posting,
+  onOpenSetup,
+  formPlan,
+}: {
+  posting: Posting;
+  onOpenSetup: OpenSetup;
+  /** Owned by the shell, because the command palette reads it too. Planning
+   *  twice would mean two passes over the page for one screen. */
+  formPlan: FormPlanState;
+}) {
+  const { plan, loading, refresh } = formPlan;
   const [reviewing, setReviewing] = useState(false);
   const [writing, setWriting] = useState(false);
   const readiness = useReadiness();

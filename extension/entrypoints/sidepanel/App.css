@@ -967,3 +967,132 @@ body {
   opacity: 0.7;
   font-size: var(--text-xs);
 }
+
+/* ================= command palette ================= */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  padding: 44px var(--space-3) var(--space-3);
+}
+
+.palette {
+  width: 100%;
+  max-width: 380px;
+  align-self: flex-start;
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.22);
+  overflow: hidden;
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.palette-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--text-md);
+  outline: none;
+}
+
+.palette-input input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.palette-list {
+  overflow-y: auto;
+  padding-bottom: var(--space-1);
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: 8px var(--space-3);
+  background: none;
+  border: 0;
+  color: inherit;
+}
+
+/* Selection follows the keyboard, so it is a background rather than a hover. */
+.palette-row[aria-selected='true'] {
+  background: var(--muted);
+}
+
+.palette-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.palette-label {
+  flex: 1;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-empty {
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+}
+
+.palette-foot {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  margin: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+/* ---- the command bar that opens it ---- */
+.panel .cmd-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: var(--muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  color: var(--muted-foreground);
+  transition: border-color 0.16s;
+}
+
+.panel .cmd-bar:hover {
+  border-color: var(--border);
+}
+
+.panel .cmd-bar span {
+  flex: 1;
+  text-align: left;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

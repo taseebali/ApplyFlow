@@ -5,6 +5,12 @@ import { SetupView } from '@/components/SetupView';
 import { JobContextBar, usePosting } from '@/components/JobContext';
 import { PrimaryActionBar, PrimaryActionProvider } from '@/components/PrimaryAction';
 import { useStoredTheme } from '@/components/ThemeControl';
+import { CommandPalette, useCommandKey } from '@/components/CommandPalette';
+import { MagnifyingGlassIcon } from '@phosphor-icons/react';
+import { fieldCommands, type Command } from '@/lib/commands';
+import { useFormPlan } from '@/components/FieldMirror';
+import type { JumpToFieldMessage } from '@/entrypoints/content';
+import type { PlannedField } from '@/lib/field-plan';
 import { GearIcon } from '@/components/icons';
 import { getSettings } from '@/lib/settings';
 import type { GroupId } from '@/lib/setup-groups';
@@ -30,6 +36,36 @@ function App() {
   const [posting, setPosting] = usePosting(tabId);
   useStoredTheme();
 
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useCommandKey(() => setPaletteOpen(true));
+  const formPlan = useFormPlan();
+  const { plan } = formPlan;
+
+  const jump = (field: PlannedField) => {
+    void getActiveTabId()
+      .then((id) =>
+        browser.tabs.sendMessage(id, { type: 'jump-to-field', fieldId: field.id } satisfies JumpToFieldMessage)
+      )
+      .catch(() => undefined);
+  };
+
+  /**
+   * Settings live here rather than behind a menu tree, so reaching Appearance
+   * is typing "theme" instead of knowing which group it is filed under.
+   */
+  const commands: Command[] = [
+    { id: 'setup', label: 'Open settings', group: 'Settings', keys: '⌘,', run: () => openSetup() },
+    { id: 'theme', label: 'Appearance and theme', group: 'Settings', aliases: ['dark mode', 'light'],
+      run: () => openSetup('appearance', 'appearance') },
+    { id: 'profile', label: 'Edit your profile', group: 'Settings', aliases: ['contact', 'work history'],
+      run: () => openSetup('profile', 'contact') },
+    { id: 'ai', label: 'AI provider and model', group: 'Settings', aliases: ['openrouter', 'key'],
+      run: () => openSetup('ai', 'ai') },
+    { id: 'documents', label: 'Documents folder and tailoring bank', group: 'Settings',
+      aliases: ['resume', 'bank'], run: () => openSetup('documents', 'documents') },
+    ...(plan ? fieldCommands(plan.fields, jump) : []),
+  ];
+
   useEffect(() => {
     // First run opens the guided wizard instead of the daily view. This keys off an
     // explicit flag rather than whether the profile has content: every wizard step is
@@ -54,9 +90,21 @@ function App() {
         <div className="app-header-top">
           <h1 className="wordmark">ApplyFlow</h1>
           {isDaily && (
-            <button type="button" className="icon-btn" onClick={() => openSetup()} aria-label="Settings">
-              <GearIcon />
-            </button>
+            <>
+              <button
+                type="button"
+                className="cmd-bar"
+                onClick={() => setPaletteOpen(true)}
+                aria-label="Search fields, run a command"
+              >
+                <MagnifyingGlassIcon size={15} weight="light" aria-hidden="true" />
+                <span>Search or run a command</span>
+                <kbd>⌘K</kbd>
+              </button>
+              <button type="button" className="icon-btn" onClick={() => openSetup()} aria-label="Settings">
+                <GearIcon />
+              </button>
+            </>
           )}
         </div>
         {isDaily && <JobContextBar posting={posting} onChange={setPosting} />}
@@ -65,7 +113,7 @@ function App() {
       <PrimaryActionProvider>
         <main className="panel-body">
           {isDaily ? (
-            <DailyView posting={posting} onOpenSetup={openSetup} />
+            <DailyView posting={posting} onOpenSetup={openSetup} formPlan={formPlan} />
           ) : (
             <SetupView
               mode={view.mode}
@@ -77,6 +125,8 @@ function App() {
         </main>
         {isDaily && <PrimaryActionBar />}
       </PrimaryActionProvider>
+
+      <CommandPalette commands={commands} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

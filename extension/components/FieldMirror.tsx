@@ -32,7 +32,13 @@ const DOT: Record<FieldStatus, string> = {
   skip: 'off',
 };
 
-export function useFormPlan(): { plan: FormPlan | null; loading: boolean; refresh: () => void } {
+export interface FormPlanState {
+  plan: FormPlan | null;
+  loading: boolean;
+  refresh: () => void;
+}
+
+export function useFormPlan(): FormPlanState {
   const [plan, setPlan] = useState<FormPlan | null>(null);
   const [loading, setLoading] = useState(true);
 
