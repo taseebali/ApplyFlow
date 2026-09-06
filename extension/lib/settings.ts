@@ -51,9 +51,18 @@ export interface Settings {
     skipped: boolean;
   };
   llm: LlmSettings;
+  /**
+   * Light, dark, or follow the operating system.
+   *
+   * Stored rather than inferred: following the OS silently is a default, not a
+   * choice, and the panel had no way to say otherwise.
+   */
+  theme: Theme;
   /** True once the user has been through setup at least once (even if every step was skipped). */
   setupCompleted: boolean;
 }
+
+export type Theme = 'light' | 'dark' | 'system';
 
 export const EMPTY_SETTINGS: Settings = {
   notion: { token: '', databaseId: '', skipped: false },
@@ -72,6 +81,7 @@ export const EMPTY_SETTINGS: Settings = {
     // settings UI states plainly at the point of choosing.
     modelPolicy: { kind: 'free-pool', minContext: 32_000 },
   },
+  theme: 'system',
   setupCompleted: false,
 };
 
@@ -116,6 +126,7 @@ export function applySettingsDefaults(stored: StoredSettings): Settings {
   return {
     notion: { ...EMPTY_SETTINGS.notion, ...stored.notion },
     llm: migrateLlm(stored.llm ?? {}),
+    theme: stored.theme ?? EMPTY_SETTINGS.theme,
     setupCompleted: stored.setupCompleted ?? EMPTY_SETTINGS.setupCompleted,
   };
 }

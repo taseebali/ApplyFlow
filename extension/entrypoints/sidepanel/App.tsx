@@ -4,6 +4,7 @@ import { getActiveTabId } from '@/lib/active-tab';
 import { SetupView } from '@/components/SetupView';
 import { JobContextBar, usePosting } from '@/components/JobContext';
 import { PrimaryActionBar, PrimaryActionProvider } from '@/components/PrimaryAction';
+import { useStoredTheme } from '@/components/ThemeControl';
 import { GearIcon } from '@/components/icons';
 import { getSettings } from '@/lib/settings';
 import type { GroupId } from '@/lib/setup-groups';
@@ -27,6 +28,7 @@ function App() {
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [tabId, setTabId] = useState<number | null>(null);
   const [posting, setPosting] = usePosting(tabId);
+  useStoredTheme();
 
   useEffect(() => {
     // First run opens the guided wizard instead of the daily view. This keys off an

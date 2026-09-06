@@ -17,6 +17,7 @@ import {
 } from './HistorySections';
 import { ResumeImportSection } from './ResumeImportSection';
 import { BankSection } from './BankSection';
+import { ThemeControl } from './ThemeControl';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
@@ -103,7 +104,11 @@ export function SetupView({
   // can clobber the other. Reaching a Save here means setup has been seen, so
   // the first-run wizard does not reappear even if every step was skipped.
   const persist = async () => {
-    await Promise.all([save(), setSettings({ notion, llm, setupCompleted: true })]);
+    // Merged onto what is stored rather than replacing it. This form does not
+    // own every setting - the theme is set elsewhere - and a wholesale write
+    // silently drops whatever it does not know about.
+    const current = await getSettings();
+    await Promise.all([save(), setSettings({ ...current, notion, llm, setupCompleted: true })]);
   };
 
   if (!loaded || !settingsLoaded) return <div className="loading-state">Loading your profile…</div>;
@@ -255,6 +260,21 @@ export function SetupView({
       title: 'Earlier versions',
       blurb: 'Copies kept automatically before an import replaced anything, so a bad import is not final.',
       render: () => <ProfileHistorySection />,
+    },
+    {
+      id: 'appearance',
+      title: 'Appearance',
+      blurb: 'The panel follows your system theme unless you tell it otherwise.',
+      render: () => (
+        <section>
+          <h2>Theme</h2>
+          <ThemeControl />
+          <p className="hint mt-3">
+            A browser panel sits beside pages that do not follow your system theme, so following it is a default
+            rather than the only option.
+          </p>
+        </section>
+      ),
     },
     {
       id: 'notion',

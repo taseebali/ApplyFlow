@@ -12,6 +12,7 @@ import {
 } from '@/lib/resume-document';
 import { assembleResume } from '@/lib/resume-document';
 import { getProfile } from '@/lib/storage';
+import { useStoredTheme } from '@/components/ThemeControl';
 import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { Profile } from '@/lib/schema';
@@ -33,6 +34,7 @@ export function ReviewPage() {
   const [kept, setKept] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useStoredTheme();
 
   useEffect(() => {
     void takeReview().then((data) => {

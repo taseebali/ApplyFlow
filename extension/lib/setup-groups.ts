@@ -10,7 +10,7 @@
  * things a form asks, even though one is a profile field and the other is not.
  */
 
-export type GroupId = 'profile' | 'answers' | 'documents' | 'ai' | 'history';
+export type GroupId = 'profile' | 'answers' | 'documents' | 'ai' | 'history' | 'appearance';
 
 export interface SetupGroup {
   id: GroupId;
@@ -44,6 +44,12 @@ export const SETUP_GROUPS: SetupGroup[] = [
     title: 'AI',
     blurb: 'Provider, key, model and fallbacks',
     steps: ['ai'],
+  },
+  {
+    id: 'appearance',
+    title: 'Appearance',
+    blurb: 'How the panel looks',
+    steps: ['appearance'],
   },
   {
     id: 'history',
