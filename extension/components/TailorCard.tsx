@@ -12,10 +12,10 @@ import {
 } from '@/lib/resume-document';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
-import { getActiveTabId } from './DailyView';
+import { getActiveTabId } from '@/lib/active-tab';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
 import type { Posting } from '@/components/JobContext';
-import type { OpenSetup } from '@/components/DailyView';
+import type { OpenSetup } from '@/components/panel-types';
 import type { LetterLanguage } from '@/lib/letter-language';
 import { getProfile } from '@/lib/storage';
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { atsFromUrl } from '@/lib/company-scraper';
 import { getTabState, patchTabState } from '@/lib/tab-state';
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
-import { getActiveTabId } from './DailyView';
+import { getActiveTabId } from '@/lib/active-tab';
 
 /**
  * Which posting the panel is working on, pinned above everything else.

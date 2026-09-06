@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { DailyView, getActiveTabId } from '@/components/DailyView';
+import { DailyView } from '@/components/DailyView';
+import { getActiveTabId } from '@/lib/active-tab';
 import { SetupView } from '@/components/SetupView';
 import { JobContextBar, usePosting } from '@/components/JobContext';
 import { PrimaryActionBar, PrimaryActionProvider } from '@/components/PrimaryAction';
