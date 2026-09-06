@@ -364,6 +364,51 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
   );
 }
 
+/**
+ * The two things a resume needs that no other part of the profile holds.
+ *
+ * Skills were derived from project tech stacks until a real resume came out
+ * with forty terms on it, half of them from projects that had been cut. They
+ * are the user's list now, in the user's order — a comma-separated field
+ * because that is how people already keep them, and because reordering text is
+ * easier than dragging chips.
+ */
+export function SkillsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+  return (
+    <section>
+      <h2>Skills and headline</h2>
+      <TextField
+        label="Headline"
+        value={profile.headline}
+        onChange={(v) => onChange({ ...profile, headline: v })}
+      />
+      <p className="hint">One line under your name on a tailored resume — "AI Engineer · Berlin". Optional.</p>
+
+      <label className="field">
+        <span>Skills</span>
+        <textarea
+          rows={4}
+          value={profile.skills.join(', ')}
+          placeholder="Python, FastAPI, Docker, PyTorch"
+          onChange={(e) =>
+            onChange({
+              ...profile,
+              skills: e.target.value
+                .split(/[,;\n]/)
+                .map((skill) => skill.trim())
+                .filter(Boolean),
+            })
+          }
+        />
+      </label>
+      <p className="hint">
+        Separated by commas. Order matters — a skills line is read left to right and often cut short, so put what
+        you want seen first. Tailoring moves the ones a posting asks for to the front automatically.
+      </p>
+    </section>
+  );
+}
+
 export function WorkAuthSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
   const wa = profile.workAuthorization;
   const update = (key: keyof Profile['workAuthorization'], value: string | boolean | null) =>

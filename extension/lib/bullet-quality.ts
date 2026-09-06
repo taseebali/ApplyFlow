@@ -29,7 +29,7 @@ const PENALTY: Record<FaultKind, number> = {
   'weak-opener': 10,
   'no-metric': 8,
   cliche: 6,
-  'too-long': 4,
+  'too-long': 9,
   passive: 3,
 };
 
@@ -73,7 +73,12 @@ const CLICHES = [
 ];
 
 /** Beyond roughly two printed lines a bullet stops being skimmable. */
-const MAX_LENGTH = 200;
+/**
+ * Two lines at resume width. A real generated bullet ran to 232 characters and
+ * passed the old 200-character gate — three lines of subordinate clauses that
+ * nobody skimming a resume reads to the end of.
+ */
+const MAX_LENGTH = 160;
 
 /**
  * The first word, which is what a reader's eye lands on and what collides

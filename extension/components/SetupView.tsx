@@ -13,6 +13,7 @@ import {
   NotionSettingsSection,
   LanguagesSection,
   ProjectsSection,
+  SkillsSection,
   WorkAuthSection,
   WorkHistorySection,
 } from './ProfileForm';
@@ -115,6 +116,12 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       title: 'Your projects',
       blurb: 'Details here are what the AI draws on when drafting answers. The more specific, the better the drafts.',
       render: () => <ProjectsSection profile={profile} onChange={setProfile} />,
+    },
+    {
+      id: 'skills',
+      title: 'Skills and headline',
+      blurb: 'The skills line on your resume, in the order you want it read.',
+      render: () => <SkillsSection profile={profile} onChange={setProfile} />,
     },
     {
       id: 'bank',

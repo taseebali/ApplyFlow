@@ -1,4 +1,4 @@
-import type { BulletVariant } from './bullet-bank';
+import { contentTerms, type BulletVariant } from './bullet-bank';
 import type { BulletEntry, Profile } from './schema';
 
 /**
@@ -30,6 +30,8 @@ export interface ResumeSection {
 
 export interface ResumeDocument {
   name: string;
+  /** "AI Engineer · Berlin", when the profile has one. */
+  headline: string;
   contactLine: string;
   linksLine: string;
   experience: ResumeSection[];
@@ -52,7 +54,11 @@ export interface ResumeDocument {
  * bank is an optimisation; the profile is the truth. Untailored wording is a
  * small problem, a missing job is a serious one.
  */
-export function assembleResume(profile: Profile, selected: BulletVariant[]): ResumeDocument {
+export function assembleResume(
+  profile: Profile,
+  selected: BulletVariant[],
+  jobDescription = ''
+): ResumeDocument {
   const bySource = new Map<string, BulletVariant[]>();
   for (const variant of selected) {
     const list = bySource.get(variant.sourceId) ?? [];
@@ -85,7 +91,7 @@ export function assembleResume(profile: Profile, selected: BulletVariant[]): Res
 
   const education = profile.education.map((e) =>
     [
-      [e.degree, e.fieldOfStudy].filter(Boolean).join(' in '),
+      degreeLine(e.degree, e.fieldOfStudy),
       e.school,
       [e.startDate, e.current ? `${e.endDate} expected` : e.endDate].filter(Boolean).join(' – '),
     ]
@@ -97,6 +103,7 @@ export function assembleResume(profile: Profile, selected: BulletVariant[]): Res
 
   return {
     name: [c.firstName, c.lastName].filter(Boolean).join(' '),
+    headline: profile.headline.trim(),
     contactLine: [c.email, c.phone, [c.city, c.country].filter(Boolean).join(', ')].filter(Boolean).join('  ·  '),
     linksLine: [profile.links.linkedin, profile.links.github, profile.links.portfolio || profile.links.website]
       .filter(Boolean)
@@ -104,11 +111,41 @@ export function assembleResume(profile: Profile, selected: BulletVariant[]): Res
     experience,
     projects,
     education,
-    // Every technology named across the projects, in the user's own words.
-    skills: [...new Set(profile.projects.flatMap((p) => p.techStack.split(/[,;]/).map((t) => t.trim())))]
-      .filter(Boolean)
-      .join(', '),
+    skills: orderSkills(profile.skills, jobDescription).join(', '),
   };
+}
+
+/**
+ * The skills the posting actually asks for, first.
+ *
+ * A skills line is read left to right and often truncated, so the order is the
+ * only lever available. The user's own order is preserved within each group,
+ * because they know which of their skills they would rather lead with.
+ */
+function orderSkills(skills: string[], jobDescription: string): string[] {
+  const clean = skills.map((skill) => skill.trim()).filter(Boolean);
+  if (!jobDescription.trim()) return clean;
+
+  const asked = new Set(contentTerms(jobDescription));
+  const mentioned = (skill: string) =>
+    contentTerms(skill).some((term) => asked.has(term));
+
+  return [...clean.filter(mentioned), ...clean.filter((skill) => !mentioned(skill))];
+}
+
+/**
+ * "B.Sc." + "Computer Science" reads well; "B.Sc. Computer Science" +
+ * "Computer Science" produced "B.Sc. Computer Science in Computer Science" on
+ * a real resume, because people put the subject in the degree field too.
+ */
+function degreeLine(degree: string, fieldOfStudy: string): string {
+  const trimmedDegree = degree.trim();
+  const field = fieldOfStudy.trim();
+  if (!field) return trimmedDegree;
+  if (!trimmedDegree) return field;
+  return trimmedDegree.toLowerCase().includes(field.toLowerCase())
+    ? trimmedDegree
+    : `${trimmedDegree} in ${field}`;
 }
 
 /** A filename that sorts sensibly in a folder and says what it is. */
@@ -155,6 +192,14 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: resume.name, bold: true, size: 32 })],
     }),
+    ...(resume.headline
+      ? [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: resume.headline, size: 22 })],
+          }),
+        ]
+      : []),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: resume.contactLine, size: 20 })],

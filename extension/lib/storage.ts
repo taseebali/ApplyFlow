@@ -21,6 +21,19 @@ function withBullets<T extends { bullets?: BulletEntry[] }>(entry: MaybeLegacy<T
 }
 
 /**
+ * What a profile saved before the skills field existed can offer: the
+ * technologies already named on its projects. Better than an empty skills
+ * section, and it costs the user nothing to arrive at.
+ */
+function seedSkills(projects: Array<{ techStack?: string }>): string[] {
+  return [
+    ...new Set(
+      projects.flatMap((project) => (project.techStack ?? '').split(/[,;]/).map((term) => term.trim()))
+    ),
+  ].filter(Boolean);
+}
+
+/**
  * A profile as it may exist on disk: roles and projects saved before tailoring
  * existed still carry `description` and no `bullets`. Naming that here keeps
  * the migration honest rather than casting it away at the call site.
@@ -45,6 +58,11 @@ export function applyProfileDefaults(stored: StoredProfile): Profile {
       current: entry.current ?? false,
     })),
     projects: (stored.projects ?? EMPTY_PROFILE.projects).map(withBullets) as Profile['projects'],
+    headline: stored.headline ?? EMPTY_PROFILE.headline,
+    // Seeded from the project tech stacks only for a profile that predates the
+    // skills field — `[]` is a deliberate empty list and is left alone, so a
+    // skill the user removed does not reappear on the next load.
+    skills: stored.skills ?? seedSkills(stored.projects ?? []),
     languages: stored.languages ?? EMPTY_PROFILE.languages,
     workAuthorization: { ...EMPTY_PROFILE.workAuthorization, ...stored.workAuthorization },
     logistics: { ...EMPTY_PROFILE.logistics, ...stored.logistics },

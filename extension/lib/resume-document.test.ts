@@ -89,13 +89,58 @@ describe('assembleResume', () => {
     expect(resume.linksLine).toContain('github.com/x');
   });
 
-  it('collects technologies across every project, deduplicated', () => {
-    const resume = assembleResume(profile, []);
-    expect(resume.skills).toBe('TypeScript, React, Rust');
+  it('uses the skills the user listed, not every technology on every project', () => {
+    // Deriving from project tech stacks put 40 terms on a real resume,
+    // including projects that had been cut from it.
+    const withSkills = { ...profile, skills: ['Python', 'FastAPI', 'Docker'] };
+    expect(assembleResume(withSkills, []).skills).toBe('Python, FastAPI, Docker');
+  });
+
+  it('leads with the skills the posting asks for', () => {
+    const withSkills = { ...profile, skills: ['Rust', 'Python', 'Docker'] };
+    const resume = assembleResume(withSkills, [], 'We need strong Python and Docker experience.');
+    expect(resume.skills).toBe('Python, Docker, Rust');
+  });
+
+  it('keeps the user’s own skill order when there is no posting', () => {
+    const withSkills = { ...profile, skills: ['Rust', 'Python'] };
+    expect(assembleResume(withSkills, []).skills).toBe('Rust, Python');
+  });
+
+  it('carries a headline when the profile has one', () => {
+    expect(assembleResume({ ...profile, headline: 'AI Engineer' }, []).headline).toBe('AI Engineer');
   });
 
   it('shows an expected graduation date for a course still running', () => {
     expect(assembleResume(profile, []).education[0]).toContain('2027 expected');
+  });
+
+  it('joins a degree and its field of study', () => {
+    expect(assembleResume(profile, []).education[0]).toContain('BSc in CS');
+  });
+
+  it('does not repeat a field of study the degree already names', () => {
+    // "B.Sc. Computer Science in Computer Science" shipped on a real resume.
+    const dup: Profile = {
+      ...profile,
+      education: [
+        {
+          ...profile.education[0]!,
+          degree: 'B.Sc. Computer Science',
+          fieldOfStudy: 'Computer Science',
+        },
+      ],
+    };
+    expect(assembleResume(dup, []).education[0]).toContain('B.Sc. Computer Science, Hochschule Berlin');
+    expect(assembleResume(dup, []).education[0]).not.toContain('in Computer Science');
+  });
+
+  it('handles a degree with no field of study', () => {
+    const noField: Profile = {
+      ...profile,
+      education: [{ ...profile.education[0]!, degree: 'BSc', fieldOfStudy: '' }],
+    };
+    expect(assembleResume(noField, []).education[0]).toContain('BSc, Hochschule Berlin');
   });
 
   it('produces an empty document rather than throwing for an empty profile', () => {

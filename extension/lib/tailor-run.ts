@@ -76,7 +76,7 @@ export async function tailorResume(input: {
   // Variety and per-role limits are not matters of judgement, so they are
   // applied after the model and override it.
   const { selected } = enforceConstraints(ordered, { maxPerSource });
-  const document = assembleResume(profile, selected);
+  const document = assembleResume(profile, selected, jobDescription);
 
   const profileText = [
     ...profile.workHistory.map((w) => bulletsToText(w.bullets)),

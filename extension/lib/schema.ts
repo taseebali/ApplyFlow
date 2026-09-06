@@ -103,9 +103,23 @@ export interface Profile {
     portfolio: string;
     website: string;
   };
+  /**
+   * One line under the name on a resume — "AI Engineer · Berlin". Optional,
+   * and the user's own words: a headline is positioning, not a fact to derive.
+   */
+  headline: string;
   workHistory: WorkHistoryEntry[];
   education: EducationEntry[];
   projects: ProjectEntry[];
+  /**
+   * The skills line, ordered by the user.
+   *
+   * Held explicitly rather than derived from project tech stacks, which was the
+   * old behaviour: deriving dumped every technology from every project onto the
+   * resume, including projects that were cut from it, and lost everything from
+   * the work history entirely.
+   */
+  skills: string[];
   languages: LanguageEntry[];
   workAuthorization: {
     /** A yes/no answer, for forms that ask "are you authorised to work here?". */
@@ -152,9 +166,11 @@ export const EMPTY_PROFILE: Profile = {
     portfolio: '',
     website: '',
   },
+  headline: '',
   workHistory: [],
   education: [],
   projects: [],
+  skills: [],
   languages: [],
   workAuthorization: {
     authorizedToWorkInCountry: null,
