@@ -379,13 +379,15 @@ export default defineContentScript({
 
       if (message?.type === 'jump-to-field') {
         const element = plannedElements.get(message.fieldId);
-        if (element) {
-          element.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          // Focus after the scroll starts: focusing first makes the browser
-          // jump instantly and the smooth scroll never happens.
-          setTimeout(() => element.focus({ preventScroll: true }), 120);
-        }
-        sendResponse({ found: Boolean(element) } satisfies JumpToFieldResponse);
+        // Same reasoning as insert-answer: a frame that does not hold the
+        // field says nothing rather than answering for it.
+        if (!element) return undefined;
+
+        element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Focus after the scroll starts: focusing first makes the browser jump
+        // instantly and the smooth scroll never happens.
+        setTimeout(() => element.focus({ preventScroll: true }), 120);
+        sendResponse({ found: true } satisfies JumpToFieldResponse);
         return true;
       }
 
@@ -441,11 +443,18 @@ export default defineContentScript({
 
       if (message?.type === 'insert-answer') {
         const element = detectedQuestions.get(message.id);
-        if (element) {
-          setNativeFieldValue(element, message.text);
-        }
-        const response: InsertAnswerResponse = { inserted: Boolean(element) };
-        sendResponse(response);
+        // Silence, not a denial, when this frame does not own the field.
+        //
+        // The script runs in every frame, and a message sent to the tab without
+        // a frameId reaches all of them and resolves with whichever answers
+        // first. A frame with an empty map answered `false` before the frame
+        // holding the question answered `true`, so the panel reported failure
+        // for an insert that had in fact just happened. Only the owner replies
+        // now; if nobody owns it, the send rejects, which is the truth.
+        if (!element) return undefined;
+
+        setNativeFieldValue(element, message.text);
+        sendResponse({ inserted: true } satisfies InsertAnswerResponse);
         return true;
       }
 

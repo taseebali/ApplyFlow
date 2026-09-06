@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowSquareOutIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
-import { byGroup, tally, type FieldStatus, type FormPlan, type PlannedField } from '@/lib/field-plan';
-import { getActiveTabId } from '@/lib/active-tab';
+import { byGroup, tally, withFrame, type FieldStatus, type FormPlan, type PlannedField } from '@/lib/field-plan';
+import { getActiveTabId, listFillableFrames } from '@/lib/active-tab';
 import type { PlanFormMessage } from '@/entrypoints/content';
 
 /**
@@ -46,8 +46,7 @@ export function useFormPlan(): FormPlanState {
     setLoading(true);
     void (async () => {
       try {
-        const tabId = await getActiveTabId();
-        setPlan(await browser.tabs.sendMessage(tabId, { type: 'plan-form' } satisfies PlanFormMessage));
+        setPlan(await planAcrossFrames(await getActiveTabId()));
       } catch {
         // No content script here: a new tab, a PDF, the store. Not an error,
         // just nothing to mirror.
@@ -61,6 +60,45 @@ export function useFormPlan(): FormPlanState {
   useEffect(refresh, []);
 
   return { plan, loading, refresh };
+}
+
+/**
+ * Every frame's plan, merged.
+ *
+ * An untargeted message reaches all frames and keeps whichever answers first,
+ * so an application inside an iframe had its plan answered by the top frame -
+ * which has no form. That is why the panel could say "no application form
+ * here" while looking straight at one. Each frame is asked by id, and each
+ * field carries the frame it came from so a click can reach it.
+ */
+async function planAcrossFrames(tabId: number): Promise<FormPlan | null> {
+  const frames = await listFillableFrames(tabId);
+  const targets: Array<number | null> = frames.length > 0 ? frames.map((f) => f.frameId) : [null];
+
+  const plans = await Promise.all(
+    targets.map(async (frameId) => {
+      try {
+        const plan: FormPlan = await browser.tabs.sendMessage(
+          tabId,
+          { type: 'plan-form' } satisfies PlanFormMessage,
+          frameId === null ? {} : { frameId }
+        );
+        return { frameId, plan };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const found = plans.filter((entry): entry is { frameId: number | null; plan: FormPlan } => entry !== null);
+  if (found.length === 0) return null;
+
+  return {
+    hostname: found[0]!.plan.hostname,
+    fields: found.flatMap(({ frameId, plan }) =>
+      plan.fields.map((field) => ({ ...field, id: withFrame(frameId, field.id) }))
+    ),
+  };
 }
 
 export function Tally({ plan }: { plan: FormPlan }) {

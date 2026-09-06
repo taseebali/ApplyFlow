@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { byGroup, shortName, statusFor, tally, writable, type PlannedField } from './field-plan';
+import {
+  byGroup,
+  frameOf,
+  localId,
+  shortName,
+  statusFor,
+  tally,
+  withFrame,
+  writable,
+  type PlannedField,
+} from './field-plan';
 
 const field = (over: Partial<PlannedField>): PlannedField => ({
   id: 'f1',
@@ -106,5 +116,33 @@ describe('shortName', () => {
 
   it('never returns an empty name', () => {
     expect(shortName('???', null)).toBe('field');
+  });
+});
+
+describe('frame-qualified ids', () => {
+  // The content script runs in every frame, and an untargeted message keeps
+  // whichever frame answers first. Carrying the frame in the id is what lets a
+  // click in the panel reach the control it names.
+  it('round-trips a frame id', () => {
+    const id = withFrame(3, '7-email');
+    expect(frameOf(id)).toBe(3);
+    expect(localId(id)).toBe('7-email');
+  });
+
+  it('round-trips the top frame', () => {
+    const id = withFrame(null, '7-email');
+    expect(frameOf(id)).toBeNull();
+    expect(localId(id)).toBe('7-email');
+  });
+
+  it('survives a local id that itself contains separators', () => {
+    const id = withFrame(2, '4-what::is::this');
+    expect(frameOf(id)).toBe(2);
+    expect(localId(id)).toBe('4-what::is::this');
+  });
+
+  it('treats an unqualified id as the top frame', () => {
+    expect(frameOf('7-email')).toBeNull();
+    expect(localId('7-email')).toBe('7-email');
   });
 });

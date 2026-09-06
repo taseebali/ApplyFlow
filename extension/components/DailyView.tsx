@@ -7,7 +7,7 @@ import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
 import { FieldMirror, Tally, type FormPlanState } from '@/components/FieldMirror';
 import { DiffSheet } from '@/components/DiffSheet';
 import { usePrimaryAction } from '@/components/PrimaryAction';
-import { writable } from '@/lib/field-plan';
+import { frameOf, localId, writable } from '@/lib/field-plan';
 import type { FillPageMessage, FillPageResponse } from '@/entrypoints/content';
 import { getActiveTabId } from '@/lib/active-tab';
 import type { JumpToFieldMessage } from '@/entrypoints/content';
@@ -61,10 +61,23 @@ export function DailyView({
     void (async () => {
       try {
         const tabId = await getActiveTabId();
-        await browser.tabs.sendMessage(tabId, {
-          type: 'fill-page',
-          only: fieldIds,
-        } satisfies FillPageMessage);
+        // Grouped by frame: each content script only knows the ids it issued,
+        // and an untargeted send would have every other frame write nothing
+        // and answer first.
+        const byFrame = new Map<number | null, string[]>();
+        for (const id of fieldIds) {
+          const frameId = frameOf(id);
+          byFrame.set(frameId, [...(byFrame.get(frameId) ?? []), localId(id)]);
+        }
+
+        await Promise.all(
+          [...byFrame.entries()].map(([frameId, only]) =>
+            browser.tabs
+              .sendMessage(tabId, { type: 'fill-page', only } satisfies FillPageMessage,
+                frameId === null ? {} : { frameId })
+              .catch(() => undefined)
+          )
+        );
       } finally {
         setWriting(false);
         setReviewing(false);
@@ -78,10 +91,12 @@ export function DailyView({
   const jump = (field: PlannedField) => {
     void (async () => {
       const tabId = await getActiveTabId();
-      await browser.tabs.sendMessage(tabId, {
-        type: 'jump-to-field',
-        fieldId: field.id,
-      } satisfies JumpToFieldMessage);
+      const frameId = frameOf(field.id);
+      await browser.tabs.sendMessage(
+        tabId,
+        { type: 'jump-to-field', fieldId: localId(field.id) } satisfies JumpToFieldMessage,
+        frameId === null ? {} : { frameId }
+      );
     })().catch(() => undefined);
   };
 

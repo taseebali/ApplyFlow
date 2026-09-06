@@ -10,7 +10,7 @@ import { MagnifyingGlassIcon } from '@phosphor-icons/react';
 import { fieldCommands, type Command } from '@/lib/commands';
 import { useFormPlan } from '@/components/FieldMirror';
 import type { JumpToFieldMessage } from '@/entrypoints/content';
-import type { PlannedField } from '@/lib/field-plan';
+import { frameOf, localId, type PlannedField } from '@/lib/field-plan';
 import { GearIcon } from '@/components/icons';
 import { getSettings } from '@/lib/settings';
 import type { GroupId } from '@/lib/setup-groups';
@@ -42,9 +42,14 @@ function App() {
   const { plan } = formPlan;
 
   const jump = (field: PlannedField) => {
+    const frameId = frameOf(field.id);
     void getActiveTabId()
       .then((id) =>
-        browser.tabs.sendMessage(id, { type: 'jump-to-field', fieldId: field.id } satisfies JumpToFieldMessage)
+        browser.tabs.sendMessage(
+          id,
+          { type: 'jump-to-field', fieldId: localId(field.id) } satisfies JumpToFieldMessage,
+          frameId === null ? {} : { frameId }
+        )
       )
       .catch(() => undefined);
   };

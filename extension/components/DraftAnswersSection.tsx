@@ -73,22 +73,19 @@ export function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
       const tabId = await getActiveTabId();
       const message: InsertAnswerMessage = { type: 'insert-answer', id, text };
       const response: InsertAnswerResponse = await browser.tabs.sendMessage(tabId, message);
-      if (response.inserted) {
+      if (response?.inserted) {
         updateDraft(id, { inserted: true });
-      } else {
-        // The content script's element map is empty for this id — most likely
-        // it was re-injected by a page navigation since the draft was made.
-        updateDraft(id, {
-          insertError: "Couldn't find that field on the page any more — press Draft answers again.",
-        });
       }
-    } catch (err) {
-      // `sendMessage` rejects outright when no content script is listening —
-      // a chrome:// page, a PDF viewer, or a tab open before install. The
-      // user's edited text must stay on screen either way.
+    } catch {
+      // Only the frame holding the question answers, so a rejection means no
+      // frame still has it: the page navigated, or the form was re-rendered
+      // since the draft was written. It used to mean something else as well -
+      // a frame that simply did not own the field answering first - and that
+      // is what made this fire after an insert that had worked.
+      //
+      // The user's edited text stays on screen either way.
       updateDraft(id, {
-        insertError:
-          err instanceof Error ? err.message : 'Could not reach this page. Reload the tab, then try again.',
+        insertError: 'That field is no longer on the page. Press Draft answers again to find it.',
       });
     }
   };

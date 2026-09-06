@@ -47,6 +47,33 @@ export interface FormPlan {
   hostname: string;
 }
 
+/**
+ * The frame a field lives in, packed into its id.
+ *
+ * The content script runs in every frame, and a message sent to the tab
+ * without a frameId reaches all of them and keeps whichever answers first. An
+ * application embedded in an iframe therefore had its plan answered by the top
+ * frame, which has no form: the panel reported no fields, and inserting an
+ * answer reported failure while the right frame quietly did the work.
+ */
+export function withFrame(frameId: number | null, id: string): string {
+  return `${frameId ?? 't'}::${id}`;
+}
+
+export function frameOf(id: string): number | null {
+  // An id with no separator predates this scheme, or came from the top frame.
+  // Either way it is the top frame, not NaN.
+  if (!id.includes('::')) return null;
+  const head = id.slice(0, id.indexOf('::'));
+  const frame = Number(head);
+  return head === 't' || Number.isNaN(frame) ? null : frame;
+}
+
+export function localId(id: string): string {
+  const index = id.indexOf('::');
+  return index === -1 ? id : id.slice(index + 2);
+}
+
 export interface Tally {
   total: number;
   ready: number;
