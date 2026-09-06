@@ -24,6 +24,7 @@ import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
 import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings, type Settings } from '@/lib/settings';
 import { missingRequiredFields, REQUIRED_FIELDS } from '@/lib/profile-completeness';
+import { SETUP_GROUPS, type GroupId } from '@/lib/setup-groups';
 import { devApiKey } from '@/lib/dev-prefill';
 
 export interface SetupStep {
@@ -31,13 +32,42 @@ export interface SetupStep {
   title: string;
   blurb: string;
   render: () => React.ReactNode;
+  /** Shown as skippable in the wizard, so a long setup does not look mandatory. */
+  optional?: boolean;
 }
 
-export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: () => void }) {
+/**
+ * The order the wizard asks in.
+ *
+ * Import comes first because it is the step that removes the typing —
+ * everything after it becomes a review of what was found rather than an empty
+ * form. It used to sit third, behind two optional screens, by which point
+ * plenty of people had already started typing their address by hand.
+ *
+ * The documents folder and the Notion tracker are not here at all. Neither is
+ * needed to fill a form, and the readiness line on the daily view raises them
+ * at the moment they actually matter, with a link straight to them.
+ */
+const WIZARD_ORDER = ['import', 'contact', 'experience', 'answers', 'ai', 'bank', 'done'];
+
+export function SetupView({
+  mode,
+  group,
+  step,
+  onDone,
+}: {
+  mode: 'wizard' | 'tabs';
+  /** Which group to open. Omitted means the list of groups. */
+  group?: GroupId;
+  /** Which section inside that group to scroll to. */
+  step?: string;
+  onDone: () => void;
+}) {
   const { profile, setProfile, loaded, saveState, save, exportJson, importFile, importError, clearImportError } =
     useProfileEditor();
-  const [activeTab, setActiveTab] = useState(0);
+  const [openGroup, setOpenGroup] = useState<GroupId | null>(group ?? null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const focusRef = useRef<HTMLDivElement>(null);
 
   // The Notion token and the LLM key live here, not inside their sections: the
   // wizard unmounts a step as soon as you press Next, so section-local state
@@ -63,6 +93,14 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
     });
   }, []);
 
+  useEffect(() => setOpenGroup(group ?? null), [group]);
+
+  // Opening a group swaps the whole body, and a screen reader is told nothing
+  // unless focus goes with it.
+  useEffect(() => {
+    if (openGroup) focusRef.current?.focus();
+  }, [openGroup]);
+
   // Profile and settings are written together, from one place, so neither half
   // can clobber the other. Reaching a Save here means setup has been seen, so
   // the first-run wizard does not reappear even if every step was skipped.
@@ -74,35 +112,95 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
 
   const steps: SetupStep[] = [
     {
-      id: 'welcome',
-      title: 'Welcome to ApplyFlow',
-      blurb:
-        'Save your details once, then fill any job application with a click. Everything stays on this computer. You can skip any step and come back later.',
-      render: () => null,
-    },
-    {
-      id: 'ai',
-      title: 'AI answer drafting',
-      blurb:
-        'Optional, and it comes first because it also makes the next step better: with AI set up, importing a resume pulls out work history and projects, not just contact details.',
-      render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
-    },
-    {
       id: 'import',
       title: 'Start from your resume',
-      blurb: 'Optional, but it saves most of the typing ahead. You review everything before it is used.',
+      blurb:
+        'One file fills your contact details, work history, education and projects. You review everything before it is used, and nothing leaves this computer.',
       render: () => <ResumeImportSection profile={profile} onChange={setProfile} llm={llm} />,
     },
     {
       id: 'contact',
       title: 'Your contact details',
       blurb: 'The basics almost every application asks for.',
-      render: () => <ContactSection profile={profile} onChange={setProfile} />,
+      render: () => (
+        <>
+          <ContactSection profile={profile} onChange={setProfile} />
+          <LinksSection profile={profile} onChange={setProfile} />
+        </>
+      ),
+    },
+    {
+      id: 'experience',
+      title: 'Check what was found',
+      blurb: 'Everything here came from your resume. Correct anything that came out wrong.',
+      render: () => (
+        <>
+          <WorkHistorySection profile={profile} onChange={setProfile} />
+          <EducationSection profile={profile} onChange={setProfile} />
+          <ProjectsSection profile={profile} onChange={setProfile} />
+          <SkillsSection profile={profile} onChange={setProfile} />
+        </>
+      ),
+    },
+    {
+      id: 'answers',
+      title: 'What forms always ask',
+      blurb: 'Work authorisation, notice period and languages — the questions every application repeats.',
+      render: () => (
+        <>
+          <WorkAuthSection profile={profile} onChange={setProfile} />
+          <LogisticsSection profile={profile} onChange={setProfile} />
+          <LanguagesSection profile={profile} onChange={setProfile} />
+        </>
+      ),
+    },
+    {
+      id: 'ai',
+      title: 'AI answer drafting',
+      blurb:
+        'Lets ApplyFlow draft answers to open questions and write cover letters. Bring your own key; nothing is sent anywhere without it.',
+      optional: true,
+      render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
+    },
+    {
+      id: 'bank',
+      title: 'Tailoring bank',
+      blurb:
+        'Needs AI set up. Writes several versions of each achievement once, so tailoring a resume later is a matter of choosing rather than generating.',
+      optional: true,
+      render: () => <BankSection />,
+    },
+    {
+      id: 'done',
+      title: "You're set up",
+      blurb:
+        'Open this panel on any job application and press Fill this application. The gear icon reopens these settings anytime.',
+      render: () => null,
+    },
+
+    // Reachable from settings only — none of these are needed to fill a form.
+    {
+      id: 'work-auth',
+      title: 'Work authorisation',
+      blurb: 'Yes/no answers and the EEO questions, in the wording the big ATS platforms use.',
+      render: () => <WorkAuthSection profile={profile} onChange={setProfile} />,
+    },
+    {
+      id: 'logistics',
+      title: 'Availability and salary',
+      blurb: 'Notice period, relocation, and what you ask for.',
+      render: () => <LogisticsSection profile={profile} onChange={setProfile} />,
+    },
+    {
+      id: 'links',
+      title: 'Links',
+      blurb: 'LinkedIn, GitHub, portfolio.',
+      render: () => <LinksSection profile={profile} onChange={setProfile} />,
     },
     {
       id: 'work',
-      title: 'Where have you worked?',
-      blurb: 'Add the roles you want to reuse across applications.',
+      title: 'Work history',
+      blurb: 'The roles you want to reuse across applications.',
       render: () => <WorkHistorySection profile={profile} onChange={setProfile} />,
     },
     {
@@ -113,8 +211,8 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
     },
     {
       id: 'projects',
-      title: 'Your projects',
-      blurb: 'Details here are what the AI draws on when drafting answers. The more specific, the better the drafts.',
+      title: 'Projects',
+      blurb: 'What the AI draws on when drafting. The more specific, the better the drafts.',
       render: () => <ProjectsSection profile={profile} onChange={setProfile} />,
     },
     {
@@ -122,13 +220,6 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       title: 'Skills and headline',
       blurb: 'The skills line on your resume, in the order you want it read.',
       render: () => <SkillsSection profile={profile} onChange={setProfile} />,
-    },
-    {
-      id: 'bank',
-      title: 'Tailoring bank',
-      blurb:
-        'Optional, and it needs AI set up. Writes several versions of each achievement once, so tailoring a resume later is a matter of choosing rather than generating.',
-      render: () => <BankSection />,
     },
     {
       id: 'languages',
@@ -143,22 +234,16 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       render: () => <CustomQASection profile={profile} onChange={setProfile} />,
     },
     {
-      id: 'preferences',
-      title: 'Job preferences',
-      blurb: 'Links, work authorization, and availability.',
-      render: () => (
-        <>
-          <LinksSection profile={profile} onChange={setProfile} />
-          <WorkAuthSection profile={profile} onChange={setProfile} />
-          <LogisticsSection profile={profile} onChange={setProfile} />
-        </>
-      ),
+      id: 'learned',
+      title: 'Learned fields',
+      blurb: 'Fields you have taught ApplyFlow about on specific sites.',
+      render: () => <FieldMappingsSection />,
     },
     {
       id: 'documents',
-      title: 'Your documents folder',
+      title: 'Documents folder',
       blurb:
-        'Point ApplyFlow at the folder where you keep your resumes and cover letters, and it can attach the right one for you. Optional.',
+        'Point ApplyFlow at the folder where you keep your resumes and cover letters, and it can attach the right one for you.',
       render: () => <DocumentsSection />,
     },
     {
@@ -168,16 +253,10 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       render: () => <ApplicationHistorySection />,
     },
     {
-      id: 'history',
+      id: 'versions',
       title: 'Earlier versions',
       blurb: 'Copies kept automatically before an import replaced anything, so a bad import is not final.',
       render: () => <ProfileHistorySection />,
-    },
-    {
-      id: 'learned',
-      title: 'Learned fields',
-      blurb: 'Fields you have taught ApplyFlow about on specific sites. Nothing to do here until you teach one.',
-      render: () => <FieldMappingsSection />,
     },
     {
       id: 'notion',
@@ -185,13 +264,9 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
       blurb: 'Optional. Connect a Notion database to log every application you send.',
       render: () => <NotionSettingsSection value={notion} onChange={setNotion} />,
     },
-    {
-      id: 'done',
-      title: "You're set up",
-      blurb: 'Open this panel on any job application and press Fill this page. The gear icon reopens these settings anytime.',
-      render: () => null,
-    },
   ];
+
+  const byId = new Map(steps.map((s) => [s.id, s]));
 
   const handleDone = async () => {
     await persist();
@@ -199,14 +274,16 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
   };
 
   if (mode === 'wizard') {
-    // "Learned fields" is always empty during first-run setup, so it would be
-    // a step with nothing to do. It stays available as a tab afterwards.
-    return <Wizard steps={steps.filter((s) => !['learned', 'history', 'applications'].includes(s.id))} onDone={handleDone} />;
+    return (
+      <Wizard
+        steps={WIZARD_ORDER.map((id) => byId.get(id)).filter((s): s is SetupStep => Boolean(s))}
+        // Written after every step, so abandoning halfway keeps what was
+        // entered. The old design wrote once at Finish and lost the session.
+        onAdvance={persist}
+        onDone={handleDone}
+      />
+    );
   }
-
-  // Tabs mode: same steps minus the wizard-only welcome/done screens.
-  const tabs = steps.filter((s) => s.id !== 'welcome' && s.id !== 'done');
-  const active = tabs[activeTab];
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,64 +293,99 @@ export function SetupView({ mode, onDone }: { mode: 'wizard' | 'tabs'; onDone: (
 
   const missing = missingRequiredFields(profile);
   const filledCount = REQUIRED_FIELDS.length - missing.length;
+  const current = openGroup ? SETUP_GROUPS.find((g) => g.id === openGroup) : null;
 
   return (
-    <div className="setup-tabs">
-      <div className="app-header">
-        <button type="button" className="icon-btn" onClick={handleDone} aria-label="Back">
+    <div className="setup">
+      <div className="app-header-top">
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => (current ? setOpenGroup(null) : void handleDone())}
+          aria-label={current ? 'Back to settings' : 'Back to the daily view'}
+        >
           <BackIcon />
         </button>
-        <span className="wordmark">Setup</span>
-      </div>
-
-      <div className="tab-bar">
-        {tabs.map((tab, i) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`tab ${i === activeTab ? 'tab-active' : ''}`}
-            onClick={() => setActiveTab(i)}
-          >
-            {tab.title}
-          </button>
-        ))}
+        <h2 className="wordmark">{current ? current.title : 'Settings'}</h2>
       </div>
 
       {importError && <p className="error">{importError}</p>}
-      {active?.render()}
 
-      <p className="status-row completeness">
-        <span className={`pill ${missing.length ? 'pill-warning' : 'pill-success'}`}>
-          {filledCount}/{REQUIRED_FIELDS.length} required fields
-        </span>
-        {missing.length > 0 && <span className="hint">Still missing: {missing.map((f) => f.label).join(', ')}</span>}
-      </p>
+      {!current ? (
+        <>
+          {/* Completeness at the top, not buried under an 1800px scroll. */}
+          <p className="status-row completeness">
+            <span className={`pill ${missing.length ? 'pill-warning' : 'pill-success'}`}>
+              {filledCount}/{REQUIRED_FIELDS.length} required fields
+            </span>
+            {missing.length > 0 && <span className="hint">Missing: {missing.map((f) => f.label).join(', ')}</span>}
+          </p>
 
-      <div className="setup-footer">
-        <button type="button" className="btn" onClick={exportJson}>
-          Export JSON
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            clearImportError();
-            fileInputRef.current?.click();
-          }}
-        >
-          Import JSON
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json"
-          style={{ display: 'none' }}
-          onChange={handleImportFile}
-        />
-        <button type="button" className="btn btn-primary" onClick={persist}>
-          {saveState === 'saved' ? 'Saved' : 'Save'}
-        </button>
-      </div>
+          <nav className="action-rows" aria-label="Settings">
+            {SETUP_GROUPS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className="action-row action-row-main group-row"
+                onClick={() => setOpenGroup(entry.id)}
+              >
+                <span className="action-row-body">
+                  <span className="action-row-title">{entry.title}</span>
+                  <span className="action-row-desc">{entry.blurb}</span>
+                </span>
+                <span className="action-row-status">
+                  {entry.id === 'profile' && missing.length > 0 && (
+                    <span className="pill pill-warning">{missing[0]!.label}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          <p className="hint">Everything is stored on this computer. Nothing is uploaded.</p>
+
+          <div className="actions mt-4">
+            <button type="button" className="btn" onClick={exportJson}>
+              Export JSON
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                clearImportError();
+                fileInputRef.current?.click();
+              }}
+            >
+              Import JSON
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={handleImportFile}
+            />
+          </div>
+        </>
+      ) : (
+        <div ref={focusRef} tabIndex={-1} className="setup-group">
+          {current.steps.map((id) => {
+            const section = byId.get(id);
+            if (!section) return null;
+            return (
+              <div key={id} id={`setup-${id}`} className={step === id ? 'setup-section-target' : undefined}>
+                {section.render()}
+              </div>
+            );
+          })}
+
+          <div className="actions mt-4">
+            <button type="button" className="btn btn-primary" onClick={persist}>
+              {saveState === 'saved' ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

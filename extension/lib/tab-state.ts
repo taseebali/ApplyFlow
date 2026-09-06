@@ -46,6 +46,12 @@ export interface TabState {
   };
   draft?: DraftRun;
   notion?: { loggedUrl: string };
+  /**
+   * The company and role the user typed, when detection got them wrong or
+   * found nothing. Kept per tab because it describes that application, and it
+   * is what names the saved files — so it must survive closing the panel.
+   */
+  posting?: { company: string; role: string };
   /** The history entry for this application, so later steps can complete it. */
   applicationId?: string;
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { ActionCard } from '@/components/ActionCard';
-import { TextField } from '@/components/ProfileForm';
+import { ActionRow } from '@/components/ActionRow';
 import { DraftIcon } from '@/components/icons';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import {
@@ -14,13 +13,15 @@ import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder }
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getActiveTabId } from './DailyView';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
+import type { Posting } from '@/components/JobContext';
+import type { OpenSetup } from '@/components/DailyView';
 import type { LetterLanguage } from '@/lib/letter-language';
 import { getProfile } from '@/lib/storage';
 
 type Status =
   | { kind: 'idle' }
   | { kind: 'working' }
-  | { kind: 'ready'; result: TailorResult; company: string; role: string; jobDescription: string }
+  | { kind: 'ready'; result: TailorResult; jobDescription: string }
   | { kind: 'saved'; filenames: string[] }
   | { kind: 'error'; message: string };
 
@@ -32,7 +33,7 @@ type Status =
  * user still decides what leaves the extension, exactly as they do for a
  * drafted answer or a filled field.
  */
-export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
+export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [closed, setClosed] = useState(false);
 
@@ -46,13 +47,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
       const jobDescription = info.jobDescription ?? '';
       const result = await tailorResume({ jobDescription });
-      setStatus({
-        kind: 'ready',
-        result,
-        company: info.companyName ?? '',
-        role: info.jobTitle ?? '',
-        jobDescription,
-      });
+      setStatus({ kind: 'ready', result, jobDescription });
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not build a resume.' });
     }
@@ -62,10 +57,6 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   const [writingLetter, setWritingLetter] = useState(false);
   const [needsCompany, setNeedsCompany] = useState(false);
 
-  /** Detection misses; typing the company must always be possible. */
-  const setPosting = (patch: { company?: string; role?: string }) =>
-    setStatus((current) => (current.kind === 'ready' ? { ...current, ...patch } : current));
-
   /** `language` overrides detection, which is a coin flip on a bilingual posting. */
   const write = async (language?: LetterLanguage) => {
     if (status.kind !== 'ready') return;
@@ -74,8 +65,8 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
       setLetter(
         await writeCoverLetter({
           jobDescription: status.jobDescription,
-          company: status.company,
-          role: status.role,
+          company: posting.company,
+          role: posting.role,
           resumeBullets: status.result.selected,
           language,
         })
@@ -91,7 +82,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
     if (status.kind !== 'ready') return;
     // A company-less filename collides with the last one and is invisible to
     // the attach step, which finds documents by scanning names for the company.
-    if (!status.company.trim()) {
+    if (!posting.company.trim()) {
       setNeedsCompany(true);
       return;
     }
@@ -111,7 +102,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
       saved.push(
         await saveToDocumentsFolder(
           handle,
-          resumeFilename(status.result.document, status.company),
+          resumeFilename(status.result.document, posting.company),
           await toDocxBlob(status.result.document)
         )
       );
@@ -122,12 +113,12 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         saved.push(
           await saveToDocumentsFolder(
             handle,
-            coverLetterFilename(status.result.document, status.company),
+            coverLetterFilename(status.result.document, posting.company),
             await coverLetterToDocxBlob(
               assembleCoverLetter({
                 profile: await getProfile(),
-                company: status.company,
-                role: status.role,
+                company: posting.company,
+                role: posting.role,
                 body: letter.text,
                 language: letter.language,
               })
@@ -155,7 +146,7 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   return (
     <>
-      <ActionCard
+      <ActionRow
         icon={<DraftIcon />}
         title="Tailor a resume"
         description="Picks the best version of each achievement for this posting."
@@ -180,36 +171,23 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
             {result.offline && <span className="pill pill-neutral">ordered without AI</span>}
           </>
         )}
-      </ActionCard>
+      </ActionRow>
 
       {!closed && status.kind === 'error' && status.message.includes('bank') && (
-        <button type="button" className="btn-plain" onClick={onOpenSetup}>
-          Open Settings
+        <button type="button" className="btn-plain" onClick={() => onOpenSetup('documents', 'bank')}>
+          Generate a tailoring bank
         </button>
       )}
 
       {!closed && result && status.kind === 'ready' && (
         <div className="tailor-preview">
-          <div className="grid">
-            <TextField
-              label="Company"
-              required
-              value={status.company}
-              onChange={(v) => {
-                setPosting({ company: v });
-                setNeedsCompany(false);
-              }}
-            />
-            <TextField label="Role" value={status.role} onChange={(v) => setPosting({ role: v })} />
-          </div>
           {needsCompany ? (
             <p className="error">
-              Add the company before saving. It names both files, and Attach documents finds them by it.
+              Add the company at the top of the panel before saving. It names both files, and Attach documents
+              finds them by it.
             </p>
           ) : (
-            <p className="hint">
-              Names both files — {resumeFilename(result.document, status.company)}
-            </p>
+            <p className="hint">Names both files — {resumeFilename(result.document, posting.company)}</p>
           )}
 
           {result.gap.missing.length > 0 && (
@@ -285,8 +263,8 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
                 await putReview({
                   result: status.result,
                   letter,
-                  company: status.company,
-                  role: status.role,
+                  company: posting.company,
+                  role: posting.role,
                   jobDescription: status.jobDescription,
                 });
                 await openReviewTab();

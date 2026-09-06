@@ -76,6 +76,40 @@ export function companyFromUrl(href: string): string | null {
   return prettify(labels.length > 1 ? labels[labels.length - 2] : labels[0]);
 }
 
+/** Which applicant tracking system a job URL belongs to, for display. */
+const ATS_NAMES: Array<[string, string]> = [
+  ['greenhouse.io', 'Greenhouse'],
+  ['ashbyhq.com', 'Ashby'],
+  ['lever.co', 'Lever'],
+  ['personio.de', 'Personio'],
+  ['myworkdayjobs.com', 'Workday'],
+  ['workable.com', 'Workable'],
+  ['smartrecruiters.com', 'SmartRecruiters'],
+  ['recruitee.com', 'Recruitee'],
+  ['teamtailor.com', 'Teamtailor'],
+  ['bamboohr.com', 'BambooHR'],
+  ['factorialhr.com', 'Factorial'],
+  ['softgarden.io', 'softgarden'],
+  ['join.com', 'Join'],
+  ['linkedin.com', 'LinkedIn'],
+];
+
+/**
+ * Naming the ATS is worth a line on screen: it tells the user which form
+ * ApplyFlow thinks it is looking at, which is the first thing to check when a
+ * fill goes wrong.
+ */
+export function atsFromUrl(href: string): string | null {
+  let host: string;
+  try {
+    host = new URL(href).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const found = ATS_NAMES.find(([domain]) => host === domain || host.endsWith(`.${domain}`));
+  return found ? found[1] : null;
+}
+
 /** Subdomains and suffixes that are never the company's name. */
 const GENERIC_LABELS = new Set([
   'careers', 'career', 'jobs', 'job', 'apply', 'hiring', 'recruiting', 'talent',

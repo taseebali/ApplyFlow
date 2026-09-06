@@ -37,8 +37,11 @@ import { recordApplication, updateApplication } from '@/lib/application-log';
 import { formatCost, summarizeRunCost } from '@/lib/run-cost';
 import { getModels, type CatalogModel } from '@/lib/openrouter-catalog';
 import { useTabState } from '@/components/useTabState';
-import { ActionCard } from '@/components/ActionCard';
+import { ActionRow } from '@/components/ActionRow';
+import type { GroupId } from '@/lib/setup-groups';
 import { TailorCard } from '@/components/TailorCard';
+import { ReadinessBar } from '@/components/ReadinessBar';
+import type { Posting } from '@/components/JobContext';
 import { AttachIcon, DraftIcon, FillIcon, TrackerIcon } from '@/components/icons';
 
 type DocStatus =
@@ -71,7 +74,7 @@ export async function getActiveTabId(): Promise<number> {
   return tab.id;
 }
 
-function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
+function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
   // Results live with the tab, not with the panel: each application has its own
   // tab, and the panel is shared between them. Only work that is in flight
   // right now stays local, since a request cannot be resumed after a switch.
@@ -376,12 +379,17 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
               ? ' Applications require these, so filling would leave the form incomplete.'
               : ' Applications almost always require these.'}
           </p>
-          <button type="button" className="btn" onClick={onOpenSetup}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onOpenSetup(missing[0]!.section === 'workAuthorization' ? 'answers' : 'profile',
+              missing[0]!.section === 'workAuthorization' ? 'work-auth' : 'contact')}
+          >
             Complete profile
           </button>
         </div>
       )}
-      <ActionCard
+      <ActionRow
         icon={<FillIcon />}
         title="Fill this page"
         description="Fills the form from your saved profile."
@@ -431,7 +439,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           </>
         )}
         {!filling && fill?.status === 'error' && <span className="pill pill-danger">{fill.message}</span>}
-      </ActionCard>
+      </ActionRow>
 
       {fill?.status === 'done' && !fill.stale && fill.autoAnswered.length > 0 && (
         <div className="auto-answered">
@@ -463,7 +471,7 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         />
       )}
 
-      <ActionCard
+      <ActionRow
         icon={<AttachIcon />}
         title="Attach documents"
         description="Finds your resume and cover letter, ready for you to attach."
@@ -478,10 +486,10 @@ function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: () => void }) {
           <span className="pill pill-neutral">No documents folder linked — set it up in Settings</span>
         )}
         {docStatus.kind === 'error' && <span className="pill pill-danger">{docStatus.message}</span>}
-      </ActionCard>
+      </ActionRow>
       {!docsClosed && docStatus.kind === 'no-folder' && (
-        <button type="button" className="btn-plain" onClick={onOpenSetup}>
-          Open Settings
+        <button type="button" className="btn-plain" onClick={() => onOpenSetup('documents', 'documents')}>
+          Link a documents folder
         </button>
       )}
       {!docsClosed && attachError && <span className="pill pill-danger">{attachError}</span>}
@@ -634,7 +642,7 @@ function TeachFieldsPanel({
   );
 }
 
-function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
+function LogToNotionSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
   const [status, setStatus] = useState<NotionStatus>({ kind: 'idle' });
   // null until settings are read, so the card does not flash into view for
   // someone who has skipped the tracker.
@@ -727,7 +735,7 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   return (
     <>
-      <ActionCard
+      <ActionRow
         icon={<TrackerIcon />}
         title="Log to Notion"
         description="Saves this application to your Notion tracker."
@@ -746,10 +754,10 @@ function LogToNotionSection({ onOpenSetup }: { onOpenSetup: () => void }) {
         {(status.kind === 'done' || (status.kind === 'idle' && loggedUrl)) && (
           <span className="pill pill-success">Logged to Notion</span>
         )}
-      </ActionCard>
+      </ActionRow>
       {!closed && status.kind === 'no-settings' && (
-        <button type="button" className="btn-plain" onClick={onOpenSetup}>
-          Open Settings
+        <button type="button" className="btn-plain" onClick={() => onOpenSetup('history', 'notion')}>
+          Set up the Notion tracker
         </button>
       )}
       {!closed && rowUrl && (
@@ -833,7 +841,7 @@ function queueProfileSave(question: string, answer: string): Promise<void> {
   return next;
 }
 
-function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
+function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
   // Drafts live in the tab's own state, written by the background worker.
   // The panel is a view onto that run rather than its owner, so switching to
   // another application and back shows this one's answers — finished, or
@@ -935,7 +943,7 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
 
   return (
     <>
-      <ActionCard
+      <ActionRow
         icon={<DraftIcon />}
         title="Draft answers"
         description="Drafts replies to open-ended questions. You review before anything is entered."
@@ -954,10 +962,10 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         )}
         {run?.status === 'done' && <span className="pill pill-success">{run.entries.length} drafted</span>}
         {run?.status === 'error' && <span className="pill pill-danger">{run.message}</span>}
-      </ActionCard>
+      </ActionRow>
       {!cardClosed && needsSetup && (
-        <button type="button" className="btn-plain" onClick={onOpenSetup}>
-          Open Settings
+        <button type="button" className="btn-plain" onClick={() => onOpenSetup('ai')}>
+          Set up AI drafting
         </button>
       )}
 
@@ -1053,13 +1061,18 @@ function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   );
 }
 
-export function DailyView({ onOpenSetup }: { onOpenSetup: () => void }) {
+export type OpenSetup = (group?: GroupId, step?: string) => void;
+
+export function DailyView({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
   return (
     <div className="daily-actions">
-      <FillAndAttachSection onOpenSetup={onOpenSetup} />
-      <TailorCard onOpenSetup={onOpenSetup} />
-      <LogToNotionSection onOpenSetup={onOpenSetup} />
-      <DraftAnswersCard onOpenSetup={onOpenSetup} />
+      <ReadinessBar onOpen={onOpenSetup} />
+      <div className="action-rows">
+        <FillAndAttachSection onOpenSetup={onOpenSetup} />
+        <TailorCard posting={posting} onOpenSetup={onOpenSetup} />
+        <DraftAnswersCard onOpenSetup={onOpenSetup} />
+        <LogToNotionSection onOpenSetup={onOpenSetup} />
+      </div>
     </div>
   );
 }
