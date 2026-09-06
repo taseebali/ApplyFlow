@@ -1,22 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ContactSection,
-  CustomQASection,
-  DocumentsSection,
   EducationSection,
-  LinksSection,
-  LlmSettingsSection,
-  LogisticsSection,
-  FieldMappingsSection,
-  ApplicationHistorySection,
-  ProfileHistorySection,
-  NotionSettingsSection,
   LanguagesSection,
+  LinksSection,
   ProjectsSection,
   SkillsSection,
-  WorkAuthSection,
   WorkHistorySection,
-} from './ProfileForm';
+} from './ProfileSections';
+import { CustomQASection, LogisticsSection, WorkAuthSection } from './AnswerSections';
+import { DocumentsSection, LlmSettingsSection, NotionSettingsSection } from './IntegrationSections';
+import {
+  ApplicationHistorySection,
+  FieldMappingsSection,
+  ProfileHistorySection,
+} from './HistorySections';
 import { ResumeImportSection } from './ResumeImportSection';
 import { BankSection } from './BankSection';
 import { useProfileEditor } from './useProfileEditor';

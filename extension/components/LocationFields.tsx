@@ -1,5 +1,5 @@
 import { COUNTRIES, isoForCountry, statesOf } from '@/lib/locations';
-import { FieldLabel } from './ProfileForm';
+import { FieldLabel } from './fields';
 
 /**
  * Country as a dropdown, state as whichever control the country warrants, city
