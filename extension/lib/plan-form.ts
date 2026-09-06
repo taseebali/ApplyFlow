@@ -1,4 +1,12 @@
-import { getDisplayLabel, matchFields, findUnrecognizedElements, type FillableElement } from './field-matcher';
+import {
+  getDisplayLabel,
+  getRadioGroupQuestionText,
+  matchFields,
+  matchRadioGroups,
+  findUnrecognizedElements,
+  type FillableElement,
+} from './field-matcher';
+import { inferAnswer } from './inference';
 import { detectQuestions } from './question-detector';
 import { isOffLimits } from './field-visibility';
 import { plannedValue } from './filler';
@@ -90,11 +98,31 @@ export function planWithElements(
   const questions = new Set(detectQuestions(root, profile).map((q) => q.element as FillableElement));
   const unknown = findUnrecognizedElements(root, overrides);
 
+  // Radio groups and profile-inferred answers are written by the fill too, so
+  // they belong in the plan. A diff that covers only some of what gets written
+  // is worse than no diff, because it says it covers all of it.
+  const radios = matchRadioGroups(root);
+  for (const group of radios) {
+    const first = group.elements[0];
+    if (first && !byElement.has(first)) byElement.set(first, group.path);
+  }
+  const inferred = new Map<FillableElement, string>();
+  for (const field of unknown) {
+    const answer = inferAnswer(field.label, profile);
+    if (answer) inferred.set(field.element, answer);
+  }
+
   // One ordered pass over the document, so the plan is in page order rather
   // than in whichever order the matchers happened to run.
   const seen = new Set<FillableElement>();
   const ordered: FillableElement[] = [];
-  for (const element of [...matches.map((m) => m.element), ...questions, ...unknown.map((u) => u.element)]) {
+  const radioLeads = radios.map((g) => g.elements[0]).filter((el): el is HTMLInputElement => Boolean(el));
+  for (const element of [
+    ...matches.map((m) => m.element),
+    ...radioLeads,
+    ...questions,
+    ...unknown.map((u) => u.element),
+  ]) {
     if (!seen.has(element)) {
       seen.add(element);
       ordered.push(element);
@@ -112,8 +140,12 @@ export function planWithElements(
     if (isOffLimits(element)) continue;
 
     const path = byElement.get(element) ?? null;
-    const label = getDisplayLabel(element) || element.name || 'Field';
-    const proposed = path ? plannedValue(profile, path) : '';
+    const isRadio = element instanceof HTMLInputElement && element.type === 'radio';
+    const label =
+      (isRadio ? getRadioGroupQuestionText(element) : getDisplayLabel(element)) || element.name || 'Field';
+    // A path resolves from the profile; an inferred answer is one the profile
+    // settles without a path ("are you still studying?").
+    const proposed = path ? plannedValue(profile, path) : inferred.get(element) ?? '';
     const current = currentValue(element);
 
     // The same path can match more than one control on a page. The fill writes

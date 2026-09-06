@@ -47,7 +47,7 @@ export interface SetupStep {
  * needed to fill a form, and the readiness line on the daily view raises them
  * at the moment they actually matter, with a link straight to them.
  */
-const WIZARD_ORDER = ['import', 'contact', 'experience', 'answers', 'ai', 'bank', 'done'];
+const WIZARD_ORDER = ['ai', 'import', 'basics', 'experience', 'answers', 'bank', 'done'];
 
 export function SetupView({
   mode,
@@ -122,7 +122,7 @@ export function SetupView({
       render: () => <ResumeImportSection profile={profile} onChange={setProfile} llm={llm} />,
     },
     {
-      id: 'contact',
+      id: 'basics',
       title: 'Your contact details',
       blurb: 'The basics almost every application asks for.',
       render: () => (
@@ -131,6 +131,12 @@ export function SetupView({
           <LinksSection profile={profile} onChange={setProfile} />
         </>
       ),
+    },
+    {
+      id: 'contact',
+      title: 'Contact',
+      blurb: 'Name, email, phone and where you are.',
+      render: () => <ContactSection profile={profile} onChange={setProfile} />,
     },
     {
       id: 'experience',
@@ -159,9 +165,9 @@ export function SetupView({
     },
     {
       id: 'ai',
-      title: 'AI answer drafting',
+      title: 'Set up AI first',
       blurb:
-        'Lets ApplyFlow draft answers to open questions and write cover letters. Bring your own key; nothing is sent anywhere without it.',
+        'The next step reads your resume. With a model configured it pulls out your work history and projects; without one it gets your contact details and little else. Bring your own key. Nothing is sent anywhere without it.',
       optional: true,
       render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
     },

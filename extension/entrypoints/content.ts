@@ -32,6 +32,12 @@ import { frameHasWork, summarizeFrame } from '@/lib/frames';
 
 export interface FillPageMessage {
   type: 'fill-page';
+  /**
+   * Planned field ids the user approved in the diff. Omitted means fill
+   * everything, which is what the old flow did and what the keyboard shortcut
+   * still does.
+   */
+  only?: string[];
 }
 export interface FillPageResponse {
   /** Fields whose previous value was recorded, so the panel can offer an undo. */
@@ -315,17 +321,25 @@ export default defineContentScript({
             return response?.index ?? -1;
           };
 
-          const fieldMatches = matchFields(document, overrides);
+          // When the user approved a diff, only what they approved is written.
+          // The ids come from the last plan, so the elements are the same ones
+          // the diff described.
+          const approved = message.only
+            ? new Set(message.only.map((id) => plannedElements.get(id)).filter(Boolean))
+            : null;
+          const isApproved = (element: unknown) => !approved || approved.has(element as never);
+
+          const fieldMatches = matchFields(document, overrides).filter((m) => isApproved(m.element));
           // Only consulted when exact, word-set and synonym matching have all
           // failed, so an ordinary form makes no model calls at all.
           const fieldResult = await fillFields(fieldMatches, profile, { aiOptionFallback });
 
-          const radioGroupMatches = matchRadioGroups(document);
+          const radioGroupMatches = matchRadioGroups(document).filter((g) => isApproved(g.elements[0]));
           const radioResult = fillRadioGroups(radioGroupMatches, profile);
 
           // Questions the profile already settles — "are you still studying?",
           // "are you based in Berlin?" — answered without asking the user again.
-          const unrecognized = findUnrecognizedElements(document, overrides);
+          const unrecognized = findUnrecognizedElements(document, overrides).filter((f) => isApproved(f.element));
           const inferred = await fillInferredFields(unrecognized, profile, { aiOptionFallback });
           const inferredLabels = new Set(inferred.filled.map((f) => f.label));
 

@@ -9,7 +9,6 @@ import { mergeFillResults } from '@/lib/frames';
 import { recordApplication, updateApplication } from '@/lib/application-log';
 import { useTabState } from '@/components/useTabState';
 import { ActionRow } from '@/components/ActionRow';
-import { usePrimaryAction } from '@/components/PrimaryAction';
 import { AttachIcon, FillIcon } from '@/components/icons';
 import { listFillableFrames, getActiveTabId } from '@/lib/active-tab';
 import { TeachFieldsPanel } from '@/components/TeachFieldsPanel';
@@ -23,7 +22,14 @@ type DocStatus =
 
 const DOC_LABELS: Record<DocumentKind, string> = { resume: 'Resume', coverLetter: 'Cover letter' };
 
-export function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
+export function FillAndAttachSection({
+  onOpenSetup,
+  onReview,
+}: {
+  onOpenSetup: OpenSetup;
+  /** Opens the diff. Filling without seeing what will be written is not offered. */
+  onReview: () => void;
+}) {
   // Results live with the tab, not with the panel: each application has its own
   // tab, and the panel is shared between them. Only work that is in flight
   // right now stays local, since a request cannot be resumed after a switch.
@@ -114,24 +120,16 @@ export function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }
     });
   };
 
-  // Published to the sticky footer, so the panel's main action does not scroll
-  // away the moment a result opens underneath it.
-  usePrimaryAction(
-    { label: 'Fill this application', onClick: () => void handleFillClick(), busy: filling, busyLabel: 'Filling…' },
-    [filling, missing.length]
-  );
-
-  const handleFillClick = async () => {
+  const handleReviewClick = () => {
     // A profile missing the essentials produces a half-filled application that
     // the form will refuse at submit, and the user finds out at the worst
-    // moment. The warning alone was ignorable, so filling now stops here.
+    // moment. The warning alone was ignorable, so this stops here rather than
+    // opening a diff that could only ever be half right.
     if (missing.length > 0) {
       setBlocked(true);
       return;
     }
-    // Resolved once and written back explicitly: if the user switches tabs while
-    // this runs, the result must still land on the tab that was filled.
-    await refill(await getActiveTabId());
+    onReview();
   };
 
   /** Fills one specific tab. Every result is written back against that tab id. */
@@ -348,9 +346,9 @@ export function FillAndAttachSection({ onOpenSetup }: { onOpenSetup: OpenSetup }
       <ActionRow
         icon={<FillIcon />}
         title="Fill this application"
-        description="Writes your saved answers into the form."
+        description="Shows you the changes, then writes the ones you keep."
         tint="blue"
-        onClick={handleFillClick}
+        onClick={handleReviewClick}
         disabled={filling}
         collapsed={fillClosed}
         onToggleCollapse={() => setFillClosed((v) => !v)}

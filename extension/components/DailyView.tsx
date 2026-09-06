@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import { FillAndAttachSection } from '@/components/FillSection';
 import { TailorCard } from '@/components/TailorCard';
 import { DraftAnswersCard } from '@/components/DraftAnswersSection';
 import { LogToNotionSection } from '@/components/NotionSection';
-import { ReadinessBar } from '@/components/ReadinessBar';
+import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
 import { FieldMirror, Tally, useFormPlan } from '@/components/FieldMirror';
+import { DiffSheet } from '@/components/DiffSheet';
+import { usePrimaryAction } from '@/components/PrimaryAction';
+import { writable } from '@/lib/field-plan';
+import type { FillPageMessage, FillPageResponse } from '@/entrypoints/content';
 import { getActiveTabId } from '@/lib/active-tab';
 import type { JumpToFieldMessage } from '@/entrypoints/content';
 import type { PlannedField } from '@/lib/field-plan';
@@ -18,7 +23,46 @@ import type { OpenSetup } from '@/components/panel-types';
  * module holding four unrelated ones.
  */
 export function DailyView({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
-  const { plan, loading } = useFormPlan();
+  const { plan, loading, refresh } = useFormPlan();
+  const [reviewing, setReviewing] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const readiness = useReadiness();
+
+  const changes = plan ? writable(plan.fields) : [];
+
+  /**
+   * Nothing is written from here. Fill opens the diff; the diff writes.
+   */
+  usePrimaryAction(
+    plan && changes.length > 0 && !reviewing
+      ? {
+          label: `Review ${changes.length} ${changes.length === 1 ? 'change' : 'changes'}`,
+          onClick: () => setReviewing(true),
+          // A half-filled application the form refuses at submit is worse than
+          // one that was never started.
+          disabled: readiness ? !readiness.ready : false,
+        }
+      : null,
+    [plan, changes.length, reviewing, readiness?.ready]
+  );
+
+  const apply = (fieldIds: string[]) => {
+    setWriting(true);
+    void (async () => {
+      try {
+        const tabId = await getActiveTabId();
+        await browser.tabs.sendMessage(tabId, {
+          type: 'fill-page',
+          only: fieldIds,
+        } satisfies FillPageMessage);
+      } finally {
+        setWriting(false);
+        setReviewing(false);
+        // Re-read the form: what was just written should now show as done.
+        refresh();
+      }
+    })();
+  };
 
   /** A row is a control: clicking it takes you to the field it names. */
   const jump = (field: PlannedField) => {
@@ -31,6 +75,15 @@ export function DailyView({ posting, onOpenSetup }: { posting: Posting; onOpenSe
     })().catch(() => undefined);
   };
 
+  if (reviewing && plan) {
+    return (
+      <div className="daily-actions">
+        <DiffSheet plan={plan} onCancel={() => setReviewing(false)} onApply={apply} />
+        {writing && <p className="hint">Writing…</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="daily-actions">
       <ReadinessBar onOpen={onOpenSetup} />
@@ -39,7 +92,7 @@ export function DailyView({ posting, onOpenSetup }: { posting: Posting; onOpenSe
       <FieldMirror plan={plan} loading={loading} onJump={jump} />
 
       <div className="action-rows">
-        <FillAndAttachSection onOpenSetup={onOpenSetup} />
+        <FillAndAttachSection onOpenSetup={onOpenSetup} onReview={() => setReviewing(true)} />
         <TailorCard posting={posting} onOpenSetup={onOpenSetup} />
         <DraftAnswersCard onOpenSetup={onOpenSetup} />
         <LogToNotionSection onOpenSetup={onOpenSetup} />

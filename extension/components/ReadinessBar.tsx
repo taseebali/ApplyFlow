@@ -14,7 +14,13 @@ import type { GroupId } from '@/lib/setup-groups';
  * it. Before this the user found out mid-fill, from a card that refused, and
  * the link it offered opened the first settings tab whatever was wrong.
  */
-export function ReadinessBar({ onOpen }: { onOpen: (group: GroupId, step?: string) => void }) {
+/**
+ * Whether this application can be sent, and what stands in the way.
+ *
+ * Shared rather than local so the sticky action can be gated by the same
+ * assessment the user is reading, instead of a second opinion about it.
+ */
+export function useReadiness(): Readiness | null {
   const [state, setState] = useState<Readiness | null>(null);
 
   useEffect(() => {
@@ -42,6 +48,12 @@ export function ReadinessBar({ onOpen }: { onOpen: (group: GroupId, step?: strin
     browser.storage.local.onChanged.addListener(refresh);
     return () => browser.storage.local.onChanged.removeListener(refresh);
   }, []);
+
+  return state;
+}
+
+export function ReadinessBar({ onOpen }: { onOpen: (group: GroupId, step?: string) => void }) {
+  const state = useReadiness();
 
   if (!state) return null;
 
