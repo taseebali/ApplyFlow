@@ -123,6 +123,14 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
   };
 
   const result = status.kind === 'ready' ? status.result : null;
+  // Sections that fell back to the user's own bullets because the bank had
+  // nothing for them — worth saying, since the resume looks complete either way.
+  const untailored = result
+    ? result.document.experience
+        .concat(result.document.projects)
+        .filter((section) => !section.tailored)
+        .map((section) => section.heading)
+    : [];
 
   return (
     <>
@@ -171,11 +179,21 @@ export function TailorCard({ onOpenSetup }: { onOpenSetup: () => void }) {
             </div>
           )}
 
+          {untailored.length > 0 && (
+            <div className="notice notice-warning">
+              <p>
+                The bank has nothing for <strong>{untailored.join(', ')}</strong>, so your own wording is used
+                there. Nothing is missing from the resume — those parts are just not tailored to this posting.
+              </p>
+            </div>
+          )}
+
           {result.document.experience.concat(result.document.projects).map((section) => (
             <div className="tailor-section" key={section.heading}>
               <p className="tailor-heading">
                 {section.heading}
                 {section.meta && <span className="hint"> · {section.meta}</span>}
+                {!section.tailored && <span className="pill pill-neutral">your wording</span>}
               </p>
               <ul>
                 {section.bullets.map((text) => (

@@ -24,7 +24,7 @@ import { inferTargetFamilies, type TargetFamily } from './target-families';
  * a partial bank that still works rather than nothing.
  */
 
-export type BankRunStatus = 'inferring' | 'generating' | 'done' | 'error';
+export type BankRunStatus = 'inferring' | 'generating' | 'done' | 'done-with-gaps' | 'error';
 
 export interface BankRunState {
   status: BankRunStatus;
@@ -35,6 +35,14 @@ export interface BankRunState {
   families: TargetFamily[];
   /** Source items with no measurable outcome — the enrichment questions. */
   needMetrics: Array<{ id: string; label: string }>;
+  /**
+   * Items that produced no usable variants, and why.
+   *
+   * A run that quietly reported success while writing nothing for half the
+   * profile is what let a one-project resume look like a finished one. A
+   * partial run is fine; a partial run that calls itself complete is not.
+   */
+  failed: Array<{ id: string; label: string; reason: string }>;
   message?: string;
 }
 
@@ -68,7 +76,16 @@ export interface BankRunOptions {
  */
 export async function runBankGeneration(options: BankRunOptions = {}): Promise<void> {
   const fail = (message: string) =>
-    report({ status: 'error', done: 0, total: 0, current: null, families: [], needMetrics: [], message });
+    report({
+      status: 'error',
+      done: 0,
+      total: 0,
+      current: null,
+      families: [],
+      needMetrics: [],
+      failed: [],
+      message,
+    });
 
   try {
     const settings = await getSettings();
@@ -101,6 +118,7 @@ export async function runBankGeneration(options: BankRunOptions = {}): Promise<v
         current: null,
         families: [],
         needMetrics,
+        failed: [],
       });
       // A failure here is survivable: no families means no domain hints, which
       // is the design without the refinement rather than a broken run.
@@ -112,6 +130,8 @@ export async function runBankGeneration(options: BankRunOptions = {}): Promise<v
       ? (existing?.variants ?? []).filter((v) => !options.onlySourceIds!.includes(v.sourceId))
       : [];
 
+    const failed: BankRunState['failed'] = [];
+
     for (const [index, source] of sources.entries()) {
       await report({
         status: 'generating',
@@ -120,21 +140,25 @@ export async function runBankGeneration(options: BankRunOptions = {}): Promise<v
         current: source.label,
         families,
         needMetrics,
+        failed,
       });
 
-      kept.push(...(await generateForSource(source, families, settings.llm)));
+      const { variants, reason } = await generateForSource(source, families, settings.llm);
+      if (reason) failed.push({ id: source.id, label: source.label, reason });
+      kept.push(...variants);
 
       // Saved after every item, so an interrupted run leaves a usable bank.
       await setBank(bankOf(kept, families, settings));
     }
 
     await report({
-      status: 'done',
+      status: failed.length > 0 ? 'done-with-gaps' : 'done',
       done: sources.length,
       total: sources.length,
       current: null,
       families,
       needMetrics,
+      failed,
     });
   } catch (err) {
     await fail(err instanceof Error ? err.message : 'Could not generate the bank.');
@@ -163,17 +187,21 @@ async function generateForSource(
   source: Source,
   families: TargetFamily[],
   llm: Awaited<ReturnType<typeof getSettings>>['llm']
-): Promise<BulletVariant[]> {
+): Promise<{ variants: BulletVariant[]; reason?: string }> {
   const prompt = buildGenerationPrompt(source, families);
 
   try {
     const first = parseVariants(await runPrompt(prompt, llm), source.id);
-    if (!needsRetry(first.kept)) return first.kept;
+    if (!needsRetry(first.kept)) return { variants: first.kept };
 
     const second = parseVariants(await runPrompt(prompt, llm), source.id);
-    return second.kept.length > first.kept.length ? second.kept : first.kept;
-  } catch {
-    // One failed item must not lose the items already generated.
-    return [];
+    const best = second.kept.length > first.kept.length ? second.kept : first.kept;
+    return best.length > 0
+      ? { variants: best }
+      : { variants: [], reason: 'Every framing the model wrote failed the quality check.' };
+  } catch (err) {
+    // One failed item must not lose the items already generated — but it must
+    // be named, or the resume quietly comes out short.
+    return { variants: [], reason: err instanceof Error ? err.message : 'The model call failed.' };
   }
 }

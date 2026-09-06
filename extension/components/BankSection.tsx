@@ -119,6 +119,17 @@ export function BankSection() {
 
       {run?.status === 'error' && <p className="error">{run.message}</p>}
 
+      {run?.status === 'done-with-gaps' && run.failed.length > 0 && (
+        <div className="notice notice-warning" style={{ marginTop: 10 }}>
+          <p>
+            Nothing could be written for <strong>{run.failed.map((f) => f.label).join(', ')}</strong>. Your own
+            wording is used for {run.failed.length === 1 ? 'it' : 'them'} on a tailored resume, so nothing is lost —
+            but {run.failed.length === 1 ? 'it is' : 'they are'} not tailored to the posting.
+          </p>
+          <p className="hint">{run.failed[0]!.reason}</p>
+        </div>
+      )}
+
       {running && (
         <div className="notice notice-warning">
           <p>
