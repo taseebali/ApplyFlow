@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { atsFromUrl } from '@/lib/company-scraper';
 import { getTabState, patchTabState } from '@/lib/tab-state';
-import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
+import { readJobInfo } from '@/lib/active-tab';
 import { getActiveTabId } from '@/lib/active-tab';
 
 /**
@@ -28,12 +28,9 @@ const EMPTY_POSTING: Posting = { company: '', role: '', ats: null, url: '' };
 
 /** Reads the posting for a tab: what was detected, with the user's edits on top. */
 export async function readPosting(tabId: number): Promise<Posting> {
-  let detected: GetJobInfoResponse | null = null;
-  try {
-    detected = await browser.tabs.sendMessage(tabId, { type: 'get-job-info' } satisfies GetJobInfoMessage);
-  } catch {
-    // No content script on this page — a new tab, a PDF, the store. Not an error.
-  }
+  // Asked of every frame that holds something, because an embedded application
+  // has its posting in the iframe and the top frame answers with nothing.
+  const detected = await readJobInfo(tabId).catch(() => null);
 
   const override = (await getTabState(tabId)).posting;
   const url = detected?.jobUrl ?? '';

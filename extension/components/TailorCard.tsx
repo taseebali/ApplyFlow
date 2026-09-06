@@ -13,7 +13,7 @@ import {
   toDocxBlob,
 } from '@/lib/resume-document';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
-import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
+import { readJobInfo } from '@/lib/active-tab';
 import { getActiveTabId } from '@/lib/active-tab';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
 import type { Posting } from '@/components/JobContext';
@@ -44,11 +44,9 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
     setStatus({ kind: 'working' });
     try {
       const tabId = await getActiveTabId();
-      const info: GetJobInfoResponse = await browser.tabs.sendMessage(tabId, {
-        type: 'get-job-info',
-      } satisfies GetJobInfoMessage);
+      const info = await readJobInfo(tabId);
 
-      const jobDescription = info.jobDescription ?? '';
+      const jobDescription = info?.jobDescription ?? '';
       const result = await tailorResume({ jobDescription });
       setStatus({ kind: 'ready', result, jobDescription });
     } catch (err) {

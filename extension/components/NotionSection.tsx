@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getActiveTabId } from '@/lib/active-tab';
+import { getActiveTabId, readJobInfo, EMPTY_JOB_INFO } from '@/lib/active-tab';
 import type { GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { getSettings } from '@/lib/settings';
 import { findExistingApplications, logApplicationToNotion, type ExistingApplication } from '@/lib/notion-client';
@@ -71,7 +71,7 @@ export function LogToNotionSection({ onOpenSetup }: { onOpenSetup: OpenSetup }) 
 
       const tabId = await getActiveTabId();
       const message: GetJobInfoMessage = { type: 'get-job-info' };
-      const jobInfo: GetJobInfoResponse = await browser.tabs.sendMessage(tabId, message);
+      const jobInfo = (await readJobInfo(tabId)) ?? EMPTY_JOB_INFO;
 
       const form: LogForm = {
         title: jobInfo.jobTitle ?? '',

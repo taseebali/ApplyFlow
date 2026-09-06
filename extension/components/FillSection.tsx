@@ -10,7 +10,13 @@ import { recordApplication, updateApplication } from '@/lib/application-log';
 import { useTabState } from '@/components/useTabState';
 import { ActionRow } from '@/components/ActionRow';
 import { AttachIcon, FillIcon } from '@/components/icons';
-import { listFillableFrames, getActiveTabId } from '@/lib/active-tab';
+import {
+  askFrames,
+  listFillableFrames,
+  getActiveTabId,
+  readJobInfo,
+  EMPTY_JOB_INFO,
+} from '@/lib/active-tab';
 import { TeachFieldsPanel } from '@/components/TeachFieldsPanel';
 
 type DocStatus =
@@ -254,7 +260,11 @@ export function FillAndAttachSection({
         })
       );
       const message: AttachDocumentsMessage = { type: 'attach-documents', files };
-      const response: AttachDocumentsResponse = await browser.tabs.sendMessage(target, message);
+      // The upload field is usually in the embedded frame, and a frame without
+      // one answers "not attached" instantly and would win an untargeted send.
+      const response = (await askFrames<AttachDocumentsResponse>(target, message, (result) =>
+        Object.values(result.attached).some((outcome) => outcome?.ok)
+      )) ?? { attached: {} };
 
       const outcomes: Partial<Record<DocumentKind, AttachOutcome>> = {};
       for (const e of entries) outcomes[e.kind] = response.attached[e.kind] ?? { ok: false };
@@ -300,8 +310,7 @@ export function FillAndAttachSection({
         return;
       }
 
-      const jobInfoMessage: GetJobInfoMessage = { type: 'get-job-info' };
-      const jobInfo: GetJobInfoResponse = await browser.tabs.sendMessage(target, jobInfoMessage);
+      const jobInfo = (await readJobInfo(target)) ?? EMPTY_JOB_INFO;
 
       const files = await listFolderFiles(handle);
       const resume = findBestMatch(files, 'resume', jobInfo.companyName);
