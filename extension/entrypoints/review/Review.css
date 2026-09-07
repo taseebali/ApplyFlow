@@ -1,29 +1,3 @@
-/* Wider than the side panel by design: this page exists because a resume
-   cannot be read or edited in 400px. */
-.review {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 32px 24px 80px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.review-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.review-head h1 {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 6px 0 0;
-  text-wrap: balance;
-}
-
 .review .eyebrow {
   font-size: var(--text-xs);
   font-weight: 700;
@@ -31,50 +5,209 @@
   text-transform: uppercase;
   color: var(--text-muted);
   margin: 0;
+}/* ---- the document, beside the controls that shape it ---- */
+
+/*
+ * Two columns: what you change on the left, what you are sending on the right.
+ * The rail scrolls with the page; the document sits at the width it prints, so
+ * "does this fit on one page" is answered by looking rather than by guessing.
+ */
+.review {
+  max-width: 1240px;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
 }
 
-/* section and section h2 come from ProfileForm.css, which this page shares. */
-
-.review-section {
-  margin-bottom: 20px;
+.review-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: sticky;
+  top: var(--space-6);
 }
 
-.review-heading {
-  margin: 0 0 8px;
-  font-size: var(--text-base);
+.review-rail h1 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 4px 0 0;
+  text-wrap: balance;
+}
+
+.review-rail section h2 {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+/* Below a laptop the rail cannot sit beside a 794px page, so it goes above it. */
+@media (max-width: 1100px) {
+  .review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .review-rail {
+    position: static;
+  }
+}
+
+.doc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: var(--space-3);
+  width: max-content;
+  border-radius: var(--radius-lg);
+  background: var(--surface-hover);
+}
+
+.doc-tab {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.doc-tab-on {
+  background: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
-.review-bullet {
-  border-left: 2px solid var(--border);
-  padding-left: 12px;
-  margin-bottom: 12px;
+/* A4 at 96dpi. The sheet is the paper; the rule is where page one ends. */
+.doc-sheet {
+  position: relative;
+  width: 794px;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-.review-letter {
-  min-height: 320px;
-  margin-top: 8px;
+.doc-body {
+  padding: 96px;
 }
 
-.review-bullet-foot {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: 6px;
+.doc-page-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 96px top margin + 931px of content. */
+  top: 1027px;
+  border-top: 1px dashed var(--wait);
 }
 
-.review-bullet-foot .btn-plain {
-  margin-left: auto;
-  font-size: var(--text-sm);
+/*
+ * The page itself is always light: it is paper, and a resume previewed on a
+ * dark ground is not the document anyone receives. Colours here are literals
+ * rather than tokens for exactly that reason.
+ */
+.doc {
+  color: #1a1a1a;
+  font-family: Calibri, Carlito, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
-/* The letter's fixed parts — assembled from the application, shown so the
-   review matches the file rather than only the paragraphs that were written. */
-.review-letter-head p {
-  margin: 4px 0;
+.doc p {
+  margin: 0 0 3px;
 }
 
-.review-letter-head {
-  margin: 12px 0;
+.doc-name {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.doc-name-small {
+  font-size: 16px;
+  text-align: left;
+}
+
+.doc-headline,
+.doc-contact {
+  text-align: center;
+  font-size: 13px;
+}
+
+.doc-name-small ~ .doc-contact {
+  text-align: left;
+}
+
+.doc-heading {
+  margin: 14px 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid #d0d0d0;
+}
+
+.doc-entry {
+  margin-bottom: 8px;
+}
+
+.doc-entry-head {
+  margin: 0;
+}
+
+.doc-meta {
+  font-style: italic;
+  font-size: 13px;
+}
+
+.doc-link {
+  font-size: 12.5px;
+  color: #555555;
+}
+
+.doc-bullets {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
+.doc-bullets li {
+  margin-bottom: 2px;
+}
+
+.doc-letter-block {
+  white-space: pre-line;
+  margin-top: 14px;
+}
+
+.doc-letter-date {
+  margin-bottom: 14px;
+}
+
+.doc-letter-body {
+  white-space: pre-wrap;
+  margin: 10px 0;
+}
+
+/* Editing happens on the document. The affordance is deliberately quiet — it
+   should read as paper until you put the cursor in it. */
+.editable {
+  outline: 0;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+
+.editable:hover {
+  background: #f2f2f2;
+}
+
+.editable:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px var(--accent);
 }

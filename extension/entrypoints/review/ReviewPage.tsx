@@ -1,40 +1,62 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { takeReview, type ReviewHandoff } from '@/lib/review-handoff';
 import { getBank, reviseVariant, setBank, type BulletVariant } from '@/lib/bullet-bank';
-import { scoreBullet, scoreSection } from '@/lib/bullet-quality';
+import { scoreSection } from '@/lib/bullet-quality';
 import { coverLetterFaults } from '@/lib/cover-letter';
 import {
   assembleCoverLetter,
+  assembleResume,
+  combinedFilename,
+  combinedToDocxBlob,
   coverLetterFilename,
   coverLetterToDocxBlob,
   resumeFilename,
   toDocxBlob,
 } from '@/lib/resume-document';
-import { assembleResume } from '@/lib/resume-document';
 import { getProfile } from '@/lib/storage';
 import { useStoredTheme } from '@/components/ThemeControl';
 import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
+import { LetterPage, ResumePage } from '@/components/ResumePage';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { Profile } from '@/lib/schema';
 
 /**
- * The full-width review of one tailored application.
+ * The tailored application, as the page it will be.
  *
- * A resume cannot be read, let alone edited, in a 400px side panel — and
- * nothing here should leave the extension unreviewed. This is also where the
- * bank improves: an edit made while reviewing is offered back, so the master
- * gets better as a byproduct of applying rather than through a curation chore
- * nobody performs.
+ * This used to be a form describing the document — a column of textareas and
+ * status pills — so the resume itself was never visible until it had been
+ * saved and opened in Word. Every fault in the first real one was found that
+ * way. Now the document is on the right at the size it prints, editable in
+ * place, and the rail on the left holds only what typing cannot do.
  */
+
+/**
+ * A4 at 96dpi, less the one-inch margins the export uses. The preview cannot
+ * be pixel-identical to Word's line breaking, so the rule is drawn a little
+ * early and the trim aims under it: overshooting onto a second page is the
+ * failure that matters, and a slightly short page is not a failure at all.
+ */
+const PAGE_CONTENT_PX = 931;
+const FITS_UNDER = 0.94;
+
+/** Where trimming starts. It comes down from here until the page fits. */
+const START_PROJECTS = 6;
+
 export function ReviewPage() {
   const [handoff, setHandoff] = useState<ReviewHandoff | null>(null);
   const [company, setCompany] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bullets, setBullets] = useState<BulletVariant[]>([]);
   const [letter, setLetter] = useState('');
-  const [kept, setKept] = useState<Set<string>>(new Set());
+  const [summary, setSummary] = useState<string | null>(null);
+  const [showing, setShowing] = useState<'resume' | 'letter'>('resume');
+  const [edited, setEdited] = useState<Set<string>>(new Set());
+  const [kept, setKept] = useState(false);
+  const [combine, setCombine] = useState(false);
   const [saved, setSaved] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [maxProjects, setMaxProjects] = useState(START_PROJECTS);
+  const pageRef = useRef<HTMLDivElement>(null);
   useStoredTheme();
 
   useEffect(() => {
@@ -47,7 +69,38 @@ export function ReviewPage() {
     void getProfile().then(setProfile);
   }, []);
 
-  if (!handoff || !profile) {
+  const document =
+    profile && handoff
+      ? assembleResume(
+          summary === null ? profile : { ...profile, summary },
+          bullets,
+          handoff.jobDescription,
+          maxProjects
+        )
+      : null;
+
+  /*
+   * One page, by measuring rather than by guessing.
+   *
+   * The cap used to be a constant four projects, applied whether they were one
+   * line or six and whether or not a summary, a skills block and a languages
+   * line sat above them. A constant cannot hold a page. This drops the
+   * lowest-ranked project until the rendered content clears the rule, which is
+   * the same question the reader's printer asks.
+   */
+  useLayoutEffect(() => {
+    const element = pageRef.current;
+    if (!element || showing !== 'resume') return;
+    if (element.scrollHeight > PAGE_CONTENT_PX * FITS_UNDER && maxProjects > 1) {
+      setMaxProjects((current) => current - 1);
+    }
+  }, [maxProjects, bullets, summary, showing]);
+
+  // Editing can only ever shorten or lengthen the page, so the trim starts
+  // over rather than staying where an earlier, longer draft left it.
+  useEffect(() => setMaxProjects(START_PROJECTS), [bullets.length, profile]);
+
+  if (!handoff || !profile || !document) {
     return (
       <main className="review">
         <p className="hint">
@@ -57,32 +110,36 @@ export function ReviewPage() {
     );
   }
 
-  const editBullet = (id: string, text: string) => {
-    setBullets((current) => current.map((v) => (v.id === id ? { ...v, text } : v)));
-    // An edit is no longer the wording the bank holds, so any earlier "keep"
-    // no longer describes it.
-    setKept((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
+  /**
+   * Bullets are addressed on the page by section and position, which is what
+   * the document exposes; mapping back to the variant that produced the text
+   * is what lets an edit reach the bank.
+   */
+  const editBullet = (kind: 'experience' | 'projects', section: number, index: number, text: string) => {
+    const old = document[kind][section]?.bullets[index];
+    if (old === undefined) return;
+    const variant = bullets.find((b) => b.text === old);
+    if (!variant) return;
+    setBullets((current) => current.map((b) => (b.id === variant.id ? { ...b, text } : b)));
+    setEdited((current) => new Set(current).add(variant.id));
+    setKept(false);
   };
 
-  /** Writes this wording back to the bank, so every future application uses it. */
-  const keepInBank = async (variant: BulletVariant) => {
+  /** Writes every edited wording back, so the next application starts from it. */
+  const keepEdits = async () => {
     const bank = await getBank();
     if (!bank) return;
-    await setBank(reviseVariant(bank, variant.id, variant.text));
-    setKept((current) => new Set(current).add(variant.id));
+    let next = bank;
+    for (const variant of bullets) {
+      if (edited.has(variant.id)) next = reviseVariant(next, variant.id, variant.text);
+    }
+    await setBank(next);
+    setKept(true);
   };
 
-  const document = assembleResume(profile, bullets, handoff.jobDescription);
   const score = scoreSection(bullets.map((b) => b.text)).score;
-  const letterFaults = coverLetterFaults(letter, bullets.map((b) => b.text), {
-    company,
-    role: handoff.role,
-  });
-  // Assembled here too, so what is reviewed is exactly what gets written.
+  const asked = handoff.result.gap.covered.length + handoff.result.gap.missing.length;
+
   const letterDocument = letter.trim()
     ? assembleCoverLetter({
         profile,
@@ -93,12 +150,16 @@ export function ReviewPage() {
       })
     : null;
 
+  const letterFaults = letterDocument
+    ? coverLetterFaults(letter, bullets.map((b) => b.text), { company, role: handoff.role })
+    : [];
+
+  const overflowing = (pageRef.current?.scrollHeight ?? 0) > PAGE_CONTENT_PX;
+
   const save = async () => {
     setError(null);
     if (!company.trim()) {
-      setError(
-        'Add the company before saving. It names both files, and Attach documents finds them by it.'
-      );
+      setError('Add the company before saving. It names both files, and Attach documents finds them by it.');
       return;
     }
     try {
@@ -113,17 +174,29 @@ export function ReviewPage() {
       }
 
       const names: string[] = [];
-      names.push(
-        await saveToDocumentsFolder(handle, resumeFilename(document, company), await toDocxBlob(document))
-      );
-      if (letter.trim()) {
+      if (combine && letterDocument) {
+        // Plenty of postings have one upload slot and no second field for a
+        // letter, and this is what people already do by hand.
         names.push(
           await saveToDocumentsFolder(
             handle,
-            coverLetterFilename(document, company),
-            await coverLetterToDocxBlob(letterDocument!)
+            combinedFilename(document, company),
+            await combinedToDocxBlob(document, letterDocument)
           )
         );
+      } else {
+        names.push(
+          await saveToDocumentsFolder(handle, resumeFilename(document, company), await toDocxBlob(document))
+        );
+        if (letterDocument) {
+          names.push(
+            await saveToDocumentsFolder(
+              handle,
+              coverLetterFilename(document, company),
+              await coverLetterToDocxBlob(letterDocument)
+            )
+          );
+        }
       }
       setSaved(names);
     } catch (err) {
@@ -131,28 +204,22 @@ export function ReviewPage() {
     }
   };
 
-  const sections = document.experience.concat(document.projects);
-  const asked = handoff.result.gap.covered.length + handoff.result.gap.missing.length;
-
   return (
     <main className="review">
-      <header className="review-head">
-        <div>
-          <p className="eyebrow">Review before sending</p>
-          <h1>{[handoff.role, company].filter(Boolean).join(' · ') || 'Tailored application'}</h1>
-          {/* Editable here as well as in the panel: this is the last screen
-              before the files are named, and a blank company is what produced
-              Jordan_Avery_Resume (5).docx. */}
-          <label className="field review-company">
-            <span>Company</span>
-            <input
-              type="text"
-              value={company}
-              placeholder="Enpal"
-              onChange={(event) => setCompany(event.target.value)}
-            />
-          </label>
-        </div>
+      <div className="review-rail">
+        <p className="eyebrow">Review before sending</p>
+        <h1>{[handoff.role, company].filter(Boolean).join(' · ') || 'Tailored application'}</h1>
+
+        <label className="field">
+          <span>Company</span>
+          <input
+            type="text"
+            value={company}
+            placeholder="Enpal"
+            onChange={(event) => setCompany(event.target.value)}
+          />
+        </label>
+
         <ScoreRing
           score={score}
           detail={
@@ -161,141 +228,112 @@ export function ReviewPage() {
               : 'Writing quality only. No posting text to compare against.'
           }
         />
-      </header>
 
-      {asked > 0 && (
-      <section>
-        <h2>Match</h2>
-        <KeywordChips
-          covered={handoff.result.gap.covered.slice(0, 12).map((g) => g.term)}
-          missing={handoff.result.gap.missing.map((g) => g.term)}
-        />
-        {handoff.result.gap.missing.length > 0 && (
-          <p className="hint mt-2">
-            Dashed means the posting asks for it and your profile never mentions it. Tailoring reorders what you
-            have; it cannot cover a gap.
-          </p>
-        )}
-      </section>
-      )}
-
-      <section>
-        <h2>Resume</h2>
-        {sections.map((section) => {
-          const owned = bullets.filter((b) => section.bullets.includes(b.text));
-          return (
-            <div className="review-section" key={section.heading}>
-              <p className="review-heading">
-                {section.heading}
-                {section.meta && <span className="hint"> · {section.meta}</span>}
-                {!section.tailored && <span className="pill pill-neutral">your wording</span>}
+        {asked > 0 && (
+          <section>
+            <h2>Match</h2>
+            <KeywordChips
+              covered={handoff.result.gap.covered.slice(0, 12).map((g) => g.term)}
+              missing={handoff.result.gap.missing.map((g) => g.term)}
+            />
+            {handoff.result.gap.missing.length > 0 && (
+              <p className="hint mt-2">
+                Dashed means the posting asks and your profile never mentions it. Tailoring reorders what you
+                have; it cannot cover a gap.
               </p>
-              {owned.map((variant) => {
-                const faults = scoreBullet(variant.text);
-                return (
-                  <div className="review-bullet" key={variant.id}>
-                    <textarea
-                      rows={2}
-                      aria-label={`Bullet under ${section.heading}`}
-                      value={variant.text}
-                      onChange={(e) => editBullet(variant.id, e.target.value)}
-                    />
-                    <div className="review-bullet-foot">
-                      {faults.map((fault) => (
-                        <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
-                          {fault.kind.replace(/-/g, ' ')}
-                        </span>
-                      ))}
-                      <button
-                        type="button"
-                        className="btn-plain"
-                        disabled={kept.has(variant.id)}
-                        onClick={() => void keepInBank(variant)}
-                      >
-                        {kept.has(variant.id) ? 'Kept for next time' : 'Keep this wording'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-
-        {document.education.length > 0 && (
-          <div className="review-section">
-            <p className="review-heading">Education</p>
-            {document.education.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-          </div>
+            )}
+          </section>
         )}
 
-        {document.skills.length > 0 && (
-          <div className="review-section">
-            <p className="review-heading">Skills</p>
-            {document.skills.map((group, index) => (
-              <p key={group.label ?? index}>
-                {group.label && <strong>{group.label}: </strong>}
-                {group.items.join(', ')}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {document.omitted.length > 0 && (
-          <p className="hint mt-2">
-            Left off to keep this to a page: {document.omitted.join(', ')}.
-          </p>
-        )}
-      </section>
-
-      {letterDocument && (
         <section>
-          <h2>Cover letter</h2>
-          <div className="status-row">
-            <span className="pill pill-neutral">
-              {letterDocument.language === 'de' ? 'German' : 'English'}
-            </span>
-            {letterFaults.map((fault) => (
-              <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
-                {fault.kind.replace(/-/g, ' ')}
-              </span>
-            ))}
-          </div>
-
-          {/* Shown, not editable: this is assembled from the application rather
-              than written, which is why it can no longer come out missing. */}
-          <div className="review-letter-head">
-            <p className="hint">{letterDocument.recipientLines.join(' · ')}</p>
-            <p className="hint">{letterDocument.date}</p>
-            <p>
-              <strong>{letterDocument.subject}</strong>
+          <h2>The page</h2>
+          <p className={`pill ${overflowing ? 'pill-warning' : 'pill-success'}`}>
+            {overflowing ? 'Runs onto a second page' : 'Fits on one page'}
+          </p>
+          {document.omitted.length > 0 && (
+            <p className="hint mt-2">
+              Left off to keep this to a page: {document.omitted.join(', ')}. Lowest-ranked first — relevance to
+              the posting, then how much each has to say.
             </p>
-            <p>{letterDocument.salutation}</p>
-          </div>
-
-          <textarea
-            className="review-letter"
-            aria-label="Cover letter body"
-            value={letter}
-            onChange={(e) => setLetter(e.target.value)}
-          />
-
-          <div className="review-letter-head">
-            <p>{letterDocument.closing}</p>
-            <p>{letterDocument.signature}</p>
-          </div>
+          )}
         </section>
-      )}
 
-      {error && <p className="error">{error}</p>}
-      {saved && <p className="status-row"><span className="pill pill-success">Saved {saved.join(', ')}</span></p>}
+        {letterDocument && (
+          <section>
+            <h2>Cover letter</h2>
+            <div className="status-row">
+              <span className="pill pill-neutral">{letterDocument.language === 'de' ? 'German' : 'English'}</span>
+              {letterFaults.map((fault) => (
+                <span key={fault.kind} className="pill pill-warning" title={fault.detail}>
+                  {fault.kind.replace(/-/g, ' ')}
+                </span>
+              ))}
+            </div>
+            <label className="field checkbox mt-2">
+              <input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} />
+              <span>Save as one file — for forms with a single upload slot</span>
+            </label>
+          </section>
+        )}
 
-      <div className="actions">
-        <button type="button" className="btn btn-primary" onClick={save}>
+        {edited.size > 0 && (
+          <section>
+            <h2>Your edits</h2>
+            <p className="hint">
+              {edited.size} line{edited.size === 1 ? '' : 's'} changed. Keeping them means the next application
+              starts from your wording rather than the generated one.
+            </p>
+            <button type="button" className="btn" disabled={kept} onClick={() => void keepEdits()}>
+              {kept ? 'Kept for next time' : 'Keep my wording'}
+            </button>
+          </section>
+        )}
+
+        {error && <p className="error">{error}</p>}
+        {saved && (
+          <p className="status-row">
+            <span className="pill pill-success">Saved {saved.join(', ')}</span>
+          </p>
+        )}
+
+        <button type="button" className="btn btn-primary" onClick={() => void save()}>
           Save to documents folder
         </button>
+      </div>
+
+      <div className="review-doc">
+        {letterDocument && (
+          <div className="doc-tabs" role="tablist">
+            {(['resume', 'letter'] as const).map((view) => (
+              <button
+                key={view}
+                type="button"
+                role="tab"
+                aria-selected={showing === view}
+                className={`doc-tab ${showing === view ? 'doc-tab-on' : ''}`}
+                onClick={() => setShowing(view)}
+              >
+                {view === 'resume' ? 'Resume' : 'Cover letter'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="doc-sheet">
+          <div className="doc-body" ref={pageRef}>
+            {showing === 'resume' || !letterDocument ? (
+              <ResumePage
+                document={document}
+                onEditBullet={editBullet}
+                onEditSummary={(text) => setSummary(text)}
+              />
+            ) : (
+              <LetterPage letter={letterDocument} body={letter} onEditBody={setLetter} />
+            )}
+          </div>
+          {/* Where the first page ends. Anything below it is a second page. */}
+          <div className="doc-page-rule" aria-hidden="true" />
+        </div>
       </div>
     </main>
   );
