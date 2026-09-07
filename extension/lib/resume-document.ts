@@ -1,5 +1,6 @@
 import { contentTerms, type BulletVariant } from './bullet-bank';
 import { CONVENTIONS, type LetterLanguage } from './letter-language';
+import { parseSkillRows } from './skill-groups';
 import type { BulletEntry, Profile } from './schema';
 
 /**
@@ -188,23 +189,9 @@ function asBullets(text: string): string[] {
  * schema change and no new editor.
  */
 function groupSkills(skills: string[]): SkillGroup[] {
-  const groups: SkillGroup[] = [];
-  const loose: string[] = [];
-
-  for (const entry of skills) {
-    const match = entry.match(/^([^:]{2,40}):\s*(.+)$/);
-    if (match) {
-      groups.push({
-        label: match[1]!.trim(),
-        items: match[2]!.split(',').map((item) => item.trim()).filter(Boolean),
-      });
-    } else if (entry.trim()) {
-      loose.push(entry.trim());
-    }
-  }
-
-  if (loose.length > 0) groups.push({ items: loose });
-  return groups;
+  // The same parse the skills editor uses, so what is typed as a group prints
+  // as one. Two copies of this regex is how the editor and the page drift.
+  return parseSkillRows(skills).map((row) => (row.label ? row : { items: row.items }));
 }
 
 /**

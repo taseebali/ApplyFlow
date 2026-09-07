@@ -16,8 +16,14 @@ export interface SkillRow {
   items: string[];
 }
 
-/** Matches the group shape `groupSkills` recognises, and nothing looser. */
-const GROUP = /^([^:]{2,40}):\s*(.+)$/;
+/**
+ * A label, a colon, then the items.
+ *
+ * The trailing `(?!\/)` is what stops "https://example.com" becoming a group
+ * called "https" — a URL is one skill entry, or more likely a stray paste, and
+ * either way it is not a heading.
+ */
+const GROUP = /^([^:]{2,40}):\s*(?!\/)(.+)$/;
 
 export function parseSkillRows(skills: string[]): SkillRow[] {
   const rows: SkillRow[] = [];
