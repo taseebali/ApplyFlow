@@ -33,21 +33,48 @@ whether anything was entered.
 
 ### 7. It spent money without asking
 
-**Why.** Three holes, and I do not know yet which one charged the $0.20:
-`isFree` accepts a model whose *prompt* is free even when its completion is
-paid; more than one candidate is sent to OpenRouter as a `models` array, and
-that is OpenRouter's own routing feature choosing between them; and nothing
-anywhere checks a model's price at the moment of calling it. Worse than any of
-those: nothing ever told you money could be spent.
+**Confirmed from the generation record**, not guessed. One request:
 
-**Fix.** A hard client-side guard - with a free policy, refuse to send a model
-the catalogue does not price at zero for both prompt and completion, and say so
-rather than silently substituting. Stop sending the `models` array when the
-policy is free, so routing stays ours. Show spend for the session in the panel.
+```
+model            google/lyria-3-clip-preview-20260330
+provider_responses  lyria-3-pro-preview   -> 504
+                    lyria-3-clip-preview  -> 200
+router_latency   5396 ms
+tokens           393 prompt / 102 completion
+usage            $0.04
+```
 
-**Check first.** OpenRouter -> Logs lists model and cost per request. That names
-the culprit in a minute; I would rather fix the one that happened than all three
-on a guess.
+Three defects, and every one of them is visible in those eight lines.
+
+1. **Nothing filters the candidate pool by modality.** Lyria is Google's
+   music-generation line. A music model was a candidate for drafting a cover
+   letter, which means the pool is not "free text models" - it is whatever the
+   catalogue endpoint returned, minus a price check.
+2. **`isFree` trusts the catalogue's price.** Preview models routinely list
+   zero or no price and bill anyway, which is exactly what happened: it passed
+   the filter and charged $0.04. The only signal worth trusting is the `:free`
+   suffix on the model id.
+3. **We hand OpenRouter a `models` array, so the fallback is theirs.** Two
+   provider responses in one request and 5.4 seconds of router latency are that
+   feature working as documented: the first choice timed out at 504 and their
+   router silently moved to the next. Even if we had vetted candidate one, we
+   never approved what it falls through to.
+
+$0.04 a request puts the $0.20 at roughly five requests, which matches.
+
+**Fix.**
+
+- Restrict the pool to text-in, text-out models, and exclude anything marked
+  preview.
+- Under a free policy, require the id to end in `:free` and ignore the numeric
+  price fields entirely.
+- Send exactly one model per request and do our own fallback, so a 504 can
+  never route to something we did not choose.
+- Show what the session has spent, in the panel, where it cannot be missed.
+
+The key label in the record is truncated by OpenRouter and the hash beside it
+is a SHA-256, so neither is usable - nothing needs revoking on account of that
+paste. The record itself stays out of the repo.
 
 ### 13. "Fill this application" is now redundant
 
