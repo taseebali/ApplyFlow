@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  LLM_PROMPT_HEADER,
   parseEducationSection,
   parseLlmResponse,
   parseProjectsSection,
@@ -116,6 +119,7 @@ describe('parseLlmResponse', () => {
       workHistory: [],
       education: [],
       projects: [],
+      certifications: [],
     });
     expect(parseLlmResponse('{ broken json').workHistory).toEqual([]);
   });
@@ -278,5 +282,123 @@ describe('education still-in-progress detection', () => {
   it('leaves a finished course as not current', () => {
     const entries = parseEducationSection('BSc Physics 2015 - 2018\nTU Munich College');
     expect(entries[0]!.current).toBe(false);
+  });
+});
+
+/**
+ * Written from the layout of a real resume: the repository sits on its own
+ * line under a project's bullets, and certifications are one line each.
+ */
+describe('links and certifications, as real resumes print them', () => {
+  const RESUME = [
+    'RELEVANT EXPERIENCE & PROJECTS',
+    "Repo Triage Agent - LLM Agent for Automated Workflow Triage",
+    '● Built an autonomous agent using the tool-use protocol that plans and iterates.',
+    '● Built an evaluation harness scoring it against 10 real, verified bug fixes.',
+    'github.com/jordanavery/repo-triage',
+    'VERDICT - AutoML Decision-Intelligence Platform',
+    '● Built an end-to-end AutoML pipeline automating preprocessing and training.',
+    'github.com/jordanavery/verdict',
+    '',
+    'CERTIFICATIONS',
+    '● Supervised Machine Learning: Regression and Classification - DeepLearning.AI, March 2025',
+    '● Database Design - DataCamp, June 2026',
+    '● Intermediate SQL - DataCamp, June 2026',
+  ].join('\n');
+
+  it('attaches a bare link line to the project above it', () => {
+    const projects = parseResumeHeuristic(RESUME).projects;
+    expect(projects.map((p) => p.name)).toEqual([
+      'Repo Triage Agent - LLM Agent for Automated Workflow Triage',
+      'VERDICT - AutoML Decision-Intelligence Platform',
+    ]);
+    expect(projects[0]!.link).toBe('github.com/jordanavery/repo-triage');
+    expect(projects[1]!.link).toBe('github.com/jordanavery/verdict');
+  });
+
+  it('does not invent a project named after a URL', () => {
+    // The link follows a bullet, so it looked exactly like the next title.
+    const names = parseResumeHeuristic(RESUME).projects.map((p) => p.name);
+    expect(names.some((name) => name.includes('github.com'))).toBe(false);
+  });
+
+  it('reads certifications as name, issuer and date', () => {
+    const certs = parseResumeHeuristic(RESUME).certifications;
+    expect(certs).toHaveLength(3);
+    expect(certs[1]).toMatchObject({ name: 'Database Design', issuer: 'DataCamp', date: 'June 2026' });
+  });
+
+  it('keeps a certification that names no issuer', () => {
+    const certs = parseResumeHeuristic(
+      ['CERTIFICATIONS', '● AWS Certified Cloud Practitioner'].join('\n')
+    ).certifications;
+    expect(certs).toHaveLength(1);
+    expect(certs[0]!.name).toBe('AWS Certified Cloud Practitioner');
+  });
+
+  it('takes a link from the heading line when that is where it is', () => {
+    const projects = parseResumeHeuristic(
+      [
+        'PROJECTS',
+        'ApplyFlow | TypeScript, React | github.com/jordanavery/applyflow',
+        '● Built a job autofiller.',
+      ].join('\n')
+    ).projects;
+    expect(projects[0]!.name).toBe('ApplyFlow');
+    expect(projects[0]!.techStack).toBe('TypeScript, React');
+    expect(projects[0]!.link).toBe('github.com/jordanavery/applyflow');
+  });
+
+  it('asks the model for the link and the certificates', () => {
+    expect(LLM_PROMPT_HEADER).toContain('"link"');
+    expect(LLM_PROMPT_HEADER).toContain('"certifications"');
+    expect(LLM_PROMPT_HEADER).toMatch(/never guess one/i);
+  });
+});
+
+/**
+ * The real thing, not a fixture written to pass.
+ *
+ * fixtures/real-resume.txt is the resume page of an application actually sent,
+ * extracted from its PDF. Three separate faults only showed up here: Word's
+ * default bullet glyph was missing from the list, the heading "RELEVANT
+ * EXPERIENCE & PROJECTS" matched no section pattern, and a bullet ending in a
+ * URL swallowed the next project's title.
+ */
+describe('a real resume, end to end', () => {
+  const TEXT = readFileSync(join(__dirname, '..', 'fixtures', 'real-resume.txt'), 'utf-8');
+
+  it('finds every project, with its link', () => {
+    const projects = parseResumeHeuristic(TEXT).projects;
+    expect(projects).toHaveLength(3);
+    expect(projects.map((p) => p.link)).toEqual([
+      'github.com/jordanavery/repo-triage',
+      'github.com/jordanavery/verdict',
+      'github.com/jordanavery/real-time-vision-system',
+    ]);
+  });
+
+  it('keeps each project’s bullets with that project', () => {
+    const projects = parseResumeHeuristic(TEXT).projects;
+    expect(projects.map((p) => p.bullets.length)).toEqual([4, 3, 2]);
+  });
+
+  it('never names a project after a URL or a bullet', () => {
+    for (const project of parseResumeHeuristic(TEXT).projects) {
+      expect(project.name).not.toMatch(/github\.com|^●/);
+      expect(project.name.length).toBeLessThan(80);
+    }
+  });
+
+  it('reads all three certifications', () => {
+    const certs = parseResumeHeuristic(TEXT).certifications;
+    expect(certs.map((c) => c.issuer)).toEqual(['DeepLearning.AI', 'DataCamp', 'DataCamp']);
+  });
+
+  it('reads the contact block', () => {
+    const parsed = parseResumeHeuristic(TEXT);
+    expect(parsed.contact.email).toBe('jordan.avery@example.com');
+    expect(parsed.contact.firstName).toBe('Jordan');
+    expect(parsed.links.github).toBe('github.com/jordanavery');
   });
 });

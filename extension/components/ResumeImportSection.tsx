@@ -19,6 +19,7 @@ interface Selection {
   workHistory: boolean;
   education: boolean;
   projects: boolean;
+  certifications: boolean;
 }
 
 function countFound(parsed: ParsedResume) {
@@ -28,6 +29,7 @@ function countFound(parsed: ParsedResume) {
     workHistory: parsed.workHistory.length,
     education: parsed.education.length,
     projects: parsed.projects.length,
+    certifications: parsed.certifications.length,
   };
 }
 
@@ -55,6 +57,9 @@ function applyParsed(profile: Profile, parsed: ParsedResume, selection: Selectio
   if (selection.workHistory && parsed.workHistory.length) next.workHistory = parsed.workHistory;
   if (selection.education && parsed.education.length) next.education = parsed.education;
   if (selection.projects && parsed.projects.length) next.projects = parsed.projects;
+  if (selection.certifications && parsed.certifications.length) {
+    next.certifications = parsed.certifications;
+  }
 
   return next;
 }
@@ -65,6 +70,7 @@ const SECTION_LABELS: Array<{ key: keyof Selection; label: string; unit: string 
   { key: 'workHistory', label: 'Work history', unit: 'role' },
   { key: 'education', label: 'Education', unit: 'entry' },
   { key: 'projects', label: 'Projects', unit: 'project' },
+  { key: 'certifications', label: 'Certifications', unit: 'certificate' },
 ];
 
 export function ResumeImportSection({
@@ -83,6 +89,7 @@ export function ResumeImportSection({
     workHistory: true,
     education: true,
     projects: true,
+    certifications: true,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 

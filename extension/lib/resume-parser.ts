@@ -1,5 +1,6 @@
 import {
   textToBullets,
+  type CertificationEntry,
   type EducationEntry,
   type Profile,
   type ProjectEntry,
@@ -14,10 +15,11 @@ export interface ParsedResume {
   workHistory: WorkHistoryEntry[];
   education: EducationEntry[];
   projects: ProjectEntry[];
+  certifications: CertificationEntry[];
 }
 
 export function emptyParsedResume(): ParsedResume {
-  return { contact: {}, links: {}, workHistory: [], education: [], projects: [] };
+  return { contact: {}, links: {}, workHistory: [], education: [], projects: [], certifications: [] };
 }
 
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+\w/;
@@ -29,16 +31,28 @@ const URL = /(?:https?:\/\/)[\w.-]+\.[a-z]{2,}(?:\/[\w./#?=&%-]*)?/gi;
 
 type SectionKey = keyof ParsedResume | 'skills' | 'other';
 
-/** Section headers as they appear on real resumes, mapped to the profile area they feed. */
+/**
+ * Section headers as they appear on real resumes, mapped to the profile area
+ * they feed.
+ *
+ * Matched by containment rather than anchored to the start of the line: real
+ * headings carry qualifiers. "RELEVANT EXPERIENCE & PROJECTS" matched nothing
+ * when these were prefix patterns, so a whole resume's projects stayed in the
+ * header block and none of them imported.
+ *
+ * Order is precedence. Projects come first because a heading naming both -
+ * which is common - is nearly always a list of projects.
+ */
 const SECTION_PATTERNS: Array<{ key: SectionKey; pattern: RegExp }> = [
-  { key: 'workHistory', pattern: /^(work\s+)?(experience|employment|work history|professional experience)\b/i },
-  { key: 'education', pattern: /^education\b/i },
-  { key: 'projects', pattern: /^(projects|personal projects|selected projects)\b/i },
-  { key: 'skills', pattern: /^(core skills|skills|technical skills|technologies)\b/i },
+  { key: 'projects', pattern: /\bprojects?\b/i },
+  { key: 'certifications', pattern: /\b(certifications?|certificates?|licen[sc]es?)\b/i },
+  { key: 'workHistory', pattern: /\b(experience|employment|work history)\b/i },
+  { key: 'education', pattern: /\beducation\b/i },
+  { key: 'skills', pattern: /\b(skills|technologies|tech stack)\b/i },
   // Not imported, but recognising them keeps their prose out of the header
   // block, which is the scope contact details are searched in.
-  { key: 'other', pattern: /^(summary|profile|objective|about me)\b/i },
-  { key: 'other', pattern: /^(certifications?|awards|publications|languages|interests|references)\b/i },
+  { key: 'other', pattern: /\b(summary|profile|objective|about me)\b/i },
+  { key: 'other', pattern: /\b(awards|publications|languages|interests|references)\b/i },
 ];
 
 /** A header line is short and matches a known section name — body text rarely is both. */
@@ -116,11 +130,20 @@ export function parseResumeHeuristic(text: string): ParsedResume {
   const { sections } = splitSections(text);
   if (sections.projects) result.projects = parseProjectsSection(sections.projects);
   if (sections.education) result.education = parseEducationSection(sections.education);
+  if (sections.certifications) result.certifications = parseCertificationsSection(sections.certifications);
 
   return result;
 }
 
-const BULLET = /^\s*[•·▪◦*-]\s+/;
+/**
+ * Bullet glyphs as word processors actually emit them.
+ *
+ * A glyph missing from this list is not merely unrecognised: the line stops
+ * being a bullet and becomes a heading, so one resume turns into a dozen
+ * projects named after their own bullet text. U+25CF, which Word uses by
+ * default, was missing.
+ */
+const BULLET = /^\s*[•·▪◦●○‣⁃▫■□*-]\s+/;
 
 function isBullet(line: string): boolean {
   return BULLET.test(line);
@@ -135,6 +158,19 @@ function isTechList(line: string): boolean {
 
 function isUrlish(text: string): boolean {
   return /(https?:\/\/|\b[\w-]+\.(com|org|net|io|dev|ai|co|me)\b)/i.test(text);
+}
+
+/**
+ * A line that is nothing but a link.
+ *
+ * Resumes commonly print a repository under a project's bullets on its own
+ * line. Because it follows a bullet it looked exactly like the next project's
+ * title, so importing a resume written that way produced phantom projects
+ * named after their own URLs.
+ */
+function isJustUrl(line: string): boolean {
+  const trimmed = line.trim().replace(/^[([]+|[)\]]+$/g, '');
+  return isUrlish(trimmed) && !/\s/.test(trimmed) && trimmed.length < 120;
 }
 
 /**
@@ -179,7 +215,10 @@ export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
 
   for (const segment of headingSegments(line)) {
     if (!entry.techStack && isTechList(segment) && !isUrlish(segment)) entry.techStack = segment;
-    else if (isUrlish(segment) || isDateish(segment)) continue;
+    // A URL beside a project heading is where the work can be seen, which is
+    // worth keeping. It used to be skipped along with the dates.
+    else if (isUrlish(segment)) entry.link ||= cleanUrl(segment);
+    else if (isDateish(segment)) continue;
     else if (!entry.name) entry.name = segment;
   }
 
@@ -187,6 +226,20 @@ export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
   // Trailing anchor words like "GitHub" are link text, not part of the name.
   entry.name = entry.name.replace(/\s*(github|gitlab|demo|live|repo|link|website)\s*$/i, '').trim();
   return entry;
+}
+
+/**
+ * Whether a bullet looks like it ran onto the next line.
+ *
+ * Ending punctuation is the usual signal, but a bullet that finishes with a URL
+ * has none and is still finished - "Live demo: example.com/thing" swallowed the
+ * next project's title, and that project vanished from the import.
+ */
+function isIncomplete(text: string): boolean {
+  const trimmed = text.trim();
+  if (/[.!?:)]$/.test(trimmed)) return false;
+  const lastWord = trimmed.split(/\s+/).pop() ?? '';
+  return !isUrlish(lastWord);
 }
 
 /**
@@ -216,10 +269,16 @@ export function parseProjectsSection(section: string): ProjectEntry[] {
       continue;
     }
 
+    // A bare link belongs to the project above it, not to a new one.
+    if (current && isJustUrl(line)) {
+      current.link ||= cleanUrl(line.trim());
+      continue;
+    }
+
     // A bullet that wraps onto a second line looks exactly like a new title
     // apart from one thing: the line it continues did not finish its sentence.
     const last = current?.bullets[current.bullets.length - 1];
-    if (current && sawBullet && last && !/[.!?]\s*$/.test(last.text)) {
+    if (current && sawBullet && last && isIncomplete(last.text)) {
       last.text = `${last.text} ${line}`.trim();
       continue;
     }
@@ -356,14 +415,16 @@ function guessName(header: string, email: string | undefined): { firstName: stri
   return null;
 }
 
-const LLM_PROMPT_HEADER = [
+export const LLM_PROMPT_HEADER = [
   'Extract structured data from the resume below.',
   'Return ONLY a JSON object, with no prose, no explanation, and no markdown fences.',
   'Use this exact shape, omitting any array you cannot fill:',
   '{"workHistory":[{"company":"","title":"","location":"","startDate":"","endDate":"","current":false,"description":""}],',
   '"education":[{"school":"","degree":"","fieldOfStudy":"","startDate":"","endDate":"","current":false}],',
-  '"projects":[{"name":"","role":"","description":"","techStack":"","outcomes":""}]}',
+  '"projects":[{"name":"","role":"","description":"","techStack":"","outcomes":"","link":""}],',
+  '"certifications":[{"name":"","issuer":"","date":""}]}',
   'Copy facts from the resume only — never invent employers, dates, or metrics.',
+  'project.link is the repository or demo URL printed with that project, if any. Never guess one.',
   'Set current to true for a course still in progress; endDate is then the expected finish date.',
   'Leave a field as an empty string if the resume does not state it.',
   '',
@@ -422,6 +483,47 @@ function toEducation(value: unknown): EducationEntry[] {
     .filter((e) => e.school || e.degree);
 }
 
+/**
+ * Certificates as three fields.
+ *
+ * Real resumes write them as one line - "Intermediate SQL - DataCamp, June
+ * 2026" - so the heuristic splits on the separators people actually use and
+ * takes what it finds rather than insisting on all three.
+ */
+function toCertifications(value: unknown): CertificationEntry[] {
+  return entriesOf(value)
+    .map((e) => ({
+      id: crypto.randomUUID(),
+      name: str(e.name),
+      issuer: str(e.issuer),
+      date: str(e.date),
+    }))
+    .filter((e) => e.name);
+}
+
+export function parseCertificationsSection(section: string): CertificationEntry[] {
+  return section
+    .split('\n')
+    .map((line) => line.replace(BULLET, '').trim())
+    .filter((line) => line.length > 3 && line.length < 160)
+    .map((line) => {
+      // "Name - Issuer, Date" and "Name | Issuer | Date" are both common; so is
+      // a bare name with nothing after it.
+      const [name = '', rest = ''] = line.split(/\s+[-–|]\s+|\s+—\s+/, 2);
+      const [issuer = '', date = ''] = rest.split(/,\s*/, 2);
+      return {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        issuer: issuer.trim(),
+        date: date.trim() || (DATEISH_TAIL.exec(rest)?.[0]?.trim() ?? ''),
+      };
+    })
+    .filter((entry) => entry.name);
+}
+
+/** A trailing month or year, for a line that names no issuer. */
+const DATEISH_TAIL = /((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+)?(19|20)\d{2}\s*$/i;
+
 function toProjects(value: unknown): ProjectEntry[] {
   return entriesOf(value)
     .map((e) => ({
@@ -437,13 +539,16 @@ function toProjects(value: unknown): ProjectEntry[] {
 }
 
 /** Turns a raw model response into schema-shaped entries. Exported for testing. */
-export function parseLlmResponse(raw: string): Pick<ParsedResume, 'workHistory' | 'education' | 'projects'> {
+export function parseLlmResponse(
+  raw: string
+): Pick<ParsedResume, 'workHistory' | 'education' | 'projects' | 'certifications'> {
   const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data) return { workHistory: [], education: [], projects: [] };
+  if (!data) return { workHistory: [], education: [], projects: [], certifications: [] };
   return {
     workHistory: toWorkHistory(data.workHistory),
     education: toEducation(data.education),
     projects: toProjects(data.projects),
+    certifications: toCertifications(data.certifications),
   };
 }
 
