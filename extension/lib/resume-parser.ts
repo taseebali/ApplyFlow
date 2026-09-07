@@ -17,10 +17,27 @@ export interface ParsedResume {
   education: EducationEntry[];
   projects: ProjectEntry[];
   certifications: CertificationEntry[];
+  /**
+   * The summary and skills the resume already prints. Both sections were
+   * recognised only to keep their prose out of the contact search, and then
+   * thrown away — which is why a tailored resume came out with no summary and
+   * no skills line at all.
+   */
+  summary: string;
+  skills: string[];
 }
 
 export function emptyParsedResume(): ParsedResume {
-  return { contact: {}, links: {}, workHistory: [], education: [], projects: [], certifications: [] };
+  return {
+    contact: {},
+    links: {},
+    workHistory: [],
+    education: [],
+    projects: [],
+    certifications: [],
+    summary: '',
+    skills: [],
+  };
 }
 
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+\w/;
@@ -149,8 +166,57 @@ export function parseResumeHeuristic(text: string): ParsedResume {
   if (sections.projects) result.projects = parseProjectsSection(sections.projects);
   if (sections.education) result.education = parseEducationSection(sections.education);
   if (sections.certifications) result.certifications = parseCertificationsSection(sections.certifications);
+  if (sections.summary) result.summary = parseSummarySection(sections.summary);
+  if (sections.skills) result.skills = parseSkillsSection(sections.skills);
 
   return result;
+}
+
+/**
+ * The summary a resume already prints, as one paragraph.
+ *
+ * Line breaks in this section are wrapping, not structure, so they are joined
+ * rather than kept — the profile field is a paragraph and a resume prints it
+ * across three lines.
+ */
+export function parseSummarySection(section: string): string {
+  return section
+    .split('\n')
+    .map((line) => line.replace(BULLET, '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+/**
+ * The skills a resume already lists, in the shape the skills editor stores.
+ *
+ * A labelled line ("Languages: Python, Go") becomes one grouped entry; an
+ * unlabelled line becomes its terms. Both round-trip through the same parser
+ * the editor and the page use.
+ */
+export function parseSkillsSection(section: string): string[] {
+  const out: string[] = [];
+
+  for (const raw of section.split('\n')) {
+    const line = raw.replace(BULLET, '').trim();
+    if (!line) continue;
+
+    const labelled = line.match(/^([A-Za-z][^:]{1,39}):\s*(.+)$/);
+    if (labelled) {
+      out.push(`${labelled[1]!.trim()}: ${labelled[2]!.trim()}`);
+      continue;
+    }
+    // A run of terms on one line. Split so each is its own chip; a line that
+    // is really a sentence stays whole rather than becoming word salad.
+    if (/[,;•·|]/.test(line)) {
+      out.push(...line.split(/[,;•·|]/).map((t) => t.trim()).filter(Boolean));
+    } else if (line.split(/\s+/).length <= 4) {
+      out.push(line);
+    }
+  }
+
+  return [...new Set(out)];
 }
 
 /**
@@ -446,8 +512,11 @@ export const LLM_PROMPT_HEADER = [
   '{"workHistory":[{"company":"","title":"","location":"","startDate":"","endDate":"","current":false,"description":""}],',
   '"education":[{"school":"","degree":"","fieldOfStudy":"","startDate":"","endDate":"","current":false}],',
   '"projects":[{"name":"","role":"","description":"","techStack":"","outcomes":"","link":""}],',
-  '"certifications":[{"name":"","issuer":"","date":""}]}',
+  '"certifications":[{"name":"","issuer":"","date":""}],',
+  '"summary":"","skills":[]}',
   'Copy facts from the resume only — never invent employers, dates, or metrics.',
+  'summary is the summary or profile paragraph the resume prints, copied as written. Never write one.',
+  'skills are the terms the resume lists. Keep a labelled line together as "Label: a, b"; otherwise one term per entry.',
   'project.link is the repository or demo URL printed with that project, if any. Never guess one.',
   'Set current to true for a course still in progress; endDate is then the expected finish date.',
   'Leave a field as an empty string if the resume does not state it.',
@@ -565,21 +634,27 @@ function toProjects(value: unknown): ProjectEntry[] {
 /** Turns a raw model response into schema-shaped entries. Exported for testing. */
 export function parseLlmResponse(
   raw: string
-): Pick<ParsedResume, 'workHistory' | 'education' | 'projects' | 'certifications'> {
+): Pick<ParsedResume, 'workHistory' | 'education' | 'projects' | 'certifications' | 'summary' | 'skills'> {
   const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data) return { workHistory: [], education: [], projects: [], certifications: [] };
+  if (!data) {
+    return { workHistory: [], education: [], projects: [], certifications: [], summary: '', skills: [] };
+  }
   return {
     workHistory: toWorkHistory(data.workHistory),
     education: toEducation(data.education),
     projects: toProjects(data.projects),
     certifications: toCertifications(data.certifications),
+    summary: typeof data.summary === 'string' ? data.summary.trim() : '',
+    skills: Array.isArray(data.skills)
+      ? data.skills.filter((s): s is string => typeof s === 'string').map((s) => s.trim()).filter(Boolean)
+      : [],
   };
 }
 
 export async function parseResumeWithLlm(
   text: string,
   llm: LlmSettings
-): Promise<Pick<ParsedResume, 'workHistory' | 'education' | 'projects'>> {
+): Promise<ReturnType<typeof parseLlmResponse>> {
   return parseLlmResponse(await runPrompt(`${LLM_PROMPT_HEADER}\n${text}`, llm));
 }
 
@@ -610,6 +685,11 @@ export async function parseResume(text: string, llm: LlmSettings): Promise<Parse
         workHistory: structured.workHistory.length ? structured.workHistory : heuristic.workHistory,
         education: structured.education.length ? structured.education : heuristic.education,
         projects: structured.projects.length ? structured.projects : heuristic.projects,
+        certifications: structured.certifications.length
+          ? structured.certifications
+          : heuristic.certifications,
+        summary: structured.summary || heuristic.summary,
+        skills: structured.skills.length ? structured.skills : heuristic.skills,
       },
       ai: 'used',
     };

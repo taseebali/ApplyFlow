@@ -319,3 +319,70 @@ describe('resumeFilename', () => {
     expect(resumeFilename(assembleResume(EMPTY_PROFILE, []), 'Acme')).toBe('Resume_Acme.docx');
   });
 });
+
+describe('what earns a place on the page', () => {
+  const withSource = (id: string, name: string, text: string, tech = '') => ({
+    id,
+    name,
+    role: '',
+    bullets: [{ id: `${id}-b`, text }],
+    techStack: tech,
+    outcomes: '',
+    link: '',
+  });
+
+  // The resume that came out of the first real run: a weekend backtracking
+  // exercise made the page while a vision system with hard numbers was cut,
+  // because the bank had happened to succeed for one and fail for the other.
+  const knight = withSource('kt', "Knight's Tour", 'Solved the Knight’s Tour with backtracking.');
+  const vision = withSource(
+    'rtv',
+    'Real-Time Vision',
+    'Built a vision and narration pipeline running at 8-9 FPS in 0.7 GB. Ran YOLOv8 and BLIP together on one GPU. Cut inference latency by half.',
+    'Python, PyTorch, YOLOv8'
+  );
+
+  const POSTING = 'We need someone to build AI agents in Python. PyTorch and vision experience a plus.';
+
+  it('keeps the substantial project when only the thin one is tailored', () => {
+    const resume = assembleResume(
+      { ...profile, projects: [knight, vision] },
+      [v('kt', 'Shipped a working backtracking solver.')],
+      POSTING,
+      1
+    );
+    expect(resume.projects.map((p) => p.heading)).toEqual(['Real-Time Vision']);
+  });
+
+  it('gives a one-sentence project one line, not three angles on it', () => {
+    // Generation writes six framings per source however thin the source is,
+    // and selection took three of them: "Designed a backtracking algorithm",
+    // "Built a backtracking implementation", "Solved it end-to-end".
+    const resume = assembleResume({ ...profile, projects: [knight] }, [
+      v('kt', 'Designed a backtracking algorithm for the tour.'),
+      v('kt', 'Built a backtracking implementation of the tour.'),
+      v('kt', 'Solved the tour end-to-end using backtracking.'),
+    ]);
+    expect(resume.projects[0]!.bullets).toHaveLength(1);
+  });
+
+  it('uses the same cap whether the bank ran or not', () => {
+    const tailored = assembleResume({ ...profile, projects: [vision] }, [
+      v('rtv', 'One.'),
+      v('rtv', 'Two.'),
+      v('rtv', 'Three.'),
+      v('rtv', 'Four.'),
+      v('rtv', 'Five.'),
+    ]);
+    const fallback = assembleResume({ ...profile, projects: [vision] }, []);
+    expect(tailored.projects[0]!.bullets).toHaveLength(fallback.projects[0]!.bullets.length);
+  });
+
+  it('puts languages on the document, which had no field for them at all', () => {
+    const resume = assembleResume(
+      { ...profile, languages: [{ id: 'l1', language: 'German', level: 'B2' }, { id: 'l2', language: 'English', level: 'C2' }] },
+      []
+    );
+    expect(resume.languages).toBe('German (B2)  ·  English (C2)');
+  });
+});

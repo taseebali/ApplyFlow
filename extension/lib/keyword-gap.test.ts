@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyseGap } from './keyword-gap';
+import { analyseGap, postingTerms } from './keyword-gap';
 
 const JD = `
 We are looking for a Backend Engineer to join our platform team.
@@ -56,5 +56,36 @@ describe('analyseGap', () => {
   it('is case-insensitive on both sides', () => {
     const { covered } = analyseGap({ jobDescription: 'We use KUBERNETES daily. Kubernetes.', profileText: 'kubernetes' });
     expect(covered.map((c) => c.term)).toContain('kubernetes');
+  });
+});
+
+describe('the terms a posting is said to ask for', () => {
+  // Straight off the panel: the match chips read "why", "ll", "days",
+  // "manual", "built", "find", "flow". None of those is something a posting
+  // asks for, and ranking projects against them sorts by noise.
+  const POSTING = `
+    We are looking for someone to build AI agents. You'll find manual work
+    across our energy business, and we want to ship a solution in days.
+    Requirements: Python, Kubernetes, RAG pipelines, vector storage.
+  `;
+
+  const terms = () => [...postingTerms(POSTING).keys()];
+
+  it('drops the words that were showing up as requirements', () => {
+    for (const noise of ['why', 'll', 'days', 'manual', 'built', 'find', 'flow', 'ship']) {
+      expect(terms()).not.toContain(noise);
+    }
+  });
+
+  it('keeps what the posting actually asks for', () => {
+    for (const real of ['python', 'kubernetes', 'rag', 'agents', 'storage', 'energy']) {
+      expect(terms()).toContain(real);
+    }
+  });
+
+  it('still keeps short technologies, which a length cutoff would eat', () => {
+    expect([...postingTerms('Experience with Go, R, CI/CD and QA.').keys()]).toEqual(
+      expect.arrayContaining(['go', 'ci', 'cd', 'qa'])
+    );
   });
 });

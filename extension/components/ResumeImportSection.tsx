@@ -20,6 +20,7 @@ interface Selection {
   education: boolean;
   projects: boolean;
   certifications: boolean;
+  summaryAndSkills: boolean;
 }
 
 function countFound(parsed: ParsedResume) {
@@ -30,6 +31,7 @@ function countFound(parsed: ParsedResume) {
     education: parsed.education.length,
     projects: parsed.projects.length,
     certifications: parsed.certifications.length,
+    summaryAndSkills: (parsed.summary ? 1 : 0) + parsed.skills.length,
   };
 }
 
@@ -60,6 +62,14 @@ function applyParsed(profile: Profile, parsed: ParsedResume, selection: Selectio
   if (selection.certifications && parsed.certifications.length) {
     next.certifications = parsed.certifications;
   }
+  // Never over the top of something typed. These two were recognised on the
+  // page and then discarded, which is why a tailored resume came out with no
+  // summary and no skills line — but a user who has written their own summary
+  // should not lose it to an import.
+  if (selection.summaryAndSkills) {
+    if (parsed.summary && !profile.summary.trim()) next.summary = parsed.summary;
+    if (parsed.skills.length > 0 && profile.skills.length === 0) next.skills = parsed.skills;
+  }
 
   return next;
 }
@@ -71,6 +81,7 @@ const SECTION_LABELS: Array<{ key: keyof Selection; label: string; unit: string 
   { key: 'education', label: 'Education', unit: 'entry' },
   { key: 'projects', label: 'Projects', unit: 'project' },
   { key: 'certifications', label: 'Certifications', unit: 'certificate' },
+  { key: 'summaryAndSkills', label: 'Summary and skills', unit: 'item' },
 ];
 
 export function ResumeImportSection({
@@ -90,6 +101,7 @@ export function ResumeImportSection({
     education: true,
     projects: true,
     certifications: true,
+    summaryAndSkills: true,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,8 +209,12 @@ export function ResumeImportSection({
 
           {SECTION_LABELS.map(({ key, label, unit }) => {
             const found = countFound(state.parsed)[key];
+            // Summary and skills never replace what is already there, so
+            // there is nothing to warn about overwriting.
             const existing =
-              key === 'contact' || key === 'links' ? 0 : (profile[key] as unknown[]).length;
+              key === 'contact' || key === 'links' || key === 'summaryAndSkills'
+                ? 0
+                : (profile[key] as unknown[]).length;
             return (
               <label className="field checkbox import-row" key={key}>
                 <input

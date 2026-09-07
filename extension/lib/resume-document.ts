@@ -1,4 +1,5 @@
 import { contentTerms, type BulletVariant } from './bullet-bank';
+import { postingTerms } from './keyword-gap';
 import { CONVENTIONS, type LetterLanguage } from './letter-language';
 import { parseSkillRows } from './skill-groups';
 import type { BulletEntry, Profile } from './schema';
@@ -50,6 +51,8 @@ export interface ResumeDocument {
   projects: ResumeSection[];
   education: string[];
   skills: SkillGroup[];
+  /** "German (fluent) · English (native)". A page with none simply omits it. */
+  languages: string;
   certifications: string[];
   /** Sections left off because the page only has room for so many. */
   omitted: string[];
@@ -78,6 +81,9 @@ export interface ResumeDocument {
  */
 const MAX_PROJECTS = 4;
 
+/** The most lines any one role or project gets, however much source it has. */
+const MAX_BULLETS = 4;
+
 export function assembleResume(
   profile: Profile,
   selected: BulletVariant[],
@@ -91,13 +97,37 @@ export function assembleResume(
     bySource.set(variant.sourceId, list);
   }
 
+  /*
+   * How many lines one item earns.
+   *
+   * A flat cap gave three near-identical bullets to a project whose whole
+   * source was one sentence — "Designed a backtracking algorithm", "Built a
+   * backtracking implementation", "Solved the Knight's Tour end-to-end" are
+   * three angles on the same thing, because generation writes six framings per
+   * source however thin the source is. The source is the honest limit: an item
+   * with one sentence behind it gets one line.
+   */
+  const bulletBudget = (own: BulletEntry[]) => {
+    const sentences = own.flatMap((b) => asBullets(b.text)).length;
+    // Nothing to measure against means no basis for a tighter cap, so the flat
+    // maximum stands. Cutting to one line there would punish an item for
+    // having no stored source rather than for having nothing to say.
+    return sentences === 0 ? MAX_BULLETS : Math.min(sentences, MAX_BULLETS);
+  };
+
   const linesFor = (id: string, own: BulletEntry[]) => {
+    const budget = bulletBudget(own);
     const chosen = bySource.get(id);
-    if (chosen && chosen.length > 0) return { bullets: chosen.map((v) => v.text), tailored: true };
+    // The same budget on both paths. They used to differ — four from the
+    // fallback, three from the bank — so the count on the page depended on
+    // which one had run.
+    if (chosen && chosen.length > 0) {
+      return { bullets: chosen.slice(0, budget).map((v) => v.text), tailored: true };
+    }
     // Imported descriptions arrive as one blob per project, and printing that
-    // blob is how a resume becomes a wall of prose. Split it into sentences and
-    // keep the first few, which is what a bullet list is.
-    return { bullets: own.flatMap((b) => asBullets(b.text)).slice(0, 4), tailored: false };
+    // blob is how a resume becomes a wall of prose. Split it into sentences,
+    // which is what a bullet list is.
+    return { bullets: own.flatMap((b) => asBullets(b.text)).slice(0, budget), tailored: false };
   };
 
   const experience = profile.workHistory
@@ -118,15 +148,37 @@ export function assembleResume(
     }))
     .filter((section) => section.bullets.length > 0);
 
-  // Tailored sections first, then whichever of the rest speaks to the posting.
-  // Order within each band is the profile's own, so nothing is shuffled for the
-  // sake of it.
-  const postingTerms = new Set(contentTerms(jobDescription));
-  const relevance = (section: ResumeSection) =>
-    (section.tailored ? 1000 : 0) +
-    contentTerms(`${section.heading} ${section.meta} ${section.bullets.join(' ')}`).filter((term) =>
-      postingTerms.has(term)
-    ).length;
+  /*
+   * What goes on the page, and in what order.
+   *
+   * This used to be `(tailored ? 1000 : 0) + term overlap`, and the 1000 was
+   * the whole ranking: any project the bank had succeeded for outranked any
+   * project it had failed for, whatever either was worth. A weekend
+   * backtracking exercise made an AI resume while a vision system with real
+   * numbers was cut, purely because generation had happened to work for one
+   * and not the other. Bank coverage is now a tie-break worth one point.
+   *
+   * Relevance is measured against what the posting asks for rather than every
+   * word in it — the raw term list had "why", "days" and "built" in it, and
+   * ranking against those is ranking against noise.
+   *
+   * Substance is the other half. Without it a one-line project that happens to
+   * name a matching tool beats a substantial one that does not, which is the
+   * same failure in a different coat.
+   */
+  const asks = postingTerms(jobDescription);
+
+  const relevance = (section: ResumeSection) => {
+    const terms = contentTerms(`${section.heading} ${section.meta} ${section.bullets.join(' ')}`);
+    // A repeated ask counts for more: postings repeat what they care about.
+    const match = terms.reduce((sum, term) => sum + Math.min(asks.get(term) ?? 0, 3), 0);
+    const substance =
+      // Something to say, said in more than one line.
+      Math.min(section.bullets.length, 3) +
+      // A number in a bullet is the difference between a claim and a result.
+      (section.bullets.some((line) => /\d/.test(line)) ? 2 : 0);
+    return match * 3 + substance + (section.tailored ? 1 : 0);
+  };
 
   const ranked = [...allProjects].sort((a, b) => relevance(b) - relevance(a));
   const kept = new Set(ranked.slice(0, maxProjects));
@@ -157,6 +209,10 @@ export function assembleResume(
     projects,
     education,
     skills: groupSkills(orderSkills(profile.skills, jobDescription)),
+    languages: profile.languages
+      .map((entry) => (entry.level ? `${entry.language} (${entry.level})` : entry.language))
+      .filter((line) => line.trim().length > 0)
+      .join('  ·  '),
     certifications: profile.certifications
       .map((entry) => [entry.name, entry.issuer, entry.date].filter(Boolean).join(', '))
       .filter(Boolean),
@@ -334,6 +390,10 @@ async function resumeParagraphs(resume: ResumeDocument) {
             (line) => new Paragraph({ text: line, bullet: { level: 0 }, spacing: { after: 40 } })
           ),
         ]
+      : []),
+
+    ...(resume.languages
+      ? [heading('Languages'), new Paragraph({ text: resume.languages, spacing: { after: 40 } })]
       : []),
 
     ...(resume.skills.length > 0

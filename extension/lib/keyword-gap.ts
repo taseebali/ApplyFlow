@@ -27,6 +27,25 @@ const BOILERPLATE = new Set([
   'when', 'where', 'how', 'all', 'any', 'both', 'each', 'every', 'some', 'you.ll', 'youll',
   'looking', 'join', 'joining', 'offer', 'offers', 'including', 'include', 'includes',
   'etc', 'e.g', 'i.e', 'per', 'within', 'across', 'using', 'use', 'used', 'like', 'would',
+  // Contraction tails. The tokenizer turns an apostrophe into a space, so
+  // "you'll" arrives as "you" and "ll" — and "ll" was showing up as something
+  // the posting supposedly asks for.
+  'll', 've', 're', 'don', 'doesn', 'isn', 'aren', 'won', 'didn',
+  // Common verbs. No posting asks for the skill "built": these describe what
+  // the work involves, not what it requires, and they crowd out the terms that
+  // do. Kept to verbs that are never themselves a technology — "test", "data",
+  // "design" and "build" stay, because those are real asks in this field —
+  // and neither does "Go", which is a language before it is a verb.
+  'find', 'finding', 'found', 'built', 'make', 'making', 'made', 'get', 'getting', 'got',
+  'take', 'taking', 'give', 'giving', 'want', 'wants', 'need', 'needs', 'know', 'knows',
+  'see', 'seen', 'come', 'comes', 'keep', 'keeps', 'put', 'let', 'say', 'says',
+  'ship', 'shipping', 'bring', 'brings', 'drive', 'driving', 'ensure', 'ensuring',
+  'support', 'supporting', 'deliver', 'delivering', 'grow', 'growing', 'learn', 'learning',
+  // Generic nouns and qualifiers that survive the verb list.
+  'why', 'day', 'days', 'week', 'weeks', 'month', 'months', 'time', 'times', 'way', 'ways',
+  'thing', 'things', 'part', 'parts', 'lot', 'lots', 'kind', 'sort', 'level', 'levels',
+  'manual', 'manually', 'flow', 'first', 'next', 'last', 'own', 'here', 'there', 'much',
+  'many', 'one', 'two', 'three', 'really', 'very', 'just', 'even', 'still', 'always', 'never',
 ]);
 
 export interface GapTerm {
@@ -47,7 +66,7 @@ export interface GapReport {
  * signal available for importance without a model, and it is a decent one:
  * postings repeat what they actually care about.
  */
-function postingTerms(jobDescription: string): Map<string, number> {
+export function postingTerms(jobDescription: string): Map<string, number> {
   const counts = new Map<string, number>();
 
   // Counted with repeats, unlike `contentTerms`, which deduplicates.

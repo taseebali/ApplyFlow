@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   parseProjectHeading,
+  parseSkillsSection,
+  parseSummarySection,
   LLM_PROMPT_HEADER,
   parseEducationSection,
   parseLlmResponse,
@@ -121,6 +123,8 @@ describe('parseLlmResponse', () => {
       education: [],
       projects: [],
       certifications: [],
+      summary: '',
+      skills: [],
     });
     expect(parseLlmResponse('{ broken json').workHistory).toEqual([]);
   });
@@ -427,5 +431,37 @@ describe('a hyperlink recovered from the file', () => {
     const entry = parseProjectHeading('Knight’s Tour (a weekend exercise)');
     expect(entry.link).toBe('');
     expect(entry.name).toContain('Knight');
+  });
+});
+
+describe('the summary and skills a resume already prints', () => {
+  // Both sections were recognised only so their prose stayed out of the
+  // contact search, and then discarded. The tailored resume came out with no
+  // summary line and no skills section as a direct result.
+  it('joins a wrapped summary into one paragraph', () => {
+    const text = parseSummarySection('AI engineer building agent systems,\nwith a focus on retrieval.');
+    expect(text).toBe('AI engineer building agent systems, with a focus on retrieval.');
+  });
+
+  it('strips the bullet glyph a summary is sometimes printed with', () => {
+    expect(parseSummarySection('• Builds things.')).toBe('Builds things.');
+  });
+
+  it('keeps a labelled skills line as one group', () => {
+    expect(parseSkillsSection('Languages: Python, TypeScript')).toEqual(['Languages: Python, TypeScript']);
+  });
+
+  it('splits an unlabelled run into its own terms', () => {
+    expect(parseSkillsSection('Python, Docker, Kubernetes')).toEqual(['Python', 'Docker', 'Kubernetes']);
+  });
+
+  it('does not turn a sentence into word salad', () => {
+    // A skills section sometimes opens with a line of prose. Chips made of
+    // "Comfortable" and "across" would be worse than nothing.
+    expect(parseSkillsSection('Comfortable across the whole stack and happy to learn more')).toEqual([]);
+  });
+
+  it('does not repeat a term listed twice', () => {
+    expect(parseSkillsSection('Python, Docker\nDocker, Git')).toEqual(['Python', 'Docker', 'Git']);
   });
 });
