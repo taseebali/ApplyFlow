@@ -22,8 +22,15 @@ const wrap = (variants: unknown[]) => JSON.stringify({ variants });
 describe('the quality gate', () => {
   it('keeps a well-written variant', () => {
     const { kept } = parseVariants(
-      wrap([{ angle: 'impact', text: 'Raised file-match accuracy to 90% across 10 verified fixes.' }]),
-      's1'
+      wrap([
+        {
+          angle: 'impact',
+          text: 'Raised file-match accuracy to 90% across 10 verified fixes.',
+          estimated: ['90%'],
+        },
+      ]),
+      's1',
+      'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.'
     );
     expect(kept).toHaveLength(1);
     expect(kept[0]!.hasMetric).toBe(true);
@@ -35,7 +42,8 @@ describe('the quality gate', () => {
         { angle: 'impact', text: 'Responsible for 3 evaluation harnesses.' },
         { angle: 'technical', text: 'Worked with 4 cross-functional teams on the agent.' },
       ]),
-      's1'
+      's1',
+      'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.'
     );
     expect(kept).toEqual([]);
     expect(rejected).toHaveLength(2);
@@ -46,7 +54,8 @@ describe('the quality gate', () => {
     // a reason to throw away a correctly written sentence.
     const { kept } = parseVariants(
       wrap([{ angle: 'ownership', text: 'Owned the triage pipeline end to end.' }]),
-      's1'
+      's1',
+      'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.'
     );
     expect(kept).toHaveLength(1);
   });
@@ -60,14 +69,15 @@ describe('the quality gate', () => {
         { angle: 'scale', text: 'Built an evaluation harness over 10 fixes.' },
         { angle: 'impact', text: 'Cut triage time by 40%.' },
       ]),
-      's1'
+      's1',
+      'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.'
     );
     expect(kept.map((v) => v.openingVerb)).toEqual(['built', 'cut']);
     expect(rejected).toHaveLength(1);
   });
 
   it('stamps every kept variant with the source it came from', () => {
-    const { kept } = parseVariants(wrap([{ angle: 'impact', text: 'Cut triage time 40%.' }]), 'project-7');
+    const { kept } = parseVariants(wrap([{ angle: 'impact', text: 'Cut triage time 40%.' }]), 'project-7', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.');
     expect(kept[0]!.sourceId).toBe('project-7');
   });
 
@@ -75,9 +85,10 @@ describe('the quality gate', () => {
     const { kept } = parseVariants(
       wrap([
         { angle: 'impact', text: 'Cut triage time 40%.', domain: 'Backend Engineer' },
-        { angle: 'scale', text: 'Scaled ingest to 12k documents.', domain: 'null' },
+        { angle: 'scale', text: 'Scaled ingest to 12k documents.', domain: 'null', estimated: ['12k'] },
       ]),
-      's1'
+      's1',
+      'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.'
     );
     expect(kept[0]!.domainHint).toBe('Backend Engineer');
     expect(kept[1]!.domainHint).toBeNull();
@@ -87,17 +98,17 @@ describe('the quality gate', () => {
 describe('malformed output', () => {
   it('recovers JSON from fences and prose', () => {
     const raw = 'Here you go:\n```json\n' + wrap([{ angle: 'impact', text: 'Cut cost 20%.' }]) + '\n```';
-    expect(parseVariants(raw, 's1').kept).toHaveLength(1);
+    expect(parseVariants(raw, 's1', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.').kept).toHaveLength(1);
   });
 
   it('returns nothing rather than throwing', () => {
-    expect(parseVariants('I cannot help with that.', 's1').kept).toEqual([]);
-    expect(parseVariants('{ broken', 's1').kept).toEqual([]);
-    expect(parseVariants(JSON.stringify({ variants: 'nope' }), 's1').kept).toEqual([]);
+    expect(parseVariants('I cannot help with that.', 's1', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.').kept).toEqual([]);
+    expect(parseVariants('{ broken', 's1', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.').kept).toEqual([]);
+    expect(parseVariants(JSON.stringify({ variants: 'nope' }), 's1', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.').kept).toEqual([]);
   });
 
   it('skips an entry with an angle it does not recognise', () => {
-    expect(parseVariants(wrap([{ angle: 'vibes', text: 'Cut cost 20%.' }]), 's1').kept).toEqual([]);
+    expect(parseVariants(wrap([{ angle: 'vibes', text: 'Cut cost 20%.' }]), 's1', 'Cut triage time 40%. Built it against 10 real bug fixes. Cut cost 20%.').kept).toEqual([]);
   });
 });
 
@@ -167,11 +178,16 @@ describe('sourcesMissingMetrics', () => {
 
 describe('buildGenerationPrompt', () => {
   it('forbids inventing a fact that is not in the source', () => {
-    expect(buildGenerationPrompt(source, [])).toMatch(/never introduce a number/i);
+    expect(buildGenerationPrompt(source, [])).toMatch(/must be listed in the "estimated" array/i);
   });
 
-  it('tells the model not to estimate a missing metric', () => {
-    expect(buildGenerationPrompt(source, [])).toMatch(/do not estimate/i);
+  it('lets the model estimate a figure the source implies, and only a figure', () => {
+    const prompt = buildGenerationPrompt(source, []);
+    expect(prompt).toMatch(/MAY estimate a figure that SOURCE plainly implies/i);
+    // Everything else still has to come from the source, and an estimate has
+    // to be declared or the bullet is thrown away.
+    expect(prompt).toMatch(/must already appear in SOURCE/i);
+    expect(prompt).toMatch(/must be listed in the \"estimated\" array/i);
   });
 
   it('names the target families when they are known', () => {
@@ -187,5 +203,52 @@ describe('buildGenerationPrompt', () => {
     const prompt = buildGenerationPrompt(source, []);
     expect(prompt).toContain('10 verified fixes');
     expect(prompt).toContain('python, fastapi');
+  });
+});
+
+describe('estimated figures', () => {
+  const FACTS = 'Built a triage agent and tested it against real, verified bug fixes.';
+
+  it('keeps a figure the model declared it estimated, and records which', () => {
+    // The bank was built on "never invent a number", which is why seven items
+    // on a real profile reported nothing measurable and produced flat bullets.
+    // Estimating is allowed now; estimating silently is not.
+    const { kept } = parseVariants(
+      wrap([{ angle: 'impact', text: 'Resolved roughly 10 verified fixes.', estimated: ['10'] }]),
+      's1',
+      FACTS
+    );
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.estimated).toEqual(['10']);
+  });
+
+  it('throws away a figure nobody took responsibility for', () => {
+    const { kept, rejected } = parseVariants(
+      wrap([{ angle: 'impact', text: 'Raised accuracy to 94%.' }]),
+      's1',
+      FACTS
+    );
+    expect(kept).toEqual([]);
+    expect(rejected).toHaveLength(1);
+  });
+
+  it('marks nothing on a bullet whose numbers all came from the source', () => {
+    const { kept } = parseVariants(
+      wrap([{ angle: 'impact', text: 'Cut triage time 40%.' }]),
+      's1',
+      'Cut triage time 40% on average.'
+    );
+    expect(kept[0]!.estimated).toBeUndefined();
+  });
+
+  it('ignores a declaration for a figure the bullet does not contain', () => {
+    // It would mark the wrong thing in the panel, which is worse than marking
+    // nothing.
+    const { kept } = parseVariants(
+      wrap([{ angle: 'ownership', text: 'Owned the pipeline end to end.', estimated: ['40%'] }]),
+      's1',
+      FACTS
+    );
+    expect(kept[0]!.estimated).toBeUndefined();
   });
 });

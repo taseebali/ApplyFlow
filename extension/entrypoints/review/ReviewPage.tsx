@@ -156,6 +156,9 @@ export function ReviewPage() {
 
   const overflowing = (pageRef.current?.scrollHeight ?? 0) > PAGE_CONTENT_PX;
 
+  // Every figure on the page that came from the model rather than the profile.
+  const estimates = [...new Set(bullets.flatMap((variant) => variant.estimated ?? []))];
+
   const save = async () => {
     setError(null);
     if (!company.trim()) {
@@ -242,6 +245,18 @@ export function ReviewPage() {
                 have; it cannot cover a gap.
               </p>
             )}
+          </section>
+        )}
+
+        {estimates.length > 0 && (
+          <section>
+            <h2>Estimated figures</h2>
+            <p className="hint">
+              {estimates.length} number{estimates.length === 1 ? '' : 's'} on this resume was worked out from
+              what your profile describes rather than read from it: {estimates.join(', ')}. Each is marked on
+              the page. Confirm or correct them before you send it — a figure on a resume is one you have to
+              defend in an interview.
+            </p>
           </section>
         )}
 

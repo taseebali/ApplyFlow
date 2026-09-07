@@ -23,6 +23,12 @@ export interface ResumeSection {
   /** The right-hand line: dates, or a technology list. */
   meta: string;
   bullets: string[];
+  /**
+   * Per bullet, the figures the model estimated rather than read. Parallel to
+   * `bullets`, empty for everything the user wrote. An estimate is a number you
+   * have to defend in an interview, so the review page marks them.
+   */
+  estimated?: string[][];
   /** Where the work can be seen. The first thing a technical reader clicks. */
   link?: string;
   /**
@@ -118,16 +124,23 @@ export function assembleResume(
   const linesFor = (id: string, own: BulletEntry[]) => {
     const budget = bulletBudget(own);
     const chosen = bySource.get(id);
+    // Figures the model worked out rather than read, kept alongside the text so
+    // the review page can mark them before anything is sent.
     // The same budget on both paths. They used to differ — four from the
     // fallback, three from the bank — so the count on the page depended on
     // which one had run.
     if (chosen && chosen.length > 0) {
-      return { bullets: chosen.slice(0, budget).map((v) => v.text), tailored: true };
+      const picked = chosen.slice(0, budget);
+      return {
+        bullets: picked.map((v) => v.text),
+        tailored: true,
+        estimated: picked.map((v) => v.estimated ?? []),
+      };
     }
     // Imported descriptions arrive as one blob per project, and printing that
     // blob is how a resume becomes a wall of prose. Split it into sentences,
     // which is what a bullet list is.
-    return { bullets: own.flatMap((b) => asBullets(b.text)).slice(0, budget), tailored: false };
+    return { bullets: own.flatMap((b) => asBullets(b.text)).slice(0, budget), tailored: false, estimated: [] };
   };
 
   const experience = profile.workHistory

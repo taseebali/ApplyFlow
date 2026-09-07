@@ -33,6 +33,14 @@ export interface BulletVariant {
    */
   domainHint: string | null;
   text: string;
+  /**
+   * Figures in this bullet the model worked out rather than read from the
+   * source. Empty for everything the user actually wrote down. Shown to the
+   * user before the resume goes anywhere: an estimate is a number you have to
+   * defend in an interview, and knowing which they are is the only thing that
+   * makes generating them safe.
+   */
+  estimated?: string[];
   /** Derived, never set by hand: selection enforces verb variety on it. */
   openingVerb: string;
   /** Derived: content words, for the shortlist that runs before the model. */
@@ -86,6 +94,7 @@ export function makeVariant(input: {
   angle: Angle;
   text: string;
   domainHint?: string | null;
+  estimated?: string[];
 }): BulletVariant {
   const text = input.text.trim();
   return {
@@ -94,6 +103,7 @@ export function makeVariant(input: {
     angle: input.angle,
     domainHint: input.domainHint ?? null,
     text,
+    ...(input.estimated && input.estimated.length > 0 ? { estimated: input.estimated } : {}),
     openingVerb: openingVerb(text),
     terms: contentTerms(text),
     hasMetric: hasMetric(text),

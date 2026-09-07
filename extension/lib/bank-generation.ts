@@ -1,4 +1,5 @@
 import { isPublishable, scoreSection } from './bullet-quality';
+import { danglingEstimates, undeclaredNumbers } from './estimates';
 import { ANGLES, makeVariant, type Angle, type BulletVariant } from './bullet-bank';
 import { bulletsToText, type Profile, type ProjectEntry, type WorkHistoryEntry } from './schema';
 import type { TargetFamily } from './target-families';
@@ -54,13 +55,15 @@ export function buildGenerationPrompt(source: Source, families: TargetFamily[]):
     `You are rewriting one piece of a candidate's experience in ${ANGLES.length} different ways, for a bank of resume bullets.`,
     '',
     'RULES:',
-    '1. Every fact must already appear in SOURCE. Never introduce a number, technology, employer, date, or outcome that is not there. If SOURCE has no metric, write the bullet without one — do not estimate.',
+    '1. Every technology, employer, date and outcome must already appear in SOURCE. Never introduce one that is not there.',
+    '1a. You MAY estimate a figure that SOURCE plainly implies — a rough count, scale or rate that follows from what is described. Where nothing can be reasonably estimated, write the bullet without a number rather than reaching for one.',
+    '1b. Every figure you did not read in SOURCE must be listed in the "estimated" array of that variant, exactly as it appears in the text. A number in the text that is neither in SOURCE nor listed will be discarded along with the bullet.',
     '2. One bullet per framing. Each must open with a DIFFERENT strong verb. Never open two with the same word.',
     '3. Never open with: Responsible for, Worked on, Helped with, Assisted, Participated in, Leveraged, Utilized.',
     '4. Never use: cross-functional, fast-paced, team player, passionate about, proven track record, results-driven, detail-oriented.',
     '5. Active voice, one or two lines, no trailing full stop needed.',
     '6. Keep the candidate\'s own terminology for technologies and systems.',
-    `7. Return only JSON, shaped: {"variants":[{"angle":"technical","domain":"${familyNames[0] ?? 'null'}","text":"..."}]}`,
+    `7. Return only JSON, shaped: {"variants":[{"angle":"technical","domain":"${familyNames[0] ?? 'null'}","text":"...","estimated":[]}]}`,
     '   `domain` names which of the target families this framing suits best, or null if it suits all equally.',
     '',
     'THE FRAMINGS, one bullet each:',
@@ -98,7 +101,10 @@ const isAngle = (value: unknown): value is Angle => ANGLES.includes(value as Ang
  */
 export function parseVariants(
   raw: string,
-  sourceId: string
+  sourceId: string,
+  /** What the bullet was written from. Anything numeric outside it is either a
+   *  declared estimate or an invention, and the two are told apart here. */
+  sourceFacts = ''
 ): { kept: BulletVariant[]; rejected: string[] } {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   const body = (fenced?.[1] ?? raw).trim();
@@ -121,11 +127,23 @@ export function parseVariants(
   const usedVerbs = new Set<string>();
 
   for (const entry of entries) {
-    const record = entry as { angle?: unknown; text?: unknown; domain?: unknown };
+    const record = entry as { angle?: unknown; text?: unknown; domain?: unknown; estimated?: unknown };
     const text = typeof record.text === 'string' ? record.text.trim() : '';
     if (!text || !isAngle(record.angle)) continue;
 
     if (!isPublishable(text)) {
+      rejected.push(text);
+      continue;
+    }
+
+    const declared = Array.isArray(record.estimated)
+      ? record.estimated.filter((value): value is string => typeof value === 'string')
+      : [];
+
+    // Estimating is allowed; estimating silently is not. A number that is
+    // neither in the source nor declared is one nobody has taken
+    // responsibility for, which is the single thing this must never ship.
+    if (undeclaredNumbers(text, sourceFacts, declared).length > 0) {
       rejected.push(text);
       continue;
     }
@@ -135,6 +153,9 @@ export function parseVariants(
       angle: record.angle,
       text,
       domainHint: typeof record.domain === 'string' && record.domain !== 'null' ? record.domain : null,
+      // A declaration that names a figure the bullet does not contain would
+      // mark the wrong thing in the panel, so it is dropped rather than shown.
+      estimated: declared.filter((value) => !danglingEstimates(text, [value]).length),
     });
 
     // Rule 2 asked for a different verb each time. Enforcing it here rather

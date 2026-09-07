@@ -72,15 +72,26 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
         </p>
         {section.link && <p className="doc-link">{section.link}</p>}
         <ul className="doc-bullets">
-          {section.bullets.map((text, bulletIndex) => (
-            <li key={bulletIndex}>
-              <Editable
-                value={text}
-                label={`Bullet ${bulletIndex + 1} under ${section.heading}`}
-                onChange={(next) => onEditBullet(kind, sectionIndex, bulletIndex, next)}
-              />
-            </li>
-          ))}
+          {section.bullets.map((text, bulletIndex) => {
+            // Figures the model worked out rather than read. Marked on the page
+            // rather than only counted in the rail, because the point is to
+            // look at the sentence before deciding to stand behind it.
+            const estimated = section.estimated?.[bulletIndex] ?? [];
+            return (
+              <li key={bulletIndex} className={estimated.length > 0 ? 'doc-estimated' : undefined}>
+                <Editable
+                  value={text}
+                  label={`Bullet ${bulletIndex + 1} under ${section.heading}`}
+                  onChange={(next) => onEditBullet(kind, sectionIndex, bulletIndex, next)}
+                />
+                {estimated.length > 0 && (
+                  <span className="doc-estimate-tag" title={`Estimated: ${estimated.join(', ')}`}>
+                    estimated {estimated.join(', ')}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     ));

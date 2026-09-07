@@ -191,10 +191,10 @@ async function generateForSource(
   const prompt = buildGenerationPrompt(source, families);
 
   try {
-    const first = parseVariants(await runPrompt(prompt, llm), source.id);
+    const first = parseVariants(await runPrompt(prompt, llm), source.id, source.facts);
     if (!needsRetry(first.kept)) return { variants: first.kept };
 
-    const second = parseVariants(await runPrompt(prompt, llm), source.id);
+    const second = parseVariants(await runPrompt(prompt, llm), source.id, source.facts);
     const best = second.kept.length > first.kept.length ? second.kept : first.kept;
     return best.length > 0
       ? { variants: best }
