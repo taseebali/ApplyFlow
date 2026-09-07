@@ -121,14 +121,19 @@ describe('model fallbacks', () => {
     expect(body.models).toBeUndefined();
   });
 
-  it('hands OpenRouter the rest of an ordered list', async () => {
+  it('never hands OpenRouter a list to fall back through', async () => {
+    // It used to send the whole ordered list as their `models` array, which
+    // made the fallback theirs: a 504 on our first choice was retried against
+    // whatever their router picked next, and one of those was a paid music
+    // model. One model per request, and we walk the list ourselves.
     fetchMock.mockImplementation(async () => ok('x'));
     await withTimers(
       runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['primary/model', 'a/one', 'b/two'] } })
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
-    expect(body.models).toEqual(['primary/model', 'a/one', 'b/two']);
+    expect(body.model).toBe('primary/model');
+    expect(body.models).toBeUndefined();
   });
 
   it('moves to the next model in the list when one is saturated', async () => {

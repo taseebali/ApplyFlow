@@ -32,9 +32,17 @@ export const COOLDOWN_MS = 5 * 60 * 1000;
 const isCooling = (id: string, cooldowns: Cooldowns, now: number) => (cooldowns[id] ?? 0) > now;
 
 /**
- * The models to try, best first. The caller sends the first as `model` and the
- * rest as OpenRouter's own `models` array, so one request already walks a short
- * list; the ordering here is what carries knowledge between requests.
+ * A preview or experimental id, which is where unpriced-but-billed models
+ * live. Anchored at a boundary so "gemini-2.0-flash-exp" counts and a model
+ * that merely contains the letters does not.
+ */
+const isPreview = (id: string) => /[-:](preview|exp|experimental)([-:.0-9]|$)/.test(id);
+
+/**
+ * The models to try, best first. The caller sends exactly one per request and
+ * walks this list itself. It used to hand the tail to OpenRouter as their
+ * `models` array — which meant their router chose the fallback, and a request
+ * that 504'd on our pick silently landed on a paid model we never approved.
  *
  * Never returns an empty list when the policy names anything at all: a
  * cooling-off model is better than no model, so cooldowns reorder rather than
@@ -56,7 +64,18 @@ export function nextCandidates(input: RouterInput, limit = 3): string[] {
     return [...ready, ...cooling].slice(0, limit);
   }
 
-  const pool = catalogue.filter((model) => model.isFree && model.contextLength >= policy.minContext);
+  /*
+   * Three gates, and the free one is the least of them. A music-generation
+   * preview answered a drafting request and charged for it: it was in the pool
+   * because nothing checked what kind of model it was, and it passed the free
+   * check because it listed no price. Previews are excluded outright here —
+   * they are where unpriced-but-billed models live — while a user who names
+   * one directly under a `single` policy still gets it.
+   */
+  const pool = catalogue.filter(
+    (model) =>
+      model.isFree && model.isText && !isPreview(model.id) && model.contextLength >= policy.minContext
+  );
 
   const rank = (model: CatalogModel) => {
     const uptime = health[model.id];

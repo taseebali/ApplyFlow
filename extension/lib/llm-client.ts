@@ -9,6 +9,7 @@ import {
 import { LlmError } from './llm-error';
 
 export { LlmError };
+import { recordSpend } from './spend';
 import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure } from './model-cooldowns';
 import { getModels } from './openrouter-catalog';
@@ -286,11 +287,13 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<Comp
   let last: unknown;
 
   for (let i = 0; i < candidates.length; i++) {
-    // Hand OpenRouter the rest of the list too, so one request already tries
-    // more than one model before coming back to us.
-    const attempt = candidates.slice(i);
+    // One model per request. Handing OpenRouter the rest of the list made the
+    // fallback theirs: a 504 on our first choice was retried against whatever
+    // came next in their routing, which is how a paid music model answered a
+    // drafting request. Falling back here keeps the choice ours and keeps the
+    // cooldown accounting honest about which model actually failed.
     try {
-      return await postToProvider(prompt, llm, attempt);
+      return await postToProvider(prompt, llm, [candidates[i]!]);
     } catch (err) {
       last = err;
       if (!(err instanceof LlmError) || !err.transient) throw err;
@@ -361,13 +364,21 @@ async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
 export async function runPromptDetailed(prompt: string, llm: LlmSettings): Promise<Completion> {
   if (!llm.backend) throw new LlmError('No AI backend is set up yet. Open Settings to choose one.');
 
+  // Every request in the extension funnels through here, which is the only
+  // place spending can be counted once. It used to be counted on the drafting
+  // card alone, so a bank generation — dozens of requests — reported nothing.
+  const record = async (completion: Completion) => {
+    await recordSpend(completion);
+    return completion;
+  };
+
   try {
-    return await runWith(llm.backend, prompt, llm);
+    return await record(await runWith(llm.backend, prompt, llm));
   } catch (primaryError) {
     if (!llm.fallbackBackend || llm.fallbackBackend === llm.backend) throw primaryError;
 
     try {
-      return await runWith(llm.fallbackBackend, prompt, llm);
+      return await record(await runWith(llm.fallbackBackend, prompt, llm));
     } catch (fallbackError) {
       // Report both, since "it failed" is not actionable when two backends
       // were tried and each stopped for its own reason.

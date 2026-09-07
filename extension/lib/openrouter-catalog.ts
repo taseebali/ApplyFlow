@@ -23,6 +23,13 @@ export interface CatalogModel {
   promptPrice: number;
   completionPrice: number;
   isFree: boolean;
+  /**
+   * Text in, text out, and nothing else. The catalogue carries image, audio
+   * and music models too, and until this existed they were all candidates for
+   * drafting a cover letter — a Google music-generation preview is what
+   * actually answered one, and charged for it.
+   */
+  isText: boolean;
 }
 
 interface CachedCatalogue {
@@ -35,6 +42,11 @@ interface RawModel {
   name?: unknown;
   context_length?: unknown;
   pricing?: { prompt?: unknown; completion?: unknown };
+  architecture?: { input_modalities?: unknown; output_modalities?: unknown };
+}
+
+function modalities(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
 function toPrice(value: unknown): number {
@@ -58,15 +70,36 @@ export function normalizeModel(raw: RawModel): CatalogModel | null {
 
   const contextLength = typeof raw.context_length === 'number' ? raw.context_length : 0;
 
+  const inputs = modalities(raw.architecture?.input_modalities);
+  const outputs = modalities(raw.architecture?.output_modalities);
+
   return {
     id,
     name: typeof raw.name === 'string' && raw.name ? raw.name : id,
     contextLength,
     promptPrice,
     completionPrice: Number.isFinite(completionPrice) ? completionPrice : 0,
-    // The `:free` suffix and a zero price do not perfectly overlap — some
-    // models are priced at zero without the suffix — so both count.
-    isFree: id.endsWith(':free') || promptPrice === 0,
+    /**
+     * Both signals, not either.
+     *
+     * This used to be `endsWith(':free') || promptPrice === 0`, on the
+     * reasoning that some models are priced at zero without the suffix. They
+     * are — and so are preview models that list no price and bill anyway. One
+     * of those charged $0.04 for a single request under a free-only policy.
+     * The suffix is a statement of intent; the price is a field that can be
+     * absent or wrong. Requiring both costs a handful of genuinely free models
+     * and cannot spend the user's money.
+     */
+    isFree: id.endsWith(':free') && promptPrice === 0 && completionPrice === 0,
+    /*
+     * An absent architecture block is treated as text: OpenRouter has carried
+     * text models without one, and dropping those would empty the pool. What
+     * this catches is a model that positively declares itself as something
+     * else.
+     */
+    isText:
+      (inputs.length === 0 || inputs.includes('text')) &&
+      (outputs.length === 0 || (outputs.includes('text') && outputs.length === 1)),
   };
 }
 
@@ -81,6 +114,16 @@ async function readCache(): Promise<CachedCatalogue | null> {
   const cached = stored[CACHE_KEY] as CachedCatalogue | undefined;
   if (!cached || !Array.isArray(cached.models) || typeof cached.fetchedAt !== 'number') return null;
   return cached;
+}
+
+/**
+ * The catalogue as already cached, never fetching. For callers that must not
+ * cause a network request — spend accounting runs on the back of every
+ * completion, and a price lookup that could go to the network would turn one
+ * request into two.
+ */
+export async function getCachedModels(): Promise<CatalogModel[]> {
+  return (await readCache())?.models ?? [];
 }
 
 export function isFresh(cached: CachedCatalogue | null, now: number): boolean {

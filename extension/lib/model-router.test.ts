@@ -19,6 +19,7 @@ const model = (id: string, over: Partial<CatalogModel> = {}): CatalogModel => ({
   promptPrice: 0,
   completionPrice: 0,
   isFree: true,
+  isText: true,
   ...over,
 });
 
@@ -132,5 +133,47 @@ describe('policyFromLegacy', () => {
       kind: 'list',
       models: ['a/one', 'b/two', 'c/three'],
     });
+  });
+});
+
+describe('what the free pool refuses to consider', () => {
+  // Every one of these is the request that charged $0.04 under a free-only
+  // policy: google/lyria-3-clip-preview-20260330, a music model, unpriced in
+  // the catalogue and reached through OpenRouter's own fallback.
+  const pool = (models: CatalogModel[]) =>
+    nextCandidates({
+      policy: { kind: 'free-pool', minContext: 8_000 },
+      catalogue: models,
+      cooldowns: {},
+      now: NOW,
+    });
+
+  it('leaves out a model that is not text in and text out', () => {
+    expect(
+      pool([
+        model('vendor/music-model:free', { isText: false }),
+        model('vendor/text-model:free'),
+      ])
+    ).toEqual(['vendor/text-model:free']);
+  });
+
+  it('leaves out a preview, however it is priced', () => {
+    expect(pool([model('google/lyria-3-clip-preview-20260330'), model('vendor/text:free')])).toEqual([
+      'vendor/text:free',
+    ]);
+  });
+
+  it('leaves out a model priced at zero that never claimed to be free', () => {
+    // The old check was `endsWith(':free') || promptPrice === 0`, so an
+    // unpriced entry walked straight in.
+    expect(pool([model('vendor/unpriced', { isFree: false }), model('vendor/text:free')])).toEqual([
+      'vendor/text:free',
+    ]);
+  });
+
+  it('returns nothing rather than something paid when the pool is empty', () => {
+    // The caller turns this into "no free model is available", which is the
+    // honest answer. Silently reaching for a paid model is what it replaces.
+    expect(pool([model('google/lyria-3-clip-preview-20260330')])).toEqual([]);
   });
 });

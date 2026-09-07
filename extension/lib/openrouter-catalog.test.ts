@@ -17,12 +17,36 @@ describe('normalizeModel', () => {
     expect(model.isFree).toBe(false);
   });
 
-  it('treats a :free suffix as free', () => {
-    expect(normalizeModel(entry({ id: 'vendor/model:free' }))!.isFree).toBe(true);
+  it('is free only with the suffix and a zero price on both sides', () => {
+    expect(
+      normalizeModel(entry({ id: 'vendor/model:free', pricing: { prompt: '0', completion: '0' } }))!.isFree
+    ).toBe(true);
   });
 
-  it('treats a zero price as free even without the suffix', () => {
-    expect(normalizeModel(entry({ pricing: { prompt: '0', completion: '0' } }))!.isFree).toBe(true);
+  it('is not free when only the price says so', () => {
+    // This is the request that charged $0.04 under a free-only policy: a
+    // preview model with no price and no :free suffix. `||` let it in.
+    expect(normalizeModel(entry({ pricing: { prompt: '0', completion: '0' } }))!.isFree).toBe(false);
+  });
+
+  it('is not free when the completion is billed and only the prompt is not', () => {
+    expect(
+      normalizeModel(entry({ id: 'vendor/model:free', pricing: { prompt: '0', completion: '0.002' } }))!.isFree
+    ).toBe(false);
+  });
+
+  it('reads the modalities, so a music model is not a candidate for text', () => {
+    const music = entry({
+      id: 'google/lyria-3-clip-preview',
+      architecture: { input_modalities: ['text'], output_modalities: ['audio'] },
+    });
+    expect(normalizeModel(music)!.isText).toBe(false);
+  });
+
+  it('treats a model with no architecture block as text', () => {
+    // OpenRouter has carried text models without one, and dropping those would
+    // empty the pool. The filter catches what declares itself otherwise.
+    expect(normalizeModel(entry({}))!.isText).toBe(true);
   });
 
   it('falls back to the id when a model has no name', () => {

@@ -9,6 +9,7 @@ const model = (id: string, price: number, isFree = price === 0): CatalogModel =>
   promptPrice: price,
   completionPrice: price * 2,
   isFree,
+  isText: true,
 });
 
 const catalogue = [model('free/one', 0), model('paid/one', 0.000001)];

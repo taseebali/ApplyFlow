@@ -27,13 +27,16 @@ describe('request shapes', () => {
     expect(req.headers['x-api-key']).toBeUndefined();
   });
 
-  it('only sends a fallback list to OpenRouter, which understands one', () => {
+  it('never sends a fallback list, to any provider', () => {
+    // OpenRouter used to get the tail of the candidate list as their `models`
+    // array, so their router chose the fallback. A 504 on our pick then landed
+    // on a paid model we never approved. The client sends one model and falls
+    // back itself.
     const many = ['a/one', 'b/two'];
     expect((buildRequest(openrouter, openrouter.baseUrl, 'k', many, 'hi').body as { models?: string[] }).models)
-      .toEqual(many);
-    // Other providers get a single model and no stray field.
-    expect((buildRequest(openai, openai.baseUrl, 'k', ['gpt-4o-mini'], 'hi').body as { models?: string[] }).models)
       .toBeUndefined();
+    expect((buildRequest(openrouter, openrouter.baseUrl, 'k', many, 'hi').body as { model?: string }).model)
+      .toBe('a/one');
   });
 
   it('does not double a slash when the base URL has a trailing one', () => {

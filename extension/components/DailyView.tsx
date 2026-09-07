@@ -4,6 +4,7 @@ import { TailorCard } from '@/components/TailorCard';
 import { DraftAnswersCard } from '@/components/DraftAnswersSection';
 import { LogToNotionSection } from '@/components/NotionSection';
 import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
+import { SpendLine } from '@/components/SpendLine';
 import { FieldMirror, Tally, type FormPlanState } from '@/components/FieldMirror';
 import { DiffSheet } from '@/components/DiffSheet';
 import { usePrimaryAction } from '@/components/PrimaryAction';
@@ -122,6 +123,8 @@ export function DailyView({
         <DraftAnswersCard onOpenSetup={onOpenSetup} />
         <LogToNotionSection onOpenSetup={onOpenSetup} />
       </div>
+
+      <SpendLine />
     </div>
   );
 }

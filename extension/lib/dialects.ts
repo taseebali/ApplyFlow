@@ -64,7 +64,6 @@ export function buildRequest(
       model: models[0],
       // OpenRouter alone walks a fallback list server-side; harmless elsewhere,
       // where an unknown field is ignored.
-      ...(models.length > 1 ? { models } : {}),
       messages: [{ role: 'user', content: prompt }],
       [provider.maxTokensParam ?? 'max_tokens']: MAX_OUTPUT_TOKENS,
     },
