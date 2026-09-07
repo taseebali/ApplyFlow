@@ -39,8 +39,18 @@ function scrapeByHeuristic(doc: Document): string | null {
     '[class*="jobdescription" i]',
     '[id*="job-description" i]',
     '[class*="description" i]',
+    // A Notion-hosted board renders the whole posting into generic divs with
+    // no JSON-LD and no semantic container, so `article` and `main` both come
+    // back empty. Its own content wrapper is the only thing to aim at.
+    '.notion-page-content',
+    '[class*="notion-page" i]',
     'article',
     'main',
+    // Last resort: the body itself, minus the form. Better a scrape that
+    // includes the page furniture than "no job posting here" on a page that
+    // plainly has one — the model reads past a nav bar, and reporting nothing
+    // leaves every downstream feature with nothing to work from.
+    'body',
   ];
 
   for (const selector of candidateSelectors) {
@@ -61,7 +71,8 @@ function scrapeByHeuristic(doc: Document): string | null {
   return null;
 }
 
-function scrapeJobPostingFrom(doc: Document): string | null {
+/** The posting in one document — JSON-LD if it has any, the page if not. */
+export function scrapeJobPostingFrom(doc: Document): string | null {
   const jobPosting = findJobPostingJsonLd(doc);
   const jsonLdDescription = jobPosting?.description;
   if (typeof jsonLdDescription === 'string' && jsonLdDescription.trim()) {

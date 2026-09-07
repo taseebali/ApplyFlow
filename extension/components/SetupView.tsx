@@ -19,6 +19,7 @@ import {
 import { ResumeImportSection } from './ResumeImportSection';
 import { BankSection } from './BankSection';
 import { getBank } from '@/lib/bullet-bank';
+import { getDocumentsFolderHandle } from '@/lib/document-store';
 import { ThemeControl } from './ThemeControl';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
@@ -50,11 +51,14 @@ export interface SetupStep {
  * form. It used to sit third, behind two optional screens, by which point
  * plenty of people had already started typing their address by hand.
  *
- * The documents folder and the Notion tracker are not here at all. Neither is
- * needed to fill a form, and the readiness line on the daily view raises them
- * at the moment they actually matter, with a link straight to them.
+ * The documents folder is here, at the end, because it is needed for the two
+ * things this does besides filling — attaching a resume and saving a tailored
+ * one. Leaving it out on the grounds that a fill does not need it meant a
+ * first run that opened with "2 things before you can fill this", which is a
+ * bad greeting. The Notion tracker stays out: nothing depends on it, and the
+ * readiness line raises it at the moment it matters.
  */
-const WIZARD_ORDER = ['ai', 'import', 'basics', 'experience', 'answers', 'bank', 'done'];
+const WIZARD_ORDER = ['ai', 'import', 'basics', 'experience', 'answers', 'bank', 'documents', 'done'];
 
 export function SetupView({
   mode,
@@ -91,6 +95,7 @@ export function SetupView({
   // Only so the wizard's Next/Skip label can tell a generated bank from an
   // empty one. Nothing else on this screen needs it.
   const [hasBank, setHasBank] = useState(false);
+  const [hasDocumentsFolder, setHasDocumentsFolder] = useState(false);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -110,6 +115,7 @@ export function SetupView({
 
   useEffect(() => {
     void getBank().then((bank) => setHasBank((bank?.variants.length ?? 0) > 0));
+    void getDocumentsFolderHandle().then((handle) => setHasDocumentsFolder(Boolean(handle)));
   }, []);
 
   useEffect(() => {
@@ -283,7 +289,9 @@ export function SetupView({
       id: 'documents',
       title: 'Documents folder',
       blurb:
-        'Point ApplyFlow at the folder where you keep your resumes and cover letters, and it can attach the right one for you.',
+        'Point ApplyFlow at the folder where you keep your resumes and cover letters. It attaches the right one for you, and saves a tailored resume back there.',
+      optional: true,
+      filled: hasDocumentsFolder,
       render: () => <DocumentsSection />,
     },
     {
