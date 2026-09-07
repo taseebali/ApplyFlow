@@ -3,6 +3,7 @@ import type { LlmSettings } from './settings';
 import {
   describeOpenRouterFailure,
   extractOpenRouterCompletion,
+  isModelUnavailable,
   isTransientStatus,
   type Completion,
 } from './openrouter-errors';
@@ -12,7 +13,7 @@ export { LlmError };
 import { lengthRuleFor } from './answer-length';
 import { recordSpend } from './spend';
 import { nextCandidates } from './model-router';
-import { getCooldowns, recordFailure } from './model-cooldowns';
+import { getCooldowns, recordFailure, recordUnavailable } from './model-cooldowns';
 import { getModels } from './openrouter-catalog';
 import { providerById } from './providers';
 import { buildRequest, describeFailure, readResponse, retryWithOtherTokenParam } from './dialects';
@@ -264,7 +265,15 @@ async function postToProvider(prompt: string, llm: LlmSettings, models: string[]
     }
 
     if (!response.ok) {
-      throw new LlmError(describeFailure(provider, response.status, body), isTransientStatus(response.status));
+      // A model the provider refuses outright is not a failed request — it is
+      // a candidate that will never work. Marked so the walk moves on rather
+      // than stopping the run, which is what a 403 read as a key problem did.
+      const unavailable = provider.id === 'openrouter' && isModelUnavailable(response.status, body);
+      throw new LlmError(
+        describeFailure(provider, response.status, body),
+        isTransientStatus(response.status) || unavailable,
+        unavailable
+      );
     }
   }
   const data = await response.json().catch(() => {
@@ -295,7 +304,10 @@ async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<Comp
     } catch (err) {
       last = err;
       if (!(err instanceof LlmError) || !err.transient) throw err;
-      await recordFailure(candidates[i]!);
+      // A refusal about the model outlives the session; a busy endpoint does
+      // not. Remembering the difference is what stops the same gated model
+      // being first in the pool again after every restart.
+      await (err.modelUnavailable ? recordUnavailable(candidates[i]!) : recordFailure(candidates[i]!));
     }
   }
 

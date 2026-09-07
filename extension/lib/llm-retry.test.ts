@@ -45,8 +45,10 @@ beforeEach(() => {
         },
       },
       local: {
-        get: async () => ({}),
-        set: async () => {},
+        get: async (key: string) => (key in store ? { [key]: store[key] } : {}),
+        set: async (items: Record<string, unknown>) => {
+          Object.assign(store, items);
+        },
       },
     },
   });
@@ -218,5 +220,46 @@ describe('parameter-name recovery', () => {
     await expect(withTimers(runPrompt('hi', LLM))).rejects.toThrow();
     // One attempt, one swap — and no retry loop, since a 400 is not transient.
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('a model the provider will not serve at all', () => {
+  /** Verbatim from OpenRouter, on a model that is genuinely free and text-only. */
+  const gated = () =>
+    new Response(
+      JSON.stringify({
+        error: {
+          message:
+            'thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps',
+        },
+      }),
+      { status: 403 }
+    );
+
+  it('moves to the next model instead of failing the run', async () => {
+    // Read as an auth failure this stopped everything, so Test connection
+    // reported failure while seventeen other free models sat unused.
+    fetchMock.mockImplementationOnce(async () => gated()).mockImplementation(async () => ok('second'));
+
+    await expect(
+      withTimers(runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['gated/one', 'good/two'] } }))
+    ).resolves.toBe('second');
+
+    const second = JSON.parse(fetchMock.mock.calls.at(-1)![1]!.body as string);
+    expect(second.model).toBe('good/two');
+  });
+
+  it('still fails on a 403 that is about the key', async () => {
+    // A rejected key must not look like a model to skip past, or a wrong key
+    // burns every candidate in the pool before reporting anything useful.
+    fetchMock.mockImplementation(
+      async () => new Response(JSON.stringify({ error: { message: 'User not found.' } }), { status: 403 })
+    );
+
+    await expect(
+      withTimers(runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two'] } }))
+    ).rejects.toThrow();
+    // One attempt per model, not a retry storm against a key that is wrong.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

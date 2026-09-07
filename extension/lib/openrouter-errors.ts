@@ -16,8 +16,32 @@ function bodyMessage(body: string): string {
   }
 }
 
+/**
+ * A refusal about the model rather than about the key.
+ *
+ * OpenRouter has a class of genuinely free text models that are gated to
+ * allowlisted "agentic harness" apps and answer everything else with a 403.
+ * Read as an auth failure it stops the whole run, which is what happened:
+ * one such model was first in the free pool and Test connection reported
+ * failure rather than moving to the next of the eighteen.
+ *
+ * This is permanent for us — no key and no retry changes it — so the model is
+ * skipped for good rather than parked for five minutes.
+ */
+export function isModelUnavailable(status: number, body: string): boolean {
+  if (status !== 403 && status !== 404) return false;
+  const detail = bodyMessage(body);
+  return /only available on|not available (to|for|on)|agentic harness|requires? an? (allowlisted|approved)/i.test(
+    detail
+  );
+}
+
 export function describeOpenRouterFailure(status: number, body: string): string {
   const detail = bodyMessage(body);
+
+  if (isModelUnavailable(status, body)) {
+    return `That model is not open to ordinary API keys — OpenRouter restricts it to approved apps. It has been skipped, and will not be offered again. (${detail})`;
+  }
 
   if (status === 401) {
     return 'OpenRouter rejected the API key. Check it was copied whole from openrouter.ai/keys, and that it has not been revoked.';

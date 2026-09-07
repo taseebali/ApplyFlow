@@ -10,8 +10,17 @@ export class LlmError extends Error {
    */
   readonly transient: boolean;
 
-  constructor(message: string, transient = false) {
+  /**
+   * True when the provider refused this *model* rather than this request — a
+   * free model gated to approved apps, say. Nothing about the key or the
+   * timing changes it, so the model is dropped for good and the run moves to
+   * the next candidate rather than stopping.
+   */
+  readonly modelUnavailable: boolean;
+
+  constructor(message: string, transient = false, modelUnavailable = false) {
     super(message);
     this.transient = transient;
+    this.modelUnavailable = modelUnavailable;
   }
 }

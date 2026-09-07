@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isModelUnavailable } from './openrouter-errors';
 import { getModels, isFresh, normalizeCatalogue, normalizeModel, summarizeHealth } from './openrouter-catalog';
 
 const entry = (over: Record<string, unknown> = {}) => ({
@@ -178,5 +179,31 @@ describe('summarizeHealth', () => {
   it('survives a payload in an unexpected shape', () => {
     expect(summarizeHealth(null).anyLive).toBe(false);
     expect(summarizeHealth({ data: {} }).anyLive).toBe(false);
+  });
+});
+
+describe('isModelUnavailable', () => {
+  const body = (message: string) => JSON.stringify({ error: { message } });
+
+  it('recognises a free model gated to approved apps', () => {
+    expect(
+      isModelUnavailable(
+        403,
+        body(
+          'thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps'
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('does not mistake a rejected key for a gated model', () => {
+    // A wrong key must fail immediately rather than being skipped past, or it
+    // burns every candidate in the pool before saying anything useful.
+    expect(isModelUnavailable(403, body('User not found.'))).toBe(false);
+    expect(isModelUnavailable(401, body('Invalid API key'))).toBe(false);
+  });
+
+  it('ignores an unrelated status', () => {
+    expect(isModelUnavailable(429, body('only available on agentic harnesses'))).toBe(false);
   });
 });
