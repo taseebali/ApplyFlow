@@ -11,7 +11,7 @@ import { usePrimaryAction } from '@/components/PrimaryAction';
 import { frameOf, localId, writable } from '@/lib/field-plan';
 import type { FillPageMessage, FillPageResponse } from '@/entrypoints/content';
 import { getActiveTabId } from '@/lib/active-tab';
-import type { JumpToFieldMessage } from '@/entrypoints/content';
+import type { JumpToFieldMessage, PickOptionMessage } from '@/entrypoints/content';
 import type { PlannedField } from '@/lib/field-plan';
 import type { Posting } from '@/components/JobContext';
 import type { OpenSetup } from '@/components/panel-types';
@@ -101,6 +101,24 @@ export function DailyView({
     })().catch(() => undefined);
   };
 
+  /**
+   * Writes one answer the user picked off the control's own option list. Not
+   * part of the fill: this value came from the page, and nothing chose it but
+   * the user, so it goes to exactly one field.
+   */
+  const pick = (field: PlannedField, value: string) => {
+    void (async () => {
+      const tabId = await getActiveTabId();
+      const frameId = frameOf(field.id);
+      await browser.tabs.sendMessage(
+        tabId,
+        { type: 'pick-option', fieldId: localId(field.id), value } satisfies PickOptionMessage,
+        frameId === null ? {} : { frameId }
+      );
+      await refresh();
+    })().catch(() => undefined);
+  };
+
   if (reviewing && plan) {
     return (
       <div className="daily-actions">
@@ -115,7 +133,7 @@ export function DailyView({
       <ReadinessBar onOpen={onOpenSetup} />
 
       {plan && plan.fields.length > 0 && <Tally plan={plan} />}
-      <FieldMirror plan={plan} loading={loading} onJump={jump} />
+      <FieldMirror plan={plan} loading={loading} onJump={jump} onPick={pick} />
 
       <div className="action-rows">
         <FillAndAttachSection onOpenSetup={onOpenSetup} />

@@ -1122,3 +1122,37 @@ body {
   opacity: 0.72;
   font-family: var(--mono);
 }
+
+/*
+ * The answers a control itself offers, under the row for a field we could not
+ * fill. The page has always been displaying this list; showing it here is what
+ * turns "we could not match this" into one click.
+ */
+.panel .field-row-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel .field-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 2px 0 6px 22px;
+}
+
+.panel .field-option {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.panel .field-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}

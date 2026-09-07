@@ -29,6 +29,7 @@ import type { FormPlan } from '@/lib/field-plan';
 import type { FillableElement } from '@/lib/field-matcher';
 import type { ChooseOptionMessage } from '@/entrypoints/background';
 import { frameHasWork, summarizeFrame } from '@/lib/frames';
+import { fillCombobox, isCombobox } from '@/lib/combobox';
 
 export interface FillPageMessage {
   type: 'fill-page';
@@ -68,6 +69,22 @@ export interface JumpToFieldMessage {
 }
 export interface JumpToFieldResponse {
   found: boolean;
+}
+
+/**
+ * Writes one value the user picked from the control's own option list.
+ *
+ * Separate from `fill-page` because it carries an answer that came from the
+ * page rather than from the profile: nothing chose it but the user, and it is
+ * written to exactly one field.
+ */
+export interface PickOptionMessage {
+  type: 'pick-option';
+  fieldId: string;
+  value: string;
+}
+export interface PickOptionResponse {
+  picked: boolean;
 }
 
 export interface GetJobInfoMessage {
@@ -132,6 +149,7 @@ type IncomingMessage =
   | GetJobInfoMessage
   | PlanFormMessage
   | JumpToFieldMessage
+  | PickOptionMessage
   | AttachDocumentsMessage
   | GetQuestionsMessage
   | UndoFillMessage
@@ -388,6 +406,22 @@ export default defineContentScript({
         // instantly and the smooth scroll never happens.
         setTimeout(() => element.focus({ preventScroll: true }), 120);
         sendResponse({ found: true } satisfies JumpToFieldResponse);
+        return true;
+      }
+
+      if (message?.type === 'pick-option') {
+        const element = plannedElements.get(message.fieldId);
+        // A frame that does not hold the field stays silent rather than
+        // answering false for it; an untargeted send keeps the first reply.
+        if (!element) return undefined;
+
+        (async () => {
+          // A scripted combobox ignores a plain value assignment — it has to be
+          // driven the way a person drives it, which fillCombobox already does.
+          if (isCombobox(element)) await fillCombobox(element, message.value);
+          else setNativeFieldValue(element, message.value);
+          sendResponse({ picked: true } satisfies PickOptionResponse);
+        })();
         return true;
       }
 

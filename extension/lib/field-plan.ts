@@ -40,6 +40,14 @@ export interface PlannedField {
   note?: string;
   /** How many controls this one row stands for, when more than one. */
   count?: number;
+  /**
+   * The answers the control itself offers, when it offers a fixed set. Shown
+   * for a field nothing matched, so the answer is a click rather than a trip
+   * to the page — a combobox with no native select had neither a value to read
+   * nor a list to check a guess against, and the page was displaying the list
+   * the whole time.
+   */
+  options?: string[];
 }
 
 export interface FormPlan {

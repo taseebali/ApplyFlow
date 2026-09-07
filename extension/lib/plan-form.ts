@@ -9,6 +9,7 @@ import {
 import { inferAnswer } from './inference';
 import { detectQuestions } from './question-detector';
 import { isOffLimits } from './field-visibility';
+import { matchOption, optionsFor } from './field-options';
 import { plannedValue } from './filler';
 import { shortName, statusFor, type PlannedField, type FormPlan } from './field-plan';
 import type { Profile } from './schema';
@@ -145,8 +146,14 @@ export function planWithElements(
       (isRadio ? getRadioGroupQuestionText(element) : getDisplayLabel(element)) || element.name || 'Field';
     // A path resolves from the profile; an inferred answer is one the profile
     // settles without a path ("are you still studying?").
-    const proposed = path ? plannedValue(profile, path) : inferred.get(element) ?? '';
+    const wanted = path ? plannedValue(profile, path) : inferred.get(element) ?? '';
     const current = currentValue(element);
+
+    // What the control itself will accept. A guess that matches one of these
+    // is the answer; one that matches none is a guess the form would reject,
+    // so it is offered to the user as a choice instead of written blind.
+    const options = optionsFor(element);
+    const proposed = options.length > 0 ? matchOption(options, wanted) ?? '' : wanted;
 
     // The same path can match more than one control on a page. The fill writes
     // to all of them, so the row says how many rather than appearing repeatedly.
@@ -171,6 +178,7 @@ export function planWithElements(
         optional: isOptional(element),
       }),
       group: groupOf(element, path),
+      ...(options.length > 0 ? { options } : {}),
     };
 
     fields.push(field);

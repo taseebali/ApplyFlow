@@ -132,11 +132,28 @@ function valueOf(field: PlannedField): string {
   return field.proposed;
 }
 
-export function FieldRow({ field, onJump }: { field: PlannedField; onJump: (field: PlannedField) => void }) {
+export function FieldRow({
+  field,
+  onJump,
+  onPick,
+}: {
+  field: PlannedField;
+  onJump: (field: PlannedField) => void;
+  onPick?: (field: PlannedField, value: string) => void;
+}) {
   const tag = TAG[field.status];
   const muted = field.status === 'skip' || field.status === 'you' || field.status === 'ai';
 
-  return (
+  /*
+   * The answers the control itself offers, shown only when we have nothing to
+   * write. The page has been displaying this list the whole time; matching used
+   * to guess a string against it and a combobox with no native select had
+   * neither a value to read nor a list to check against. One click is the whole
+   * interaction.
+   */
+  const choices = field.status === 'you' && onPick ? (field.options ?? []) : [];
+
+  const row = (
     <button type="button" className="field-row" onClick={() => onJump(field)} title={field.label}>
       <span className={`dot dot-${DOT[field.status]}`} aria-hidden="true" />
       <span className="field-name mono">{field.name}</span>
@@ -156,16 +173,39 @@ export function FieldRow({ field, onJump }: { field: PlannedField; onJump: (fiel
       <span className="sr-only">{field.status}</span>
     </button>
   );
+
+  if (choices.length === 0) return row;
+
+  return (
+    <div className="field-row-group">
+      {row}
+      <div className="field-options" role="group" aria-label={`Answers ${field.label} accepts`}>
+        {choices.map((choice) => (
+          <button
+            key={choice}
+            type="button"
+            className="field-option"
+            onClick={() => onPick!(field, choice)}
+          >
+            {choice}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function FieldMirror({
   plan,
   loading,
   onJump,
+  onPick,
 }: {
   plan: FormPlan | null;
   loading: boolean;
   onJump: (field: PlannedField) => void;
+  /** Writes one answer the user picked from the control's own list. */
+  onPick?: (field: PlannedField, value: string) => void;
 }) {
   if (loading) {
     return (
@@ -193,7 +233,7 @@ export function FieldMirror({
         <div key={group}>
           <p className="group-label">{group}</p>
           {fields.map((field) => (
-            <FieldRow key={field.id} field={field} onJump={onJump} />
+            <FieldRow key={field.id} field={field} onJump={onJump} onPick={onPick} />
           ))}
         </div>
       ))}
