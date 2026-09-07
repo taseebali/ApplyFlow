@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bankScore,
   buildGenerationPrompt,
   needsRetry,
   parseVariants,
@@ -250,5 +251,45 @@ describe('estimated figures', () => {
       FACTS
     );
     expect(kept[0]!.estimated).toBeUndefined();
+  });
+});
+
+describe('bankScore', () => {
+  const v = (sourceId: string, text: string) =>
+    makeVariant({ sourceId, angle: 'impact', text });
+
+  it('does not sink a whole bank to zero for being large', () => {
+    // The reported failure: 55 usable variants reported 0/100, and no amount
+    // of regenerating moved it. scoreSection subtracts a penalty per fault
+    // from 100, so thirteen metric-less bullets is already below zero.
+    const bank = Array.from({ length: 55 }, (_, i) =>
+      v(`source-${Math.floor(i / 6)}`, `Shipped feature number ${i} to production`)
+    );
+    expect(bankScore(bank)).toBeGreaterThan(0);
+  });
+
+  it('does not count the same verb across different sources as a collision', () => {
+    // The bank holds six framings of each item, each opening with a different
+    // verb within that item. "Built" once per source across ten sources is the
+    // design working, not forty faults.
+    const across = Array.from({ length: 10 }, (_, i) => v(`source-${i}`, 'Built a service that cut latency 40%'));
+    const within = [
+      v('one', 'Built a service that cut latency 40%'),
+      v('one', 'Built a second thing, also 40%'),
+    ];
+    expect(bankScore(across)).toBeGreaterThan(bankScore(within));
+  });
+
+  it('still marks a genuinely repetitive source down', () => {
+    const repetitive = [
+      v('one', 'Built a thing'),
+      v('one', 'Built another thing'),
+      v('one', 'Built a third thing'),
+    ];
+    expect(bankScore(repetitive)).toBeLessThan(bankScore([v('one', 'Built a thing that cut cost 40%')]));
+  });
+
+  it('says nothing rather than something for an empty bank', () => {
+    expect(bankScore([])).toBe(0);
   });
 });

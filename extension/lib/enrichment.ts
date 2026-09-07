@@ -78,14 +78,3 @@ export function fallbackQuestion(source: Source): string {
   return `How big or how much faster was ${source.label}? A count, a percentage, or a before-and-after is enough.`;
 }
 
-/**
- * Folds an answer back into the source's facts, as the user's own words.
- *
- * Appended rather than rewritten: their sentence is the fact, and the next
- * generation run reframes it like anything else they wrote.
- */
-export function applyAnswer(facts: string, answer: string): string {
-  const trimmed = answer.trim();
-  if (!trimmed) return facts;
-  return [facts, trimmed].filter(Boolean).join('\n');
-}

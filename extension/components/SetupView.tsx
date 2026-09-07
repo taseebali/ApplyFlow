@@ -114,8 +114,16 @@ export function SetupView({
   }, []);
 
   useEffect(() => {
-    void getBank().then((bank) => setHasBank((bank?.variants.length ?? 0) > 0));
-    void getDocumentsFolderHandle().then((handle) => setHasDocumentsFolder(Boolean(handle)));
+    const refresh = () => {
+      void getBank().then((bank) => setHasBank((bank?.variants.length ?? 0) > 0));
+      void getDocumentsFolderHandle().then((handle) => setHasDocumentsFolder(Boolean(handle)));
+    };
+    refresh();
+    // Read once, this went stale the moment the step was used: generating a
+    // bank from inside the step left the button still offering to skip it.
+    // The bank is written by the worker, so storage is where the change shows.
+    browser.storage.local.onChanged.addListener(refresh);
+    return () => browser.storage.local.onChanged.removeListener(refresh);
   }, []);
 
   useEffect(() => {

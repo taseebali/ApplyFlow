@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyAnswer, askForMetrics, buildEnrichmentPrompt, fallbackQuestion } from './enrichment';
+import { askForMetrics, buildEnrichmentPrompt, fallbackQuestion } from './enrichment';
 import type { Source } from './bank-generation';
 import type { LlmSettings } from './settings';
 
@@ -71,16 +71,3 @@ describe('askForMetrics', () => {
   });
 });
 
-describe('applyAnswer', () => {
-  it('appends the user’s own words to the facts', () => {
-    // Their sentence is the fact. Generation reframes it like anything else
-    // they wrote, rather than treating it as a special input.
-    expect(applyAnswer('Built an agent.', 'It resolved 10 of 14 issues correctly.')).toBe(
-      'Built an agent.\nIt resolved 10 of 14 issues correctly.'
-    );
-  });
-
-  it('leaves the facts alone when the question was skipped', () => {
-    expect(applyAnswer('Built an agent.', '   ')).toBe('Built an agent.');
-  });
-});

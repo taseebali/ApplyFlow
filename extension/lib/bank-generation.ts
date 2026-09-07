@@ -188,5 +188,31 @@ export function sourcesMissingMetrics(sources: Source[]): Source[] {
 
 /** The bank's own quality, reported the same way a section of bullets is. */
 export function bankScore(variants: BulletVariant[]): number {
-  return scoreSection(variants.map((v) => v.text)).score;
+  if (variants.length === 0) return 0;
+
+  /*
+   * Scored per source, then averaged.
+   *
+   * This used to hand every variant in the bank to `scoreSection` as though it
+   * were one section of a resume, and `scoreSection` subtracts a penalty per
+   * fault from 100. Thirteen bullets with no metric is already -104, so any
+   * real bank scored 0 and regenerating could never move it — 55 variants
+   * reported 0/100 while being perfectly usable.
+   *
+   * Verb collision made it worse and was never a fault here: the bank holds
+   * six framings of each item, each opening with a different verb *within*
+   * that item, and there are only so many strong verbs in English. "Built"
+   * appearing once per source across ten sources is the design working, and
+   * counting those as ~40 collisions cost 480 points on its own.
+   *
+   * A source is the unit the penalty scale was built for, and the unit verb
+   * variety is actually promised over.
+   */
+  const bySource = new Map<string, string[]>();
+  for (const variant of variants) {
+    bySource.set(variant.sourceId, [...(bySource.get(variant.sourceId) ?? []), variant.text]);
+  }
+
+  const scores = [...bySource.values()].map((texts) => scoreSection(texts).score);
+  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
 }
