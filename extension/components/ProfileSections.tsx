@@ -2,6 +2,8 @@ import { LANGUAGE_LEVELS, type CertificationEntry, type EducationEntry, type Lan
 import { LocationFields } from './LocationFields';
 import { BulletsField } from './BulletsField';
 import { TextField, SelectField } from '@/components/fields';
+import { TagInput } from './TagInput';
+import { parseSkillRows, serializeSkillRows, type SkillRow } from '@/lib/skill-groups';
 
 /**
  * Who the candidate is — the sections a resume import fills.
@@ -247,11 +249,23 @@ export function ProjectsSection({ profile, onChange }: { profile: Profile; onCha
  *
  * Skills were derived from project tech stacks until a real resume came out
  * with forty terms on it, half of them from projects that had been cut. They
- * are the user's list now, in the user's order — a comma-separated field
- * because that is how people already keep them, and because reordering text is
- * easier than dragging chips.
+ * are the user's list now, in the user's order.
+ *
+ * Chips rather than a text field. The text field re-split and trimmed the
+ * whole string on every keystroke, so a typed space or comma was eaten
+ * immediately and a second skill could not be entered at all — and the hint
+ * described a line-based grouping syntax the handler never implemented. A
+ * group is now a labelled row, not something to remember how to punctuate.
  */
 export function SkillsSection({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) {
+  // Derived from the profile rather than held beside it: a second copy of the
+  // list is a second thing that can go stale, and every edit here writes
+  // straight through. An empty profile still shows one row to type into.
+  const stored = parseSkillRows(profile.skills);
+  const rows = stored.length > 0 ? stored : [{ label: '', items: [] }];
+  const setRows = (next: SkillRow[]) => onChange({ ...profile, skills: serializeSkillRows(next) });
+  const setRow = (index: number, row: SkillRow) => setRows(rows.map((r, i) => (i === index ? row : r)));
+
   return (
     <section>
       <h2>Summary, skills and headline</h2>
@@ -276,27 +290,45 @@ export function SkillsSection({ profile, onChange }: { profile: Profile; onChang
         still learning if that is honest.
       </p>
 
-      <label className="field">
-        <span>Skills</span>
-        <textarea
-          rows={4}
-          value={profile.skills.join(', ')}
-          placeholder="Python, FastAPI, Docker, PyTorch"
-          onChange={(e) =>
-            onChange({
-              ...profile,
-              skills: e.target.value
-                .split(/[,;\n]/)
-                .map((skill) => skill.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </label>
+      <fieldset className="skill-rows">
+        <legend>Skills</legend>
+        {rows.map((row, index) => (
+          <div className="skill-row" key={index}>
+            <div className="skill-row-head">
+              <input
+                type="text"
+                className="skill-row-label"
+                aria-label={`Group name for row ${index + 1}`}
+                value={row.label}
+                placeholder="Group name, optional"
+                onChange={(e) => setRow(index, { ...row, label: e.target.value })}
+              />
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  className="btn-plain"
+                  onClick={() => setRows(rows.filter((_, i) => i !== index))}
+                >
+                  Remove group
+                </button>
+              )}
+            </div>
+            <TagInput
+              label={row.label.trim() ? `${row.label.trim()} skills` : 'Skills'}
+              value={row.items}
+              placeholder="Python, then Enter"
+              onChange={(items) => setRow(index, { ...row, items })}
+            />
+          </div>
+        ))}
+        <button type="button" className="btn" onClick={() => setRows([...rows, { label: '', items: [] }])}>
+          Add a group
+        </button>
+      </fieldset>
       <p className="hint">
-        One group per line, as <span className="mono">Label: item, item</span>. Grouping is what keeps forty terms
-        readable; a single comma run is not. A line with no label is fine too. Tailoring moves the ones a posting
-        asks for to the front.
+        Type a skill and press Enter. Groups are optional — one called{' '}
+        <span className="mono">Languages</span> or <span className="mono">Tools</span> is what keeps forty terms
+        readable on the page. Tailoring moves the ones a posting asks for to the front.
       </p>
     </section>
   );
