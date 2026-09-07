@@ -9,6 +9,7 @@ import {
 import { LlmError } from './llm-error';
 
 export { LlmError };
+import { lengthRuleFor } from './answer-length';
 import { recordSpend } from './spend';
 import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure } from './model-cooldowns';
@@ -117,14 +118,11 @@ export function buildPrompt(context: DraftContext): string {
     )
     .join('\n');
 
-  // A form that declares a limit is telling us the expected length; without
-  // one, aim short. The observed failure was 300-word answers to every
-  // question regardless of the box.
-  const lengthRule = maxLength
-    ? `Stay under ${maxLength} characters - the form will not accept more. Aim for about ${Math.floor(
-        maxLength * 0.7
-      )}.`
-    : 'Aim for 120-180 words. Shorter is better than padded; stop when the question is answered.';
+  // A form that declares a limit is telling us the expected length. Without
+  // one the budget comes from the question: every question used to get the
+  // same "120-180 words", so "How long should your internship last?" was
+  // answered at the length of an essay.
+  const lengthRule = lengthRuleFor(question, maxLength);
 
   const rules = [
     'You are drafting one answer to one question on a job application, in the candidate\'s own voice.',

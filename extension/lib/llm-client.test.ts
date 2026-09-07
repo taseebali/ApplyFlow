@@ -72,7 +72,15 @@ describe('answer shape', () => {
   });
 
   it('falls back to a word target when the form declares no limit', () => {
-    expect(buildPrompt(base)).toContain('120-180 words');
+    expect(buildPrompt(base)).toContain('60-120 words');
+  });
+
+  it('asks for one sentence when the question wants one sentence', () => {
+    // Every question used to get the same word target, so "How long should
+    // your internship last?" came back as three paragraphs.
+    const prompt = buildPrompt({ ...base, question: 'How long should your internship last?' });
+    expect(prompt).toMatch(/one sentence/i);
+    expect(prompt).not.toContain('60-120 words');
   });
 
   it('forbids asserting facts about the employer that are not in the posting', () => {

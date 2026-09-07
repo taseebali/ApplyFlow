@@ -6,6 +6,7 @@ import {
   type ProjectEntry,
   type WorkHistoryEntry,
 } from './schema';
+import { normalizeUrl } from './resume-links';
 import { runPrompt } from './llm-client';
 import type { LlmSettings } from './settings';
 
@@ -90,7 +91,24 @@ export function splitSections(text: string): { header: string; sections: Record<
 }
 
 function cleanUrl(match: string): string {
-  return match.replace(/[),.]+$/, '');
+  // normalizeUrl also supplies the scheme a resume leaves off, so
+  // "github.com/me/thing" is stored as an address rather than as a fragment
+  // that no browser will open.
+  return normalizeUrl(match);
+}
+
+/**
+ * Pulls a trailing "(https://…)" off a line and hands back both halves.
+ *
+ * That is the shape the text extractor now writes a hyperlink in: the words
+ * that were linked, then the address they hid, on the same line as the project
+ * they belong to. Reading it here is what keeps a project's own repository on
+ * that project instead of whatever URL matched first.
+ */
+export function takeTrailingLink(line: string): { text: string; link: string } {
+  const match = line.match(/^(.*?)\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+)\s*\)\s*$/i);
+  if (!match) return { text: line, link: '' };
+  return { text: match[1]!.trim(), link: normalizeUrl(match[2]!) };
 }
 
 /**
@@ -213,7 +231,13 @@ function headingSegments(line: string, splitOnDash = false): string[] {
 export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
   const entry: Omit<ProjectEntry, 'id'> = { name: '', role: '', bullets: [], techStack: '', outcomes: '' , link: ''};
 
-  for (const segment of headingSegments(line)) {
+  // The address the extractor recovered from the hyperlink, before segmenting:
+  // it is the most reliable link this line carries, and leaving it in would
+  // make the whole heading look like a URL to `isUrlish`.
+  const { text: heading, link } = takeTrailingLink(line);
+  if (link) entry.link = link;
+
+  for (const segment of headingSegments(heading)) {
     if (!entry.techStack && isTechList(segment) && !isUrlish(segment)) entry.techStack = segment;
     // A URL beside a project heading is where the work can be seen, which is
     // worth keeping. It used to be skipped along with the dates.
@@ -222,7 +246,7 @@ export function parseProjectHeading(line: string): Omit<ProjectEntry, 'id'> {
     else if (!entry.name) entry.name = segment;
   }
 
-  if (!entry.name) entry.name = headingSegments(line)[0] ?? line.trim();
+  if (!entry.name) entry.name = headingSegments(heading)[0] ?? heading.trim();
   // Trailing anchor words like "GitHub" are link text, not part of the name.
   entry.name = entry.name.replace(/\s*(github|gitlab|demo|live|repo|link|website)\s*$/i, '').trim();
   return entry;

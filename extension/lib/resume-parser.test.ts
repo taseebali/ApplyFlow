@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  parseProjectHeading,
   LLM_PROMPT_HEADER,
   parseEducationSection,
   parseLlmResponse,
@@ -56,8 +57,8 @@ describe('parseResumeHeuristic', () => {
     const parsed = parseResumeHeuristic(RESUME);
     expect(parsed.contact.email).toBe('jordan.avery2@example.com');
     expect(parsed.contact.phone).toBe('+49 30 12345678');
-    expect(parsed.links.linkedin).toBe('linkedin.com/in/jordanavery');
-    expect(parsed.links.github).toBe('github.com/jordanavery');
+    expect(parsed.links.linkedin).toBe('https://linkedin.com/in/jordanavery');
+    expect(parsed.links.github).toBe('https://github.com/jordanavery');
     expect(parsed.links.website).toBe('https://jordanavery.dev');
   });
 
@@ -312,8 +313,8 @@ describe('links and certifications, as real resumes print them', () => {
       'Repo Triage Agent - LLM Agent for Automated Workflow Triage',
       'VERDICT - AutoML Decision-Intelligence Platform',
     ]);
-    expect(projects[0]!.link).toBe('github.com/jordanavery/repo-triage');
-    expect(projects[1]!.link).toBe('github.com/jordanavery/verdict');
+    expect(projects[0]!.link).toBe('https://github.com/jordanavery/repo-triage');
+    expect(projects[1]!.link).toBe('https://github.com/jordanavery/verdict');
   });
 
   it('does not invent a project named after a URL', () => {
@@ -346,7 +347,7 @@ describe('links and certifications, as real resumes print them', () => {
     ).projects;
     expect(projects[0]!.name).toBe('ApplyFlow');
     expect(projects[0]!.techStack).toBe('TypeScript, React');
-    expect(projects[0]!.link).toBe('github.com/jordanavery/applyflow');
+    expect(projects[0]!.link).toBe('https://github.com/jordanavery/applyflow');
   });
 
   it('asks the model for the link and the certificates', () => {
@@ -371,10 +372,11 @@ describe('a real resume, end to end', () => {
   it('finds every project, with its link', () => {
     const projects = parseResumeHeuristic(TEXT).projects;
     expect(projects).toHaveLength(3);
+    // Stored with the scheme the resume leaves off, so the link opens.
     expect(projects.map((p) => p.link)).toEqual([
-      'github.com/jordanavery/repo-triage',
-      'github.com/jordanavery/verdict',
-      'github.com/jordanavery/real-time-vision-system',
+      'https://github.com/jordanavery/repo-triage',
+      'https://github.com/jordanavery/verdict',
+      'https://github.com/jordanavery/real-time-vision-system',
     ]);
   });
 
@@ -399,6 +401,31 @@ describe('a real resume, end to end', () => {
     const parsed = parseResumeHeuristic(TEXT);
     expect(parsed.contact.email).toBe('jordan.avery@example.com');
     expect(parsed.contact.firstName).toBe('Jordan');
-    expect(parsed.links.github).toBe('github.com/jordanavery');
+    expect(parsed.links.github).toBe('https://github.com/jordanavery');
+  });
+});
+
+describe('a hyperlink recovered from the file', () => {
+  // The extractor writes a link as "words (address)" on the line it was on,
+  // because a .docx hyperlink used to arrive as its anchor text alone — "Live
+  // Demo" landed in the Link field — and a .pdf's links were appended in a
+  // list at the end, detached from the project each belonged to.
+  it('takes the address off a project heading and keeps the name', () => {
+    const entry = parseProjectHeading('RAG System (https://github.com/jordanavery/rag)');
+    expect(entry.name).toBe('RAG System');
+    expect(entry.link).toBe('https://github.com/jordanavery/rag');
+  });
+
+  it('keeps the tech list beside a recovered link', () => {
+    const entry = parseProjectHeading('VERDICT | Python, scikit-learn (https://verdict.app)');
+    expect(entry.name).toBe('VERDICT');
+    expect(entry.techStack).toBe('Python, scikit-learn');
+    expect(entry.link).toBe('https://verdict.app');
+  });
+
+  it('leaves a heading that merely ends in a parenthesis alone', () => {
+    const entry = parseProjectHeading('Knight’s Tour (a weekend exercise)');
+    expect(entry.link).toBe('');
+    expect(entry.name).toContain('Knight');
   });
 });

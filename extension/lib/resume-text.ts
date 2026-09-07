@@ -1,3 +1,5 @@
+import { attachPdfLinks, htmlToTextWithLinks, type PdfLine, type PdfLink } from './resume-links';
+
 /** A file format we know how to read text out of. */
 export type ResumeFormat = 'pdf' | 'docx' | 'text';
 
@@ -79,10 +81,16 @@ async function extractPdfText(file: File): Promise<string> {
   return linkUrls.size ? `${text}\n\n${[...linkUrls].join('\n')}` : text;
 }
 
+/**
+ * `convertToHtml` rather than `extractRawText`, because raw text throws every
+ * hyperlink away. A resume that prints "Live Demo" and hides the address
+ * behind it arrived as the words "Live Demo", and that is what ended up in the
+ * project's Link field.
+ */
 async function extractDocxText(file: File): Promise<string> {
   const mammoth = await import('mammoth');
-  const result = await mammoth.extractRawText({ arrayBuffer: await readArrayBuffer(file) });
-  return result.value;
+  const result = await mammoth.convertToHtml({ arrayBuffer: await readArrayBuffer(file) });
+  return htmlToTextWithLinks(result.value);
 }
 
 /** Decoded from bytes rather than `file.text()`, which is not available everywhere. */
