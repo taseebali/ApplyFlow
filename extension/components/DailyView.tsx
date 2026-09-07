@@ -117,7 +117,7 @@ export function DailyView({
       <FieldMirror plan={plan} loading={loading} onJump={jump} />
 
       <div className="action-rows">
-        <FillAndAttachSection onOpenSetup={onOpenSetup} onReview={() => setReviewing(true)} />
+        <FillAndAttachSection onOpenSetup={onOpenSetup} />
         <TailorCard posting={posting} onOpenSetup={onOpenSetup} />
         <DraftAnswersCard onOpenSetup={onOpenSetup} />
         <LogToNotionSection onOpenSetup={onOpenSetup} />

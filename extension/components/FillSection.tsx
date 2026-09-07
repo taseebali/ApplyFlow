@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react';
 import type { UndoFillMessage, UndoFillResponse, AttachDocumentsMessage, AttachDocumentsResponse, FillPageMessage, FillPageResponse, GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
 import { ensureReadPermission, getDocumentsFolderHandle } from '@/lib/document-store';
 import { findBestMatch, listFolderFiles, type DocumentKind, type DocumentMatchResult, type FolderFile } from '@/lib/document-matcher';
-import { getProfile } from '@/lib/storage';
-import { missingRequiredFields, type RequiredField } from '@/lib/profile-completeness';
 import { getTabState, patchTabState, type AttachOutcome } from '@/lib/tab-state';
 import { mergeFillResults } from '@/lib/frames';
 import { recordApplication, updateApplication } from '@/lib/application-log';
 import { useTabState } from '@/components/useTabState';
 import { ActionRow } from '@/components/ActionRow';
-import { AttachIcon, FillIcon } from '@/components/icons';
+import { AttachIcon } from '@/components/icons';
 import {
   askFrames,
   listFillableFrames,
@@ -30,11 +28,8 @@ const DOC_LABELS: Record<DocumentKind, string> = { resume: 'Resume', coverLetter
 
 export function FillAndAttachSection({
   onOpenSetup,
-  onReview,
 }: {
   onOpenSetup: OpenSetup;
-  /** Opens the diff. Filling without seeing what will be written is not offered. */
-  onReview: () => void;
 }) {
   // Results live with the tab, not with the panel: each application has its own
   // tab, and the panel is shared between them. Only work that is in flight
@@ -43,13 +38,10 @@ export function FillAndAttachSection({
   const [busyTab, setBusyTab] = useState<number | null>(null);
   const [pending, setPending] = useState<Partial<Record<DocumentKind, true>>>({});
   const [docStatus, setDocStatus] = useState<DocStatus>({ kind: 'idle' });
-  const [missing, setMissing] = useState<RequiredField[]>([]);
   // Folded away by the card's own arrow. View state only: results stay in tab
   // state, so collapsing never discards or re-requests anything.
-  const [fillClosed, setFillClosed] = useState(false);
   // Set when a fill was refused for an incomplete profile, so the reason is
   // stated at the moment it happens rather than only in the standing notice.
-  const [blocked, setBlocked] = useState(false);
   const [docsClosed, setDocsClosed] = useState(false);
 
   const fill = tabState.fill;
@@ -69,18 +61,6 @@ export function FillAndAttachSection({
   // user would otherwise only discover when the application refuses to submit.
   // Re-read on storage changes so finishing setup clears the warning without a
   // panel reload.
-  useEffect(() => {
-    const refresh = () =>
-      void getProfile().then((p) => {
-        const gaps = missingRequiredFields(p);
-        setMissing(gaps);
-        if (gaps.length === 0) setBlocked(false);
-      });
-    refresh();
-    browser.storage.local.onChanged.addListener(refresh);
-    return () => browser.storage.local.onChanged.removeListener(refresh);
-  }, []);
-
   // A multi-page application swaps the form underneath us. The background
   // worker marks the stored fill stale; the panel only has to drop its scan of
   // a page that is no longer showing.
@@ -124,18 +104,6 @@ export function FillAndAttachSection({
         message: restored > 0 ? `Undone — ${restored} field${restored === 1 ? '' : 's'} put back.` : 'Nothing to undo.',
       },
     });
-  };
-
-  const handleReviewClick = () => {
-    // A profile missing the essentials produces a half-filled application that
-    // the form will refuse at submit, and the user finds out at the worst
-    // moment. The warning alone was ignorable, so this stops here rather than
-    // opening a diff that could only ever be half right.
-    if (missing.length > 0) {
-      setBlocked(true);
-      return;
-    }
-    onReview();
   };
 
   /** Fills one specific tab. Every result is written back against that tab id. */
@@ -333,76 +301,55 @@ export function FillAndAttachSection({
 
   return (
     <>
-      {missing.length > 0 && (
-        <div className={`notice ${blocked ? 'notice-danger' : 'notice-warning'}`}>
-          <p>
-            {blocked ? 'Nothing was filled. ' : ''}
-            Your profile is missing <strong>{missing.map((f) => f.label).join(', ')}</strong>.
-            {blocked
-              ? ' Applications require these, so filling would leave the form incomplete.'
-              : ' Applications almost always require these.'}
-          </p>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => onOpenSetup(missing[0]!.section === 'workAuthorization' ? 'answers' : 'profile',
-              missing[0]!.section === 'workAuthorization' ? 'work-auth' : 'contact')}
-          >
-            Complete profile
-          </button>
+      {/*
+        The row this replaces offered "Fill this application", which the sticky
+        "Review N changes" button already does — and the mirror above already
+        shows what would be written. What the row carried that nothing else did
+        is the report of what actually happened, so that is all that is left.
+      */}
+      {(filling || fill) && (
+        <div className="fill-result" role="status" aria-live="polite">
+          {filling && <span className="pill pill-neutral">Filling…</span>}
+          {!filling && fill?.status === 'done' && (
+            <>
+              {fill.stale ? (
+                <span className="pill pill-warning">This page changed — fill it too</span>
+              ) : (
+                <>
+                  <span className={`pill ${fill.unmatchedCount > 0 ? 'pill-warning' : 'pill-success'}`}>
+                    {fill.filledCount} filled
+                  </span>
+                  {fill.unmatchedCount > 0 && (
+                    <span className="pill pill-neutral">{fill.unmatchedCount} need attention</span>
+                  )}
+                  {(fill.invalid?.length ?? 0) > 0 && (
+                    <span className="pill pill-danger">{fill.invalid!.length} rejected by the form</span>
+                  )}
+                  {(fill.frameCount ?? 1) > 1 && (
+                    <span className="pill pill-neutral">across {fill.frameCount} frames</span>
+                  )}
+                  {(fill.invalid?.length ?? 0) > 0 && (
+                    <span className="unmatched-labels">
+                      Rejected: {fill.invalid!.map((problem) => `${problem.label} (${problem.reason})`).join(' · ')}
+                    </span>
+                  )}
+                  {(fill.frameCount ?? 1) > 1 && (
+                    <span className="unmatched-labels">
+                      This application is split across embedded frames; all of them were filled.
+                    </span>
+                  )}
+                  {fill.unmatchedLabels.length > 0 && (
+                    <span className="unmatched-labels">
+                      Recognised but not in your profile yet: {fill.unmatchedLabels.join(' · ')}
+                    </span>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {!filling && fill?.status === 'error' && <span className="pill pill-danger">{fill.message}</span>}
         </div>
       )}
-      <ActionRow
-        icon={<FillIcon />}
-        title="Fill this application"
-        description="Shows you the changes, then writes the ones you keep."
-        tint="blue"
-        onClick={handleReviewClick}
-        disabled={filling}
-        collapsed={fillClosed}
-        onToggleCollapse={() => setFillClosed((v) => !v)}
-      >
-        {filling && <span className="pill pill-neutral">Filling…</span>}
-        {!filling && blocked && <span className="pill pill-danger">Complete your profile first</span>}
-        {!filling && fill?.status === 'done' && (
-          <>
-            {fill.stale ? (
-              <span className="pill pill-warning">This page changed — fill it too</span>
-            ) : (
-              <>
-                <span className={`pill ${fill.unmatchedCount > 0 ? 'pill-warning' : 'pill-success'}`}>
-                  {fill.filledCount} filled
-                </span>
-                {fill.unmatchedCount > 0 && (
-                  <span className="pill pill-neutral">{fill.unmatchedCount} need attention</span>
-                )}
-                {(fill.invalid?.length ?? 0) > 0 && (
-                  <span className="pill pill-danger">{fill.invalid!.length} rejected by the form</span>
-                )}
-                {(fill.frameCount ?? 1) > 1 && (
-                  <span className="pill pill-neutral">across {fill.frameCount} frames</span>
-                )}
-                {(fill.invalid?.length ?? 0) > 0 && (
-                  <span className="unmatched-labels">
-                    Rejected: {fill.invalid!.map((problem) => `${problem.label} (${problem.reason})`).join(' · ')}
-                  </span>
-                )}
-                {(fill.frameCount ?? 1) > 1 && (
-                  <span className="unmatched-labels">
-                    This application is split across embedded frames; all of them were filled.
-                  </span>
-                )}
-                {fill.unmatchedLabels.length > 0 && (
-                  <span className="unmatched-labels">
-                    Recognised but not in your profile yet: {fill.unmatchedLabels.join(' · ')}
-                  </span>
-                )}
-              </>
-            )}
-          </>
-        )}
-        {!filling && fill?.status === 'error' && <span className="pill pill-danger">{fill.message}</span>}
-      </ActionRow>
 
       {fill?.status === 'done' && !fill.stale && fill.autoAnswered.length > 0 && (
         <div className="auto-answered">
@@ -420,13 +367,13 @@ export function FillAndAttachSection({
         </div>
       )}
 
-      {!fillClosed && fill?.status === 'done' && !fill.stale && (fill.undo?.length ?? 0) > 0 && (
+      {fill?.status === 'done' && !fill.stale && (fill.undo?.length ?? 0) > 0 && (
         <button type="button" className="btn-plain" onClick={handleUndo}>
           Undo fill
         </button>
       )}
 
-      {!fillClosed && fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
+      {fill?.status === 'done' && !fill.stale && fill.unrecognized.length > 0 && (
         <TeachFieldsPanel
           fields={fill.unrecognized}
           hostname={fill.hostname}

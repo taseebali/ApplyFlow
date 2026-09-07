@@ -18,6 +18,7 @@ import {
 } from './HistorySections';
 import { ResumeImportSection } from './ResumeImportSection';
 import { BankSection } from './BankSection';
+import { getBank } from '@/lib/bullet-bank';
 import { ThemeControl } from './ThemeControl';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
@@ -34,6 +35,11 @@ export interface SetupStep {
   render: () => React.ReactNode;
   /** Shown as skippable in the wizard, so a long setup does not look mandatory. */
   optional?: boolean;
+  /**
+   * Whether this step now holds something. Only read for optional steps, and
+   * only to stop the button saying "Skip" after you have filled the step in.
+   */
+  filled?: boolean;
 }
 
 /**
@@ -66,6 +72,12 @@ export function SetupView({
   const { profile, setProfile, loaded, saveState, save, exportJson, importFile, importError, clearImportError } =
     useProfileEditor();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(group ?? null);
+  // Whether this group was opened from the list here, or deep-linked into from
+  // somewhere else. Back should undo the step the user actually took: after a
+  // deep link that means leaving settings, not landing on a list they never
+  // saw. Opening settings from the command palette and pressing Back used to
+  // put you on the settings list rather than back where you came from.
+  const [cameFromList, setCameFromList] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const focusRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +88,9 @@ export function SetupView({
   const [notion, setNotion] = useState<Settings['notion']>(EMPTY_SETTINGS.notion);
   const [llm, setLlm] = useState<LlmSettings>(EMPTY_SETTINGS.llm);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Only so the wizard's Next/Skip label can tell a generated bank from an
+  // empty one. Nothing else on this screen needs it.
+  const [hasBank, setHasBank] = useState(false);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -93,7 +108,14 @@ export function SetupView({
     });
   }, []);
 
-  useEffect(() => setOpenGroup(group ?? null), [group]);
+  useEffect(() => {
+    void getBank().then((bank) => setHasBank((bank?.variants.length ?? 0) > 0));
+  }, []);
+
+  useEffect(() => {
+    setOpenGroup(group ?? null);
+    setCameFromList(false);
+  }, [group]);
 
   // Opening a group swaps the whole body, and a screen reader is told nothing
   // unless focus goes with it.
@@ -170,6 +192,7 @@ export function SetupView({
       blurb:
         'The next step reads your resume. With a model configured it pulls out your work history and projects; without one it gets your contact details and little else. Bring your own key. Nothing is sent anywhere without it.',
       optional: true,
+      filled: Object.values(llm.apiKeys).some((key) => Boolean(key)),
       render: () => <LlmSettingsSection value={llm} onChange={setLlm} />,
     },
     {
@@ -178,6 +201,7 @@ export function SetupView({
       blurb:
         'Needs AI set up. Writes several versions of each achievement once, so tailoring a resume later is a matter of choosing rather than generating.',
       optional: true,
+      filled: hasBank,
       render: () => <BankSection />,
     },
     {
@@ -332,8 +356,8 @@ export function SetupView({
         <button
           type="button"
           className="icon-btn"
-          onClick={() => (current ? setOpenGroup(null) : void handleDone())}
-          aria-label={current ? 'Back to settings' : 'Back to the daily view'}
+          onClick={() => (current && cameFromList ? setOpenGroup(null) : void handleDone())}
+          aria-label={current && cameFromList ? 'Back to settings' : 'Back to the daily view'}
         >
           <BackIcon />
         </button>
@@ -367,7 +391,10 @@ export function SetupView({
                 key={entry.id}
                 type="button"
                 className="action-row action-row-main group-row"
-                onClick={() => setOpenGroup(entry.id)}
+                onClick={() => {
+                  setOpenGroup(entry.id);
+                  setCameFromList(true);
+                }}
               >
                 <span className="action-row-body">
                   <span className="action-row-title">{entry.title}</span>

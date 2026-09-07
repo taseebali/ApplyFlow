@@ -692,3 +692,16 @@ kbd {
   border-color: var(--input);
   background: var(--surface);
 }
+
+/*
+ * What a fill actually did. This was the status area of a "Fill this
+ * application" row; the row's button duplicated the sticky action, so only the
+ * report is left.
+ */
+.fill-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+}

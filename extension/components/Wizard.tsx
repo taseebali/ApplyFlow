@@ -57,7 +57,10 @@ export function Wizard({
           </button>
         )}
         <button type="button" className="btn btn-primary" onClick={() => (isLast ? onDone() : go(index + 1))}>
-          {isLast ? 'Finish' : step.optional ? 'Skip' : 'Next'}
+          {/* "Skip" is only honest while the step is still empty. It used to be
+              chosen from `optional` alone, so a step you had just filled in
+              still offered to skip it. */}
+          {isLast ? 'Finish' : step.optional && !step.filled ? 'Skip' : 'Next'}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { type CustomQAEntry, type Profile } from '@/lib/schema';
 import { FieldLabel, TextField, SelectField } from '@/components/fields';
+import { TagInput } from './TagInput';
 
 /**
  * The questions every application repeats, and the answers kept to reuse.
@@ -140,27 +141,20 @@ export function LogisticsSection({ profile, onChange }: { profile: Profile; onCh
             <option value="no">No</option>
           </select>
         </label>
-        <TextField
-          label='"How did you hear about us" answers, in order of preference'
-          value={lg.hearAboutUsPreferences.join(', ')}
-          onChange={(v) =>
-            onChange({
-              ...profile,
-              logistics: {
-                ...lg,
-                hearAboutUsPreferences: v
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter((s) => s.length > 0),
-              },
-            })
-          }
-        />
       </div>
-      <p className="hint">
-        Comma-separated, most preferred first (e.g. "LinkedIn, Social Media"). The first one present among a
-        form's options is used.
-      </p>
+
+      <div className="field">
+        <FieldLabel label="How did you hear about us" />
+      </div>
+      <TagInput
+        label="How did you hear about us, in order of preference"
+        value={lg.hearAboutUsPreferences}
+        placeholder="LinkedIn, then Enter"
+        onChange={(next) => onChange({ ...profile, logistics: { ...lg, hearAboutUsPreferences: next } })}
+      />
+      {/* The one caption on this screen that earns its place: the ordering is
+          not something the control can show, and it decides which answer wins. */}
+      <p className="hint">Most preferred first. The first of these a form offers is the one picked.</p>
     </section>
   );
 }
