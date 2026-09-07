@@ -24,17 +24,42 @@
   --input: #e4e6e9;
   --primary: #101215;
   --primary-foreground: #ffffff;
-  --ring: #101215;
 
-  /* State. The only colour in the system. */
+  /*
+   * The brand. This hex is the only place the accent is written down: every
+   * other accent value in the extension - the dark-theme counterpart, the
+   * tint, the hover, the focus ring - is derived from it below with relative
+   * colour syntax. Changing this one line repaints all of them, and nothing
+   * else in the file needs touching.
+   *
+   * Plum-magenta, hue 337. The hue was picked by elimination rather than
+   * taste: green, amber and red are spoken for by the three state colours, so
+   * an accent anywhere near them is misread at 11px, and teal is what every
+   * competitor uses. Measured, it clears AA for body text on both grounds and
+   * sits at least 50 dE from all three states.
+   *
+   * `oklch(from ...)` needs Chrome 119. The side panel needs 114, so this is
+   * the higher floor of the two.
+   */
+  --brand: #9e3389;
+
+  --accent: var(--brand);
+  --accent-text: #ffffff;
+  --accent-bg: oklch(from var(--brand) 0.95 0.03 h);
+  --accent-hover: oklch(from var(--brand) 0.44 c h);
+  --ring: var(--brand);
+
+  /* State. The only other colour in the system. */
   --ok: #0d7a4a;
   --ok-bg: #e6f4ed;
   --wait: #9a5b00;
   --wait-bg: #fbf0dd;
-  --ai: #1f5fbf;
-  --ai-bg: #e7effb;
   --bad: #b3261e;
   --bad-bg: #fbe9e7;
+  /* The extension acting for you: drafted, suggested, generated. Its own
+     colour, which is the brand rather than a fourth state. */
+  --ai: var(--accent);
+  --ai-bg: var(--accent-bg);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -78,9 +103,6 @@
   --surface-hover: var(--muted);
   --text: var(--foreground);
   --text-muted: var(--muted-foreground);
-  --accent: var(--primary);
-  --accent-text: var(--primary-foreground);
-  --accent-hover: color-mix(in srgb, var(--primary) 84%, var(--muted-foreground));
   --danger-bg: var(--bad-bg);
   --danger-text: var(--bad);
   --success-bg: var(--ok-bg);
@@ -110,15 +132,20 @@
     --input: #23262b;
     --primary: #edeef0;
     --primary-foreground: #0c0d0f;
-    --ring: #edeef0;
+    /* Same brand hue and chroma, lifted to read on a near-black ground. */
+    --accent: oklch(from var(--brand) 0.73 c h);
+    --accent-text: #0c0d0f;
+    --accent-bg: oklch(from var(--brand) 0.24 0.045 h);
+    --accent-hover: oklch(from var(--brand) 0.80 c h);
+    --ring: var(--accent);
     --ok: #4ade80;
     --ok-bg: #10241a;
     --wait: #fbbf4b;
     --wait-bg: #2a1f0c;
-    --ai: #7fb0ff;
-    --ai-bg: #101a2b;
     --bad: #ff8a80;
     --bad-bg: #2a1412;
+    --ai: var(--accent);
+    --ai-bg: var(--accent-bg);
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
     color-scheme: dark;
   }
@@ -134,15 +161,20 @@
   --input: #23262b;
   --primary: #edeef0;
   --primary-foreground: #0c0d0f;
-  --ring: #edeef0;
+  /* Same brand hue and chroma, lifted to read on a near-black ground. */
+  --accent: oklch(from var(--brand) 0.73 c h);
+  --accent-text: #0c0d0f;
+  --accent-bg: oklch(from var(--brand) 0.24 0.045 h);
+  --accent-hover: oklch(from var(--brand) 0.80 c h);
+  --ring: var(--accent);
   --ok: #4ade80;
   --ok-bg: #10241a;
   --wait: #fbbf4b;
   --wait-bg: #2a1f0c;
-  --ai: #7fb0ff;
-  --ai-bg: #101a2b;
   --bad: #ff8a80;
   --bad-bg: #2a1412;
+  --ai: var(--accent);
+  --ai-bg: var(--accent-bg);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   color-scheme: dark;
 }
@@ -193,7 +225,9 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--text-muted);
+  /* Focus is a state, so it wears the accent. `--ring` was declared and never
+     consumed until now; the ring was a grey that read as another border. */
+  outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
 
