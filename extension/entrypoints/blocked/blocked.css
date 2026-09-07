@@ -1,0 +1,47 @@
+/*
+ * A popup sizes itself to its content, so the width is set here rather than
+ * inherited. Narrow enough to read in one column, wide enough that the
+ * explanation is not four words a line.
+ */
+.blocked {
+  width: 300px;
+  padding: var(--space-4);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blocked-mark {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.blocked h1 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.blocked-site {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.blocked .hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.blocked .btn {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}

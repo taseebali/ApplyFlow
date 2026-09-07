@@ -4,6 +4,7 @@ import { getProfile } from '@/lib/storage';
 import { draftAnswer } from '@/lib/llm-client';
 import { findSimilarAnswer, normalizeQuestion } from '@/lib/question-matching';
 import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/lib/tab-state';
+import { isJobUrl } from '@/lib/job-urls';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
 import { rankFrames, type FrameReport } from '@/lib/frames';
 import { updateApplication } from '@/lib/application-log';
@@ -165,11 +166,49 @@ async function runDraft(tabId: number): Promise<void> {
 }
 
 export default defineBackground(() => {
-  // Clicking the toolbar icon opens the side panel instead of a popup, so the
-  // user never has to leave the tab they're filling out to see their profile.
+  /*
+   * The panel belongs to one tab, not to the browser.
+   *
+   * `side_panel.default_path` in the manifest enables it everywhere, so opening
+   * it on a Greenhouse posting left it open on YouTube, on the model
+   * catalogue, and on a second application — all of them showing the first
+   * tab's state. Disabling the default and enabling per tab is what makes one
+   * tab one application.
+   *
+   * Clicking the toolbar icon still opens the panel, so the user never leaves
+   * the tab they are filling in. Where the panel may not open, a popup takes
+   * over the click: Chrome gives a popup precedence over the side panel, which
+   * is how one button does both.
+   */
   browser.sidePanel
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('Failed to set side panel behavior', err));
+
+  void browser.sidePanel?.setOptions({ enabled: false }).catch(() => undefined);
+
+  /**
+   * Decides whether the panel may open on one tab, and says so through the
+   * toolbar button.
+   *
+   * A tab that already has an application keeps the panel whatever it is
+   * showing now: opening the company's About page mid-application should not
+   * take the panel away, and the work is that tab's until the tab is done with
+   * it.
+   */
+  async function syncPanel(tabId: number, url: string | undefined): Promise<void> {
+    try {
+      const state = await getTabState(tabId);
+      const started = Object.keys(state).length > 0;
+      const allowed = started || (url !== undefined && isJobUrl(url));
+
+      await browser.sidePanel?.setOptions({ tabId, path: 'sidepanel.html', enabled: allowed });
+      // An empty popup string hands the click back to the side panel.
+      await browser.action?.setPopup({ tabId, popup: allowed ? '' : 'blocked.html' });
+    } catch {
+      // The tab closed while we were deciding, or it is a browser page the
+      // API refuses. Either way there is nothing to enable.
+    }
+  }
 
   // Frames announce themselves when they load and after an in-page step change.
   browser.runtime.onMessage.addListener(
@@ -184,6 +223,13 @@ export default defineBackground(() => {
         fileInputCount: message.fileInputCount ?? 0,
         questionCount: message.questionCount ?? 0,
       });
+
+      // The top frame's own address, which is the tab's. Chrome supplies
+      // `sender.url` to the receiver of any message with no permission at all,
+      // so this is how the panel decides where it may open without the "tabs"
+      // permission — which would read as "read your browsing history" and buy
+      // nothing this does not already have.
+      if (sender.frameId === 0) void onNavigated(tabId, sender.url ?? message.url ?? '');
       return undefined;
     }
   );
@@ -251,6 +297,37 @@ export default defineBackground(() => {
     // the new page announces itself as it loads.
     frameRegistry.delete(tabId);
     markFillStale(tabId);
+  });
+
+  /**
+   * A tab that moves to a *different* posting starts a new application.
+   *
+   * Only a different posting: navigating to YouTube and back, or to the
+   * company's own site mid-application, keeps everything. Stamping the URL is
+   * also what stops a new tab inheriting a closed application's state, since
+   * Chrome reuses tab ids.
+   */
+  async function onNavigated(tabId: number, url: string): Promise<void> {
+    const state = await getTabState(tabId);
+    const movedToAnotherPosting =
+      isJobUrl(url) && state.url !== undefined && state.url !== url;
+
+    if (movedToAnotherPosting) await clearTabState(tabId);
+    if (isJobUrl(url)) await patchTabState(tabId, { url });
+    await syncPanel(tabId, url);
+  }
+
+  /*
+   * On switching tabs there is no fresh message to read a URL from, so the
+   * decision comes from what that tab already recorded. A tab we have never
+   * heard from keeps the panel shut, which is the right default: either its
+   * page has no content script, or it has not loaded yet and will announce
+   * itself in a moment.
+   */
+  browser.tabs.onActivated.addListener(({ tabId }) => {
+    void getTabState(tabId)
+      .then((state) => syncPanel(tabId, state.url))
+      .catch(() => undefined);
   });
 
   // The content script asks here rather than calling the provider itself: the

@@ -53,6 +53,15 @@ export interface TabState {
    * is what names the saved files — so it must survive closing the panel.
    */
   posting?: { company: string; role: string };
+  /**
+   * The posting this state belongs to.
+   *
+   * Tab ids are reused by Chrome after a tab closes, and one tab can move from
+   * one posting to another, so the id alone does not identify an application.
+   * The URL does, and comparing it is what makes a different posting a fresh
+   * start while a trip to YouTube and back is not.
+   */
+  url?: string;
   /** The history entry for this application, so later steps can complete it. */
   applicationId?: string;
   /**

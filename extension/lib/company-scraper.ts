@@ -12,7 +12,7 @@
  */
 
 /** ATS hosts that put the employer's slug in the first path segment. */
-const PATH_SLUG_HOSTS = [
+export const PATH_SLUG_HOSTS = [
   'boards.greenhouse.io',
   'job-boards.greenhouse.io',
   'jobs.ashbyhq.com',
@@ -23,7 +23,7 @@ const PATH_SLUG_HOSTS = [
 ];
 
 /** ATS hosts where the employer is the leftmost label of the hostname. */
-const SUBDOMAIN_SLUG_HOSTS = [
+export const SUBDOMAIN_SLUG_HOSTS = [
   'personio.de',
   'jobs.personio.de',
   'myworkdayjobs.com',
@@ -77,7 +77,7 @@ export function companyFromUrl(href: string): string | null {
 }
 
 /** Which applicant tracking system a job URL belongs to, for display. */
-const ATS_NAMES: Array<[string, string]> = [
+export const ATS_NAMES: Array<[string, string]> = [
   ['greenhouse.io', 'Greenhouse'],
   ['ashbyhq.com', 'Ashby'],
   ['lever.co', 'Lever'],
