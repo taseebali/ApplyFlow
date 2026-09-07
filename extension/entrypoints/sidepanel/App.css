@@ -367,26 +367,7 @@ body {
   background: var(--surface);
   border-radius: var(--radius-sm);
   padding: 14px;
-}
-
-.panel .tailor-section ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-}
-
-.panel .tailor-section li {
-  margin-bottom: 4px;
-}
-
-.panel .tailor-heading {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.panel .enrichment {
+}.panel .enrichment {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -400,7 +381,6 @@ body {
 .panel .enrichment .hint {
   margin: 0 0 6px;
 }
-
 
 /* ---- the job this panel is working on ---- */
 .panel .job-bar {
@@ -1119,4 +1099,26 @@ body {
 .review .review-company {
   max-width: 220px;
   margin-top: var(--space-2);
+}
+
+/* Choose what to build, with what it costs, before anything is sent. */
+.panel .build-choices {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.panel .build-choices .btn {
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 6px;
+  line-height: 1.25;
+}
+
+.panel .build-cost {
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  opacity: 0.72;
+  font-family: var(--mono);
 }

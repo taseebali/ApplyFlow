@@ -48,8 +48,14 @@ export async function tailorResume(input: {
   family?: string | null;
   families?: TargetFamily[];
   maxPerSource?: number;
+  /**
+   * Whether to spend a request asking the model to rank the shortlist. False
+   * when the resume is only being selected to feed a cover letter: selection
+   * is local and costs nothing, and the letter does not read the ordering.
+   */
+  rank?: boolean;
 }): Promise<TailorResult> {
-  const { jobDescription, family = null, families = [], maxPerSource = 3 } = input;
+  const { jobDescription, family = null, families = [], maxPerSource = 3, rank = true } = input;
 
   const [profile, bank, settings] = await Promise.all([getProfile(), getBank(), getSettings()]);
   if (!bank || bank.variants.length === 0) {
@@ -63,7 +69,7 @@ export async function tailorResume(input: {
   // ordered the shortlist, so the feature degrades rather than disappears.
   let ordered = candidates;
   let offline = true;
-  if (settings.llm.backend) {
+  if (rank && settings.llm.backend) {
     try {
       const reply = await runPrompt(buildRankingPrompt(jobDescription, candidates), settings.llm);
       ordered = applyRanking(candidates, parseRanking(reply));
