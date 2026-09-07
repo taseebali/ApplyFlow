@@ -366,6 +366,31 @@ set becomes accent, ok, wait, bad.
 
 ---
 
+## What shipped
+
+Every item below is implemented and on `ui-redesign-ai-drafting`. 740 tests
+pass, typecheck and build are clean, and the fixture corpus is unmoved at
+greenhouse 11/11, personio 6/6, ashby 6/6.
+
+| | Item | Commit |
+|---|---|---|
+| 4 | Skills as chips | `f0d08b7`, `17c5d83` |
+| 1, 5, 13, 14 | Wizard label, logistics, the redundant row, back navigation | `173b1a9` |
+| 7 | The spend guard | `0a35547` |
+| 2, 11 | Hyperlinks, answer length | `774d5d3` |
+| 10, 10b, 3 | Ranking, bullet caps, summary/skills/languages | `b073d6b` |
+| A | The review tab as a document editor | `78e79b0` |
+| B | Tailoring as a menu | `7c630d9` |
+| 9 | The page's own options | `4e33253` |
+| 6 | Estimated figures, marked | `a60ae68` |
+| 8, 12 | Folder step, Notion-rendered postings | `3052eb6` |
+| C | The accent | `0d03fc9` |
+
+Two things still need you rather than me. **#12** needs a live Notion posting to
+confirm — the scraper reaches one now, but only a real page says whether that
+was the whole problem. And the manual pass below is the only thing that says
+any of this actually got better.
+
 ## Order of work
 
 1. #4 skills chips, #1 button label, #5 logistics, #13 remove the row, #14 back
