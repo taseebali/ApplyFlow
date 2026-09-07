@@ -1,5 +1,6 @@
 import type { DocumentKind } from './document-matcher';
 import type { UnrecognizedField } from './field-matcher';
+import type { CoverLetterResult, TailorResult } from './tailor-run';
 
 /**
  * One application's progress, kept per browser tab. Each job application
@@ -54,6 +55,19 @@ export interface TabState {
   posting?: { company: string; role: string };
   /** The history entry for this application, so later steps can complete it. */
   applicationId?: string;
+  /**
+   * What tailoring produced for this application.
+   *
+   * Held in component state until now, so switching to another tab and back
+   * threw it away and the panel offered to generate it again — which costs
+   * requests for work already done. It belongs to the application, like every
+   * other result here.
+   */
+  tailor?: {
+    result: TailorResult;
+    letter: CoverLetterResult | null;
+    jobDescription: string;
+  };
 }
 
 export interface DraftEntry {

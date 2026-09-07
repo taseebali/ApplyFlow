@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getTabState, patchTabState, type TabState } from '@/lib/tab-state';
+import { useActiveTab } from '@/components/useActiveTab';
 
 /**
  * Binds the panel to whichever tab is in front, and follows that tab's stored
@@ -10,31 +11,24 @@ import { getTabState, patchTabState, type TabState } from '@/lib/tab-state';
  * showing something else.
  */
 export function useTabState() {
-  const [tabId, setTabId] = useState<number | null>(null);
+  const tabId = useActiveTab();
   const [state, setState] = useState<TabState>({});
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    if (tabId === null) return;
 
-    const bindToActiveTab = async () => {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (cancelled || !tab?.id) return;
-      setTabId(tab.id);
-      setState(await getTabState(tab.id));
+    void getTabState(tabId).then((stored) => {
+      if (cancelled) return;
+      setState(stored);
       setLoaded(true);
-    };
-
-    void bindToActiveTab();
-
-    const onActivated = () => void bindToActiveTab();
-    browser.tabs.onActivated.addListener(onActivated);
+    });
 
     return () => {
       cancelled = true;
-      browser.tabs.onActivated.removeListener(onActivated);
     };
-  }, []);
+  }, [tabId]);
 
   // Background work writes straight to storage, so watching it is what makes
   // progress appear without the panel polling for it.

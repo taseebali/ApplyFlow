@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useActiveTab } from '@/components/useActiveTab';
 import { ArrowSquareOutIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
 import { byGroup, tally, withFrame, type FieldStatus, type FormPlan, type PlannedField } from '@/lib/field-plan';
 import { getActiveTabId, listFillableFrames } from '@/lib/active-tab';
@@ -41,12 +42,15 @@ export interface FormPlanState {
 export function useFormPlan(): FormPlanState {
   const [plan, setPlan] = useState<FormPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  // The mirror is of one tab's form. Read once, it went on showing the first
+  // tab's fields on every other tab.
+  const tabId = useActiveTab();
 
   const refresh = () => {
     setLoading(true);
     void (async () => {
       try {
-        setPlan(await planAcrossFrames(await getActiveTabId()));
+        setPlan(tabId === null ? null : await planAcrossFrames(tabId));
       } catch {
         // No content script here: a new tab, a PDF, the store. Not an error,
         // just nothing to mirror.
@@ -57,7 +61,7 @@ export function useFormPlan(): FormPlanState {
     })();
   };
 
-  useEffect(refresh, []);
+  useEffect(refresh, [tabId]);
 
   return { plan, loading, refresh };
 }

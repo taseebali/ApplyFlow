@@ -1156,3 +1156,27 @@ body {
   background: var(--accent-bg);
   color: var(--accent);
 }
+
+/* Resumes of the right kind that the company filter rejected, offered rather
+   than hidden behind "no match found". */
+.panel .doc-row-none {
+  flex-wrap: wrap;
+}
+
+.panel .doc-near {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding-left: 2px;
+}
+
+.panel .doc-near .btn-plain {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+}

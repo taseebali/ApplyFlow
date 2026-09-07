@@ -27,11 +27,14 @@ function Editable({
   onChange,
   className,
   label,
+  placeholder,
 }: {
   value: string;
   onChange: (text: string) => void;
   className?: string;
   label: string;
+  /** Shown when empty, so a blank line is still somewhere to click. */
+  placeholder?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,6 +52,7 @@ function Editable({
       contentEditable="plaintext-only"
       role="textbox"
       aria-label={label}
+      data-placeholder={placeholder ?? ''}
       suppressContentEditableWarning
       onInput={(event) => onChange(event.currentTarget.textContent ?? '')}
     />
@@ -59,10 +63,27 @@ export interface ResumePageProps {
   document: ResumeDocument;
   /** Called with the new text of one bullet, addressed by section and index. */
   onEditBullet: (kind: 'experience' | 'projects', section: number, bullet: number, text: string) => void;
-  onEditSummary: (text: string) => void;
+  /**
+   * Any other line, by the field it belongs to. Everything on the page is
+   * editable: the first version made only bullets and the summary editable, so
+   * a wrong heading, a stale contact line or a mistyped skill meant leaving the
+   * page to fix it — which is the thing this screen exists to avoid.
+   */
+  onEdit: (field: EditableField, text: string, index?: number) => void;
 }
 
-export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePageProps) {
+export type EditableField =
+  | 'name'
+  | 'headline'
+  | 'contactLine'
+  | 'linksLine'
+  | 'summary'
+  | 'languages'
+  | 'education'
+  | 'certifications'
+  | 'skills';
+
+export function ResumePage({ document, onEditBullet, onEdit }: ResumePageProps) {
   const sections = (kind: 'experience' | 'projects') =>
     document[kind].map((section, sectionIndex) => (
       <div className="doc-entry" key={`${section.heading}-${sectionIndex}`}>
@@ -98,17 +119,33 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
 
   return (
     <article className="doc">
-      <h2 className="doc-name">{document.name}</h2>
-      {document.headline && <p className="doc-headline">{document.headline}</p>}
-      <p className="doc-contact">{document.contactLine}</p>
-      {document.linksLine && <p className="doc-contact">{document.linksLine}</p>}
+      <Editable className="doc-name" value={document.name} label="Your name" onChange={(t) => onEdit('name', t)} />
+      <Editable
+        className="doc-headline"
+        value={document.headline}
+        label="Headline"
+        onChange={(t) => onEdit('headline', t)}
+      />
+      <Editable
+        className="doc-contact"
+        value={document.contactLine}
+        label="Contact line"
+        onChange={(t) => onEdit('contactLine', t)}
+      />
+      <Editable
+        className="doc-contact"
+        value={document.linksLine}
+        label="Links line"
+        onChange={(t) => onEdit('linksLine', t)}
+      />
 
-      {document.summary && (
-        <>
-          <h3 className="doc-heading">Summary</h3>
-          <Editable value={document.summary} label="Summary" onChange={onEditSummary} />
-        </>
-      )}
+      <h3 className="doc-heading">Summary</h3>
+      <Editable
+        value={document.summary}
+        label="Summary"
+        placeholder="What you build, in two or three lines."
+        onChange={(t) => onEdit('summary', t)}
+      />
 
       {document.experience.length > 0 && <h3 className="doc-heading">Experience</h3>}
       {sections('experience')}
@@ -119,8 +156,13 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
       {document.education.length > 0 && (
         <>
           <h3 className="doc-heading">Education</h3>
-          {document.education.map((line) => (
-            <p key={line}>{line}</p>
+          {document.education.map((line, index) => (
+            <Editable
+              key={index}
+              value={line}
+              label={`Education line ${index + 1}`}
+              onChange={(t) => onEdit('education', t, index)}
+            />
           ))}
         </>
       )}
@@ -129,8 +171,14 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
         <>
           <h3 className="doc-heading">Certifications</h3>
           <ul className="doc-bullets">
-            {document.certifications.map((line) => (
-              <li key={line}>{line}</li>
+            {document.certifications.map((line, index) => (
+              <li key={index}>
+                <Editable
+                  value={line}
+                  label={`Certification ${index + 1}`}
+                  onChange={(t) => onEdit('certifications', t, index)}
+                />
+              </li>
             ))}
           </ul>
         </>
@@ -139,7 +187,7 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
       {document.languages && (
         <>
           <h3 className="doc-heading">Languages</h3>
-          <p>{document.languages}</p>
+          <Editable value={document.languages} label="Languages" onChange={(t) => onEdit('languages', t)} />
         </>
       )}
 
@@ -147,9 +195,14 @@ export function ResumePage({ document, onEditBullet, onEditSummary }: ResumePage
         <>
           <h3 className="doc-heading">Skills</h3>
           {document.skills.map((group, index) => (
-            <p key={group.label ?? index}>
+            <p key={index} className="doc-skill-row">
               {group.label && <strong>{group.label}: </strong>}
-              {group.items.join(', ')}
+              <Editable
+                className="doc-skill-items"
+                value={group.items.join(', ')}
+                label={group.label ? `${group.label} skills` : 'Skills'}
+                onChange={(t) => onEdit('skills', t, index)}
+              />
             </p>
           ))}
         </>

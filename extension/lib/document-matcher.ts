@@ -3,7 +3,11 @@ export type DocumentKind = 'resume' | 'coverLetter';
 const KEYWORDS: Record<DocumentKind, string[]> = {
   // German forms label these 'Lebenslauf' and 'Anschreiben' (or
   // 'Motivationsschreiben'), and so do the files people save for them.
-  resume: ['resume', 'cv', 'lebenslauf'],
+  // "application" is what the combined export is called — a resume and letter
+  // in one file, for forms with a single upload slot. Without it here, the one
+  // document this extension produces for those forms was the one it could not
+  // find again.
+  resume: ['resume', 'cv', 'lebenslauf', 'application', 'bewerbung'],
   coverLetter: ['cover letter', 'coverletter', 'cover', 'anschreiben', 'motivationsschreiben'],
 };
 
@@ -26,6 +30,12 @@ export async function listFolderFiles(folder: FileSystemDirectoryHandle): Promis
 
 export interface DocumentMatchResult {
   file: FolderFile | null;
+  /**
+   * Files of the right kind that the company filter rejected. Only set when
+   * the company was known and nothing carried its name, which is the case that
+   * used to look identical to an empty folder.
+   */
+  candidates?: FolderFile[];
   /**
    * "company": filename matched the detected company name — high confidence.
    * "most-recent": company name couldn't be detected, so this is just the
@@ -92,8 +102,11 @@ export function findBestMatch(
     if (companyMatches.length > 0) {
       return { file: newestOf(companyMatches), matchedBy: 'company' };
     }
-    // Known company, but nothing matched it by filename — don't guess wrong.
-    return { file: null, matchedBy: 'none' };
+    // Known company, but nothing matched it by filename. Still don't guess —
+    // attaching another company's resume is the worst outcome here — but hand
+    // back what was found so the panel can say "four resumes, none named for
+    // Enpal" and offer them, rather than reporting nothing at all.
+    return { file: null, matchedBy: 'none', candidates };
   }
 
   return { file: newestOf(candidates), matchedBy: 'most-recent' };

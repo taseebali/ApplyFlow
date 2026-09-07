@@ -16,7 +16,7 @@ import {
 import { getProfile } from '@/lib/storage';
 import { useStoredTheme } from '@/components/ThemeControl';
 import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
-import { LetterPage, ResumePage } from '@/components/ResumePage';
+import { LetterPage, ResumePage, type EditableField } from '@/components/ResumePage';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import type { Profile } from '@/lib/schema';
 
@@ -37,10 +37,22 @@ import type { Profile } from '@/lib/schema';
  * failure that matters, and a slightly short page is not a failure at all.
  */
 const PAGE_CONTENT_PX = 931;
-const FITS_UNDER = 0.94;
+const FITS_UNDER = 0.97;
 
 /** Where trimming starts. It comes down from here until the page fits. */
-const START_PROJECTS = 6;
+const START_PROJECTS = 8;
+
+/**
+ * The trim stops here even if the page still spills.
+ *
+ * A resume with one project is not a resume, and that is what the first
+ * version produced: it measured the padded container rather than the content
+ * inside it, so 192px of page margin counted against a 931px budget and it cut
+ * everything but the top-ranked project. The measurement is fixed, and this is
+ * the floor that keeps the failure from being silent — the rail says the page
+ * spills rather than gutting the document to hide it.
+ */
+const MIN_PROJECTS = 3;
 
 export function ReviewPage() {
   const [handoff, setHandoff] = useState<ReviewHandoff | null>(null);
@@ -48,7 +60,12 @@ export function ReviewPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bullets, setBullets] = useState<BulletVariant[]>([]);
   const [letter, setLetter] = useState('');
-  const [summary, setSummary] = useState<string | null>(null);
+  /**
+   * Edits to the document that are not bullets, held over the assembled
+   * document rather than written back into the profile: the profile is the
+   * master and this is one application's copy of it.
+   */
+  const [edits, setEdits] = useState<Partial<Record<EditableField, unknown>>>({});
   const [showing, setShowing] = useState<'resume' | 'letter'>('resume');
   const [edited, setEdited] = useState<Set<string>>(new Set());
   const [kept, setKept] = useState(false);
@@ -69,15 +86,33 @@ export function ReviewPage() {
     void getProfile().then(setProfile);
   }, []);
 
-  const document =
-    profile && handoff
-      ? assembleResume(
-          summary === null ? profile : { ...profile, summary },
-          bullets,
-          handoff.jobDescription,
-          maxProjects
-        )
-      : null;
+  const assembled =
+    profile && handoff ? assembleResume(profile, bullets, handoff.jobDescription, maxProjects) : null;
+
+  // Applied on top, so trimming a project or swapping a bullet never discards
+  // a line the user retyped.
+  const document = assembled ? ({ ...assembled, ...edits } as typeof assembled) : null;
+
+  const editField = (field: EditableField, text: string, index?: number) => {
+    setEdits((current) => {
+      if (!assembled) return current;
+      if (index === undefined) return { ...current, [field]: text };
+
+      if (field === 'skills') {
+        const groups = (current.skills as typeof assembled.skills) ?? assembled.skills;
+        return {
+          ...current,
+          skills: groups.map((group, i) =>
+            i === index ? { ...group, items: text.split(',').map((t) => t.trim()).filter(Boolean) } : group
+          ),
+        };
+      }
+
+      const lines = ((current[field] as string[]) ?? assembled[field as 'education' | 'certifications']).slice();
+      lines[index] = text;
+      return { ...current, [field]: lines };
+    });
+  };
 
   /*
    * One page, by measuring rather than by guessing.
@@ -91,10 +126,15 @@ export function ReviewPage() {
   useLayoutEffect(() => {
     const element = pageRef.current;
     if (!element || showing !== 'resume') return;
-    if (element.scrollHeight > PAGE_CONTENT_PX * FITS_UNDER && maxProjects > 1) {
+    // The article, not the sheet around it: the sheet carries the page margin
+    // as padding, and scrollHeight includes padding, so measuring it charged
+    // 192px of margin against the content budget and over-trimmed by a quarter.
+    const content = element.querySelector('.doc');
+    const height = content?.scrollHeight ?? element.scrollHeight;
+    if (height > PAGE_CONTENT_PX * FITS_UNDER && maxProjects > MIN_PROJECTS) {
       setMaxProjects((current) => current - 1);
     }
-  }, [maxProjects, bullets, summary, showing]);
+  }, [maxProjects, bullets, edits, showing]);
 
   // Editing can only ever shorten or lengthen the page, so the trim starts
   // over rather than staying where an earlier, longer draft left it.
@@ -154,7 +194,7 @@ export function ReviewPage() {
     ? coverLetterFaults(letter, bullets.map((b) => b.text), { company, role: handoff.role })
     : [];
 
-  const overflowing = (pageRef.current?.scrollHeight ?? 0) > PAGE_CONTENT_PX;
+  const overflowing = (pageRef.current?.querySelector('.doc')?.scrollHeight ?? 0) > PAGE_CONTENT_PX;
 
   // Every figure on the page that came from the model rather than the profile.
   const estimates = [...new Set(bullets.flatMap((variant) => variant.estimated ?? []))];
@@ -311,9 +351,25 @@ export function ReviewPage() {
           </p>
         )}
 
-        <button type="button" className="btn btn-primary" onClick={() => void save()}>
-          Save to documents folder
-        </button>
+        <div className="actions">
+          <button type="button" className="btn btn-primary" onClick={() => void save()}>
+            Save .docx
+          </button>
+          {/*
+            Printing rather than a PDF library: the sheet on the right is
+            already the page at its real size, so the browser's own renderer
+            produces exactly what is on screen. A library would re-lay it out
+            and disagree with the preview, which is the drift this screen
+            exists to remove.
+          */}
+          <button type="button" className="btn" onClick={() => window.print()}>
+            Save PDF
+          </button>
+        </div>
+        <p className="hint">
+          .docx goes straight to your documents folder, where Attach finds it. PDF opens your browser's print
+          dialog — choose "Save as PDF", and save it to that same folder so Attach can find it too.
+        </p>
       </div>
 
       <div className="review-doc">
@@ -337,11 +393,7 @@ export function ReviewPage() {
         <div className="doc-sheet">
           <div className="doc-body" ref={pageRef}>
             {showing === 'resume' || !letterDocument ? (
-              <ResumePage
-                document={document}
-                onEditBullet={editBullet}
-                onEditSummary={(text) => setSummary(text)}
-              />
+              <ResumePage document={document} onEditBullet={editBullet} onEdit={editField} />
             ) : (
               <LetterPage letter={letterDocument} body={letter} onEditBody={setLetter} />
             )}

@@ -9,6 +9,7 @@ import { CommandPalette, useCommandKey } from '@/components/CommandPalette';
 import { MagnifyingGlassIcon } from '@phosphor-icons/react';
 import { fieldCommands, type Command } from '@/lib/commands';
 import { useFormPlan } from '@/components/FieldMirror';
+import { useActiveTab } from '@/components/useActiveTab';
 import type { JumpToFieldMessage } from '@/entrypoints/content';
 import { frameOf, localId, type PlannedField } from '@/lib/field-plan';
 import { GearIcon } from '@/components/icons';
@@ -32,7 +33,7 @@ type View =
  */
 function App() {
   const [view, setView] = useState<View>({ kind: 'loading' });
-  const [tabId, setTabId] = useState<number | null>(null);
+  const tabId = useActiveTab();
   const [posting, setPosting] = usePosting(tabId);
   useStoredTheme();
 
@@ -79,7 +80,6 @@ function App() {
     void getSettings().then((settings) => {
       setView(settings.setupCompleted ? { kind: 'daily' } : { kind: 'setup', mode: 'wizard' });
     });
-    void getActiveTabId().then(setTabId).catch(() => setTabId(null));
   }, []);
 
   if (view.kind === 'loading') return <div className="loading-state">Loading…</div>;

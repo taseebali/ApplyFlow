@@ -111,6 +111,27 @@
  * dark ground is not the document anyone receives. Colours here are literals
  * rather than tokens for exactly that reason.
  */
+/*
+ * Everything inside the sheet is paper, so it takes literal colours and
+ * inherits none of the theme.
+ *
+ * `h1, h2, h3 { color: var(--text) }` in the global sheet was reaching the
+ * document's own name and section headings, and in dark mode `--text` is
+ * near-white — so "Jordan Avery" and every heading rendered white on white paper
+ * and were all but invisible. A rule that specific has to be answered
+ * specifically.
+ */
+.doc,
+.doc h1,
+.doc h2,
+.doc h3,
+.doc p,
+.doc li,
+.doc strong,
+.doc div {
+  color: #1a1a1a;
+}
+
 .doc {
   color: #1a1a1a;
   font-family: Calibri, Carlito, 'Segoe UI', sans-serif;
@@ -164,10 +185,14 @@
 .doc-meta {
   font-style: italic;
   font-size: 13px;
+  color: #333333;
 }
 
 .doc-link {
   font-size: 12.5px;
+}
+
+.doc .doc-link {
   color: #555555;
 }
 
@@ -230,4 +255,66 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+/*
+ * An empty line is still somewhere to click. Without this a blank summary is a
+ * zero-height div with no way to put a cursor in it.
+ */
+.editable:empty::before {
+  content: attr(data-placeholder);
+  color: #9a9a9a;
+}
+
+.doc-skill-row {
+  display: flex;
+  gap: 4px;
+}
+
+.doc-skill-items {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * Printing is how a PDF is produced here, so the print view is the sheet and
+ * nothing else — no rail, no tabs, no page rule, and no shadow or border that
+ * would print as a line across the paper.
+ */
+@media print {
+  .review-rail,
+  .doc-tabs,
+  .doc-page-rule {
+    display: none !important;
+  }
+
+  .review {
+    display: block;
+    max-width: none;
+    padding: 0;
+  }
+
+  .doc-sheet {
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .doc-body {
+    padding: 0;
+  }
+
+  /* The estimate marks are a review aid, not part of the document. */
+  .doc-estimate-tag {
+    display: none !important;
+  }
+
+  .doc-estimated {
+    background: transparent;
+  }
+
+  .editable:empty::before {
+    content: '';
+  }
 }

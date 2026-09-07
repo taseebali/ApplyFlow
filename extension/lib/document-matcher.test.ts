@@ -30,7 +30,12 @@ describe('findBestMatch', () => {
   });
 
   it('does not guess a different company than the one detected', () => {
-    expect(findBestMatch(FOLDER, 'resume', 'Globex')).toEqual({ file: null, matchedBy: 'none' });
+    const match = findBestMatch(FOLDER, 'resume', 'Globex');
+    expect(match.file).toBeNull();
+    expect(match.matchedBy).toBe('none');
+    // But it hands back what it rejected, so the panel can say which resumes
+    // are there and offer them rather than reporting an empty folder.
+    expect(match.candidates?.length).toBeGreaterThan(0);
   });
 
   // The company name is scraped from the page being applied to, so it is
@@ -56,5 +61,28 @@ describe('findBestMatch', () => {
     expect(findBestMatch([file('Cover_Letter_Final.docx')], 'coverLetter', null).file?.name).toBe(
       'Cover_Letter_Final.docx'
     );
+  });
+});
+
+describe('the documents this extension writes itself', () => {
+  const own = [
+    { name: 'Jordan_Avery_Resume_Enpal.docx', handle: {} as FileSystemFileHandle, lastModified: 3 },
+    { name: 'Jordan_Avery_CoverLetter_Enpal.docx', handle: {} as FileSystemFileHandle, lastModified: 2 },
+    { name: 'Jordan_Avery_Application_Enpal.docx', handle: {} as FileSystemFileHandle, lastModified: 1 },
+  ];
+
+  it('finds the resume it just saved', () => {
+    expect(findBestMatch(own, 'resume', 'Enpal').file?.name).toBe('Jordan_Avery_Resume_Enpal.docx');
+  });
+
+  it('finds the cover letter it just saved', () => {
+    expect(findBestMatch(own, 'coverLetter', 'Enpal').file?.name).toBe('Jordan_Avery_CoverLetter_Enpal.docx');
+  });
+
+  it('recognises the combined file as something to attach', () => {
+    // Named "Application" because it is both documents in one, for forms with
+    // a single upload slot — and so it matched neither keyword list, making it
+    // the one file this extension produces that it could not find again.
+    expect(findBestMatch([own[2]!], 'resume', 'Enpal').file?.name).toBe('Jordan_Avery_Application_Enpal.docx');
   });
 });

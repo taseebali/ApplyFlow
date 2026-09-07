@@ -2,7 +2,11 @@ import { LANGUAGE_LEVELS, type CertificationEntry, type EducationEntry, type Lan
 import { LocationFields } from './LocationFields';
 import { BulletsField } from './BulletsField';
 import { TextField, SelectField } from '@/components/fields';
+import { useState } from 'react';
 import { TagInput } from './TagInput';
+import { buildSummaryPrompt, canWriteSummary, cleanSummary } from '@/lib/summary';
+import { runPrompt } from '@/lib/llm-client';
+import { getSettings } from '@/lib/settings';
 import { parseSkillRows, serializeSkillRows, type SkillRow } from '@/lib/skill-groups';
 
 /**
@@ -266,6 +270,30 @@ export function SkillsSection({ profile, onChange }: { profile: Profile; onChang
   const setRows = (next: SkillRow[]) => onChange({ ...profile, skills: serializeSkillRows(next) });
   const setRow = (index: number, row: SkillRow) => setRows(rows.map((r, i) => (i === index ? row : r)));
 
+  // The plan for the summary had two halves — read it off the resume, write one
+  // when the resume has none — and only the first was built, so a resume with
+  // no SUMMARY section left the field empty for good.
+  const [writing, setWriting] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const writeSummary = async () => {
+    setWriting(true);
+    setSummaryError(null);
+    try {
+      const settings = await getSettings();
+      if (!settings.llm.backend) {
+        setSummaryError('Set up an AI backend first — this is the one field that needs one.');
+        return;
+      }
+      const text = cleanSummary(await runPrompt(buildSummaryPrompt(profile), settings.llm));
+      if (text) onChange({ ...profile, summary: text });
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : 'Could not write a summary.');
+    } finally {
+      setWriting(false);
+    }
+  };
+
   return (
     <section>
       <h2>Summary, skills and headline</h2>
@@ -285,10 +313,22 @@ export function SkillsSection({ profile, onChange }: { profile: Profile; onChang
           onChange={(e) => onChange({ ...profile, summary: e.target.value })}
         />
       </label>
+      <div className="actions">
+        <button
+          type="button"
+          className="btn"
+          disabled={writing || !canWriteSummary(profile)}
+          onClick={() => void writeSummary()}
+        >
+          {writing ? 'Writing…' : profile.summary.trim() ? 'Rewrite it for me' : 'Write one for me'}
+        </button>
+      </div>
       <p className="hint">
         Sits under your name. Say what you build rather than listing what you have built, and say what you are
         still learning if that is honest.
+        {!canWriteSummary(profile) && ' Add a role or a project first — there is nothing to write from yet.'}
       </p>
+      {summaryError && <p className="error">{summaryError}</p>}
 
       <fieldset className="skill-rows">
         <legend>Skills</legend>

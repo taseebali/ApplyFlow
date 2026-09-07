@@ -18,7 +18,14 @@ import { getProfile, setProfile } from '@/lib/storage';
 export function BankSection() {
   const [bank, setBank] = useState<BulletBank | null>(null);
   const [run, setRun] = useState<BankRunState | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // Named apart from the imported `setProfile`, which it used to shadow for the
+  // whole component. `await setProfile(next)` at the end of saveAnswers then
+  // called the React setter instead of the storage write, so an enrichment
+  // answer never left this component — and the next storage event replaced it
+  // with the unchanged stored profile. Answering the questions did nothing, and
+  // "nothing measurable in..." came straight back. TypeScript could not see it:
+  // both take a Profile, and the return value is discarded either way.
+  const [profile, showProfile] = useState<Profile | null>(null);
   const [starting, setStarting] = useState(false);
   const [questions, setQuestions] = useState<EnrichmentQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -28,7 +35,7 @@ export function BankSection() {
     const refresh = () => {
       void getBank().then(setBank);
       void getBankRun().then(setRun);
-      void getProfile().then(setProfile);
+      void getProfile().then(showProfile);
     };
     refresh();
     // Generation runs in the worker and writes progress to storage, so this is
@@ -99,6 +106,7 @@ export function BankSection() {
     };
 
     await setProfile(next);
+    showProfile(next);
     setQuestions(null);
     setAnswers({});
     await browser.runtime.sendMessage({

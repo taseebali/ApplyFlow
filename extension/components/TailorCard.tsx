@@ -7,12 +7,9 @@ import { readJobInfo, getActiveTabId } from '@/lib/active-tab';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
 import type { Posting } from '@/components/JobContext';
 import type { OpenSetup } from '@/components/panel-types';
+import { useTabState } from '@/components/useTabState';
 
-type Status =
-  | { kind: 'idle' }
-  | { kind: 'working'; what: What }
-  | { kind: 'ready'; result: TailorResult; letter: CoverLetterResult | null; jobDescription: string }
-  | { kind: 'error'; message: string };
+type Status = { kind: 'idle' } | { kind: 'working'; what: What } | { kind: 'error'; message: string };
 
 /** What the user asked to be built. Nothing runs until one of these is chosen. */
 type What = 'resume' | 'letter' | 'both';
@@ -47,6 +44,11 @@ const REQUESTS: Record<What, number> = { resume: 1, letter: 1, both: 2 };
 export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [closed, setClosed] = useState(true);
+  // The result belongs to the application, not to this component: it used to
+  // be thrown away by a trip to another tab, and the panel then offered to
+  // generate it again at full price.
+  const { state: tabState, patch } = useTabState();
+  const built = tabState.tailor ?? null;
 
   const build = async (what: What) => {
     setStatus({ kind: 'working', what });
@@ -69,25 +71,26 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
               resumeBullets: result.selected,
             });
 
-      setStatus({ kind: 'ready', result, letter, jobDescription });
+      await patch({ tailor: { result, letter, jobDescription } });
+      setStatus({ kind: 'idle' });
     } catch (err) {
       setStatus({ kind: 'error', message: err instanceof Error ? err.message : 'Could not build that.' });
     }
   };
 
   const openReview = async () => {
-    if (status.kind !== 'ready') return;
+    if (!built) return;
     await putReview({
-      result: status.result,
-      letter: status.letter,
+      result: built.result,
+      letter: built.letter,
       company: posting.company,
       role: posting.role,
-      jobDescription: status.jobDescription,
+      jobDescription: built.jobDescription,
     });
     await openReviewTab();
   };
 
-  const result = status.kind === 'ready' ? status.result : null;
+  const result = built?.result ?? null;
   const asked = result ? result.gap.covered.length + result.gap.missing.length : 0;
   // Sections that fell back to the user's own bullets because the bank had
   // nothing for them — worth saying, since the resume looks complete either way.

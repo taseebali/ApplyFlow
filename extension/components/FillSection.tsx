@@ -418,10 +418,40 @@ export function FillAndAttachSection({
             const label = DOC_LABELS[kind];
 
             if (!result.file) {
+              /*
+               * "No match found" read the same whether the folder was empty and
+               * whether it held four resumes named for other companies — which
+               * is the case that actually happens, and the one where the answer
+               * is one click away. The rejected candidates are offered rather
+               * than attached: picking the wrong company's resume is the worst
+               * outcome here, so the choice stays the user's.
+               */
+              const near = result.candidates ?? [];
               return (
-                <div key={kind} className="doc-row">
+                <div key={kind} className="doc-row doc-row-none">
                   <span className="doc-row-label">{label}</span>
-                  <span className="pill pill-neutral">no match found</span>
+                  {near.length === 0 ? (
+                    <span className="pill pill-neutral">nothing in the folder</span>
+                  ) : (
+                    <>
+                      <span className="pill pill-warning">
+                        none named for this company
+                      </span>
+                      <div className="doc-near">
+                        {near.slice(0, 4).map((file) => (
+                          <button
+                            key={file.name}
+                            type="button"
+                            className="btn-plain"
+                            title={file.name}
+                            onClick={() => void handleConfirmAttach(kind, file)}
+                          >
+                            {file.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             }
