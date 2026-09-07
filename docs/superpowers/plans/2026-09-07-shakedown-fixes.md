@@ -1,7 +1,8 @@
 # Shakedown fixes, 7 September 2026
 
-Fourteen items from a real run. Ordered by what blocks use, not by list order.
-Several are mine, and two of those are the serious ones.
+Fourteen items from a real run, plus three UI decisions taken after reviewing
+the first tailored output. Ordered by what blocks use, not by list order.
+Several are mine, and the worst two are.
 
 ---
 
@@ -16,7 +17,7 @@ input handler did not, so the instructions now describe a control that does not
 exist. That is also why the instructions read as vague.
 
 **Fix.** Chips, per the Emblor reference (a tag input built on shadcn/ui): type,
-press Enter, the term becomes a rounded chip with an × on it. Keep an
+press Enter, the term becomes a rounded chip with an x on it. Keep an
 uncommitted draft in local state so no keystroke is ever rewritten, and only
 touch the profile when a chip is committed. Backspace on an empty field removes
 the last chip. Groups become a label on a row of chips rather than a syntax the
@@ -44,7 +45,7 @@ the catalogue does not price at zero for both prompt and completion, and say so
 rather than silently substituting. Stop sending the `models` array when the
 policy is free, so routing stays ours. Show spend for the session in the panel.
 
-**Check first.** OpenRouter → Logs lists model and cost per request. That names
+**Check first.** OpenRouter -> Logs lists model and cost per request. That names
 the culprit in a minute; I would rather fix the one that happened than all three
 on a guess.
 
@@ -131,54 +132,81 @@ structured data (JSON-LD `description`) rather than a text sweep.
 
 ---
 
-## Tier 3: needs a decision
+## Tier 3: the resume itself
 
 ### 10. What is wrong with the tailored resume
 
 Reading it against the reference, without being told:
 
 1. **Knight's Tour is on it.** A weekend backtracking exercise appears on a
-   resume for an AI agents internship, while the Real-Time Vision system - the
-   one project with hard numbers, 8-9 FPS at 0.7GB - is left off. That is the
-   worst thing on the page.
+   resume for an AI internship, and in the second run it sat fourth while seven
+   better projects were cut. That is the worst thing on the page.
 
-   **Why.** Ranking puts anything the bank covered above anything it did not,
-   by a margin nothing can overcome. The bank happened to succeed for Knight's
-   Tour and fail for Real-Time Vision, so a weekend exercise outranked the best
-   project on merit it does not have.
+2. **Its three bullets all say the same thing.** "Designed a backtracking
+   algorithm", "Built a backtracking implementation", "Solved the Knight's Tour
+   problem end-to-end". Three angles on one sentence of source.
 
-2. **Knight's Tour's three bullets all say the same thing.** "Shipped a working
-   backtracking solver", "Designed a backtracking algorithm", "Solved the
-   Knight's Tour problem end-to-end". Three angles on one sentence of source.
-
-   **Why.** Generation writes six framings per item and selection takes up to
-   three, regardless of how much the item actually had to say.
-
-3. **No summary, no skills section.** The page is projects and nothing else.
+3. **No summary, no skills, no languages.** The page is projects, education,
+   and nothing else.
 
 4. **No numbers anywhere.** The reference says "10 real verified bug fixes, 90%
    file-match rate, 7.4 tool calls per case". This says "against real, verified
-   bug fixes". The numbers were never in the imported profile, so nothing could
-   put them back.
+   bug fixes".
 
 5. **The RAG System's link is the profile GitHub**, not the project's. See #2.
 
 6. **Bullet counts are inconsistent** - four for the bank path, three for the
    fallback - because two different limits apply depending on which path ran.
 
-**Fix.** Rank on relevance to the posting first and use bank coverage only to
-break ties. Cap bullets by how much the source actually contains, not by a flat
-three. Make an item with one sentence of source contribute one line.
+7. **The keywords it is ranking against are noise.** The match chips read
+   `why`, `ll`, `days`, `find`, `manual`, `built`, `flow`. Those are not things
+   a posting asks for; they are common words that survived the extractor. Both
+   the 76 score and any relevance ranking built on those terms are measuring
+   nothing. This has to be fixed before ranking, or ranking sorts by noise.
 
-### 3. Summary, skills and headline should fill themselves
+**Root cause of 1 and 2.** Ranking is `(tailored ? 1000 : 0) + term overlap`.
+The 1000 means any project the bank happened to succeed for outranks any project
+it failed for, whatever either one is worth. And generation writes six framings
+per source no matter how thin the source is, then selection takes three.
 
-**Why.** They are empty because nothing populates them. Import never read them,
-and there is no generation step.
+**Fix.**
 
-**Fix.** Three sources in order: take them from the resume if it has them (a
-SUMMARY section, a SKILLS section); generate them from the rest of the profile
-if it does not; and never overwrite anything typed by hand. Generated text is
-marked as generated so it is obvious what to check.
+- **Fix `contentTerms` first.** Drop the generic-verb and filler band (`why`,
+  `built`, `find`, `manual`, `days`, `flow`, `ll`); keep technical nouns and
+  named tools. The gap chips and the score get honest at the same time.
+- **Rank on relevance to the posting.** Tailored-or-not becomes a tie-break
+  worth one point, not a thousand.
+- **Add a substance signal** so a one-sentence exercise cannot outrank a real
+  system: how many distinct source bullets the item has, whether any carries a
+  number, whether it names tools the posting names.
+- **Cap bullets by source volume.** One sentence of source contributes one line.
+  Same cap on both paths, so counts stop depending on which one ran.
+
+### 10b. Always one page
+
+`MAX_PROJECTS = 4` is a guess at what fits, applied whether the projects are one
+line or six and whether or not there is a summary, a skills block and a
+languages line above them. A guess cannot hold a page.
+
+**Fix.** Measure. The review tab already renders the document; render it at the
+real page width with a page-boundary rule, and trim the lowest-ranked project
+until the content clears the rule. The constant becomes a starting point, not
+the rule. Section order is fixed and the trim only ever takes projects from the
+bottom - it never drops experience, education or skills to make room.
+
+### 3. Summary, skills, headline (and languages) should fill themselves
+
+**Why.** Nothing populates them. Import never reads them and there is no
+generation step, so `summary` and `headline` are empty strings and `skills`
+holds the broken value from #4. Empty means the section is skipped, which is why
+the page had neither. `languages` is on the profile but the resume document has
+no field for it at all.
+
+**Fix.** Add a languages line to the document and render it beside skills. Fill
+summary / skills / headline from three sources in order: the resume if it has
+them (a SUMMARY section, a SKILLS section), generated from the rest of the
+profile if it does not, and never overwriting anything typed by hand. Generated
+text is marked as generated so it is obvious what to check.
 
 ### 6. The bank should assume numbers rather than refuse them
 
@@ -207,20 +235,101 @@ point, and "2 things before you can fill this" on first use is a bad greeting.
 
 ---
 
+## Tier 4: the three UI decisions
+
+### A. The review tab becomes a document editor
+
+Today it is a form that describes a document: a list of textareas, a "your
+wording" pill, a fault pill, a "keep this wording" link. You never see the
+resume. The thing you are about to send is only visible after it is saved and
+opened in Word.
+
+**References.** [OpenResume](https://github.com/xitanggg/open-resume) and
+[Reactive Resume](https://rxresu.me/) both split the screen: inputs on the left,
+the actual page rendered on the right, updating as you type, with the page
+boundary drawn. Both run entirely in the browser with no server, which is also
+our constraint.
+
+**What we build, and what we skip.** The right pane renders `ResumeDocument` -
+the same object `toDocxBlob` consumes - as HTML at page width with a one-page
+rule across it. Preview and file cannot drift, because they are the same object.
+
+Editing happens **on the document**, not in a mirrored form. Each bullet is a
+`contenteditable="plaintext-only"` line in the rendered page. That is a native
+Chrome feature and this is a Chrome extension, so it costs one attribute and no
+dependency. No ProseMirror, no TipTap, no Slate, no split-pane library, no CSS
+framework - a two-column grid is two lines of CSS.
+
+The left rail then holds only what typing cannot do: swap a bullet for another
+variant from the bank, drop or restore a section, reorder projects, keep a
+wording, the match chips, the page-fit indicator, and Save. If the left rail
+duplicates the document as a form, it is dead weight - the document *is* the
+form.
+
+*skipped: rich-text editing, templates, fonts, drag-and-drop reordering. Add
+drag-to-reorder when up/down buttons prove annoying, not before.*
+
+### B. Tailor becomes a menu, not a button
+
+Today, clicking the row runs the whole tailoring pass. If you only wanted a
+cover letter you have paid for a resume you will not use, and the row's label
+promises only one of the two things it does.
+
+**References.** [Teal](https://www.tealhq.com/tool/cover-letter-generator) keeps
+the resume builder and the cover letter generator as separate tools with
+separate costs; [OphyAI](https://ophyai.com/us/application-assistant) has you
+pick the document type before it spends anything. The pattern is the same in
+both: choose the artefact first, pay for that one.
+
+**What we build.** The row title becomes "Tailor this application" and clicking
+the row expands rather than runs. Inside: three buttons - **Resume**, **Cover
+letter**, **Both** - each showing what it will cost in requests before you press
+it. Nothing runs until one is pressed.
+
+The cover letter path needs the resume bullets today, so "Cover letter" alone
+selects from the bank without generating new variants - selection is local and
+free; only generation costs anything.
+
+### C. An accent colour
+
+Everything is currently near-neutral with four semantic colours: green for done,
+amber for waiting, red for failed, and `--ai: #1f5fbf`, a generic blue. The
+accent cannot be any of those four hues without colliding with a meaning, and
+blue is the one being replaced. That rules out most of the wheel and it is what
+makes the answer easy.
+
+**Proposed: cerise.** `#C0006B` on the light ground, `#FF5CA8` on the dark one.
+It sits clear of every semantic colour, holds contrast on both grounds, and no
+competitor in this category uses it - Simplify, Jobright and SpeedyApply are
+all teal and green. It replaces `--ai` and becomes the score ring, the primary
+action, focus rings and the selected state. Everything else stays neutral; one
+accent, spent in few places.
+
+**Runner-up: acid chartreuse** `#C8FF3D` / `#5C7A00`. More striking on the dark
+ground, but it reads as a cousin of the success green, which is exactly the
+confusion the accent must not create.
+
+---
+
 ## Order of work
 
 1. #4 skills chips, #1 button label, #5 logistics, #13 remove the row, #14 back
-   navigation. All small, all visible.
+   navigation, plus **C** the accent - all small, all visible.
 2. #7 the spend guard, once the OpenRouter log says what was charged.
-3. #2 hyperlinks, #11 answer length. Both change output quality directly.
-4. #10 ranking and bullet caps, #3 summary generation.
-5. #9 read the page's own options into the mirror. The largest, and the one that
-   makes matching stop guessing.
-6. #6 estimated numbers, with every estimate marked.
-7. #8 folder step, #12 re-test Notion detection.
+3. #2 hyperlinks, #11 answer length.
+4. #10 in order: keyword noise, then ranking, then bullet caps; then #3 summary,
+   skills and languages; then 10b one-page-by-measurement.
+5. **A** the review editor, which is where 10b is verified.
+6. **B** the tailor menu.
+7. #9 read the page's own options into the mirror - the largest, and the one
+   that makes matching stop guessing.
+8. #6 estimated numbers, with every estimate marked.
+9. #8 folder step, #12 re-test Notion detection.
 
 ## Verification
 
 Every tier ends with the same check: import the real resume, generate a tailored
-one, and read it beside `Jordan_Avery_Application_Enpal.pdf`. The tests hold the
-line; that comparison is the only thing that says whether it got better.
+one, and read it beside `Jordan_Avery_Application_Enpal.pdf`. It must be one page,
+carry a summary, a skills block and languages, and contain no weekend exercise.
+The tests hold the line; that comparison is the only thing that says whether it
+got better.
