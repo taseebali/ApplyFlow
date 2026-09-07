@@ -290,24 +290,52 @@ The cover letter path needs the resume bullets today, so "Cover letter" alone
 selects from the bank without generating new variants - selection is local and
 free; only generation costs anything.
 
-### C. An accent colour
+### C. An accent colour, used as the secondary
 
-Everything is currently near-neutral with four semantic colours: green for done,
-amber for waiting, red for failed, and `--ai: #1f5fbf`, a generic blue. The
-accent cannot be any of those four hues without colliding with a meaning, and
-blue is the one being replaced. That rules out most of the wheel and it is what
-makes the answer easy.
+The accent is not a highlight on one screen. It is the extension's second
+colour, carrying every control that has more than one state: expanded and
+collapsed rows, selected tabs, toggles, focus rings, the score ring, the
+primary action, the AI-drafted marker. That changes what it has to be. A colour
+shown once per screen can be loud; a colour shown forty times cannot.
 
-**Proposed: cerise.** `#C0006B` on the light ground, `#FF5CA8` on the dark one.
-It sits clear of every semantic colour, holds contrast on both grounds, and no
-competitor in this category uses it - Simplify, Jobright and SpeedyApply are
-all teal and green. It replaces `--ai` and becomes the score ring, the primary
-action, focus rings and the selected state. Everything else stays neutral; one
-accent, spent in few places.
+**What the constraint actually leaves.** Three semantic colours are spoken for -
+`--ok` green (145 deg), `--wait` amber (40 deg), `--bad` red (5 deg) - and the
+accent takes over `--ai`, so blue is freed rather than kept. Teal and cyan sit
+next to the success green and are what Simplify, Jobright and SpeedyApply all
+use. Indigo-violet around 265 is the default AI purple. Anything warm from
+340 through 20 is the error red. **That leaves roughly 295-320, and nothing
+else.**
 
-**Runner-up: acid chartreuse** `#C8FF3D` / `#5C7A00`. More striking on the dark
-ground, but it reads as a cousin of the success green, which is exactly the
-confusion the accent must not create.
+**Chosen: plum-magenta, hue 312.** `#9e3389` on the light ground, `#e07ecd` on
+the dark one, with `#f2e8f0` / `#2a1d2a` as the tint fills.
+
+Measured rather than asserted:
+
+| | light | dark |
+|---|---|---|
+| accent on the ground | 6.1:1 | 7.4:1 |
+| foreground on the accent fill | 6.4:1 | 8.0:1 |
+| accent text on its own tint | 5.3:1 | 6.1:1 |
+| deltaE from the error red | 65.6 | 50.3 |
+| deltaE from amber / green | 85 / 104 | 98 / 124 |
+
+Everything clears AA for text, not just for large text, which matters because
+this colour lands on 11px pills and 12px chevrons. Every deltaE is above 50,
+where two UI colours are confusable below about 25 - so the accent can never be
+misread as an error at small size, which is the failure that actually matters.
+Saturation is 68 percent, deliberately below the 80 the design guidance caps
+at, because this is a high-frequency colour.
+
+**Rejected, and why.** Cerise `#c0006b` and raspberry `#be185d` - my earlier
+recommendation - measure 36 and 28 degrees from the error red and run at 87-100
+percent saturation. Both fail the small-size test. Acid chartreuse reads as a
+cousin of the success green. Iris `#4f46e5` is the default AI violet and is the
+blue being removed.
+
+**Where it lands.** `--accent` and `--accent-text` already exist as tokens and
+are currently aliased to `--primary`, so pointing them at a real hue repalettes
+every screen in one file. `--ai` and `--ai-bg` fold into the accent; the state
+set becomes accent, ok, wait, bad.
 
 ---
 
