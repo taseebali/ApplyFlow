@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
-import { clearApplications, getApplications, summarize, toCsv, type ApplicationEntry } from '@/lib/application-log';
+import { listRecords } from '@/lib/application-db';
+import { summarize, type ApplicationStats } from '@/lib/application-record';
+
+/** Where the full history — the list, detail, and status changes — actually lives. */
+const DASHBOARD_URL = 'https://applyflow-dashboard.vercel.app/';
 
 /**
  * What ApplyFlow has recorded: taught fields, earlier profiles, applications.
@@ -115,26 +119,15 @@ export function ProfileHistorySection() {
 
 /**
  * Every application put through the tool, kept locally. Answers "is this
- * helping?", and gives people who skipped Notion a tracker of their own.
+ * helping?" — but the panel is 400px and the dashboard is where a history is
+ * actually read, so this keeps only the summary and hands the rest over.
  */
 export function ApplicationHistorySection() {
-  const [entries, setEntries] = useState<ApplicationEntry[]>([]);
-  const [confirming, setConfirming] = useState(false);
+  const [stats, setStats] = useState<ApplicationStats | null>(null);
 
-  const load = () => void getApplications().then(setEntries);
-  useEffect(load, []);
-
-  const stats = summarize(entries);
-
-  const exportCsv = () => {
-    const blob = new Blob([toCsv(entries)], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `applyflow-applications-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  useEffect(() => {
+    void listRecords().then((records) => setStats(summarize(records)));
+  }, []);
 
   return (
     <section>
@@ -144,55 +137,33 @@ export function ApplicationHistorySection() {
         and whether this is saving you anything.
       </p>
 
-      {entries.length === 0 ? (
+      {stats && stats.total === 0 ? (
         <p className="hint">Nothing recorded yet. Fill a page and it will appear here.</p>
       ) : (
-        <>
-          <p className="status-row mb-3">
-            <span className="pill pill-neutral">{stats.total} applications</span>
-            <span className="pill pill-neutral">{stats.last30Days} in the last 30 days</span>
-            <span className="pill pill-success">{stats.fieldsFilled} fields filled</span>
-            <span className="pill pill-success">{stats.questionsDrafted} answers drafted</span>
-          </p>
-
-          {stats.troublesomeSites.length > 0 && (
-            <p className="hint">
-              Forms that rejected a value: {stats.troublesomeSites.map((s) => `${s.hostname} (${s.invalid})`).join(', ')}.
+        stats && (
+          <>
+            <p className="status-row mb-3">
+              <span className="pill pill-neutral">{stats.total} applications</span>
+              <span className="pill pill-neutral">{stats.last30Days} in the last 30 days</span>
+              <span className="pill pill-success">{stats.replied} replied</span>
+              <span className="pill pill-success">{stats.fieldsFilled} fields filled</span>
+              <span className="pill pill-success">{stats.questionsDrafted} answers drafted</span>
             </p>
-          )}
 
-          <div className="doc-results">
-            {entries.slice(0, 25).map((entry) => (
-              <div className="doc-row" key={entry.id}>
-                <span className="doc-row-label" title={entry.url}>
-                  {new Date(entry.appliedAt).toLocaleDateString()} — {entry.company || entry.hostname}
-                  {entry.title ? `, ${entry.title}` : ''}
-                </span>
-                <span className="pill pill-neutral">{entry.filledCount} filled</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="setup-footer mt-3">
-            <button type="button" className="btn" onClick={exportCsv}>
-              Export CSV
-            </button>
-            {confirming ? (
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => void clearApplications().then(() => { setConfirming(false); load(); })}
-              >
-                Really clear history
-              </button>
-            ) : (
-              <button type="button" className="btn" onClick={() => setConfirming(true)}>
-                Clear history
-              </button>
+            {stats.troublesomeSites.length > 0 && (
+              <p className="hint">
+                Forms that rejected a value: {stats.troublesomeSites.map((s) => `${s.hostname} (${s.invalid})`).join(', ')}.
+              </p>
             )}
-          </div>
-        </>
+          </>
+        )
       )}
+
+      {/* The panel is 400px. The dashboard is where this is actually read —
+          the panel keeps the summary and hands over. */}
+      <a className="btn" href={DASHBOARD_URL} target="_blank" rel="noreferrer">
+        Open the dashboard
+      </a>
     </section>
   );
 }
