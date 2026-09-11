@@ -1,5 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { askExtension, toBlobUrl, STATUSES, type DetailedRecord, type ApplicationStatus } from './bridge';
+
+// Object URLs are memoised on the base64 they were built from, otherwise every
+// re-render (a status change, a parent refresh) would leak another one — blob URLs
+// are never freed on their own. The cleanup below closes over this render's own
+// `url`, so it runs against that same value when the effect is torn down (base64
+// changed, or unmount) — it never touches the URL a later render is using.
+function useDocumentUrl(base64: string | undefined): string | undefined {
+  const url = useMemo(() => (base64 ? toBlobUrl(base64) : undefined), [base64]);
+
+  useEffect(() => {
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [url]);
+
+  return url;
+}
 
 export function ApplicationDetail({
   id,
@@ -17,6 +34,9 @@ export function ApplicationDetail({
       if (r.ok && r.record) setRecord(r.record);
     });
   }, [id]);
+
+  const resumeUrl = useDocumentUrl(record?.resume?.base64);
+  const coverLetterUrl = useDocumentUrl(record?.coverLetter?.base64);
 
   if (!record) return <p className="hint">Loading…</p>;
 
@@ -45,16 +65,16 @@ export function ApplicationDetail({
         <ul>
           {/* Downloaded from bytes held on this machine. Nothing was uploaded
               to produce this link. */}
-          {record.resume && (
+          {record.resume && resumeUrl && (
             <li>
-              <a href={toBlobUrl(record.resume.base64)} download={record.resume.filename}>
+              <a href={resumeUrl} download={record.resume.filename}>
                 {record.resume.filename}
               </a>
             </li>
           )}
-          {record.coverLetter && (
+          {record.coverLetter && coverLetterUrl && (
             <li>
-              <a href={toBlobUrl(record.coverLetter.base64)} download={record.coverLetter.filename}>
+              <a href={coverLetterUrl} download={record.coverLetter.filename}>
                 {record.coverLetter.filename}
               </a>
             </li>
