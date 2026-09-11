@@ -1,0 +1,41 @@
+:root {
+  --brand: #9e3389;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --text: #0c0d0f;
+  --text-muted: #6c727a;
+  --border: #e4e6e9;
+  --accent: var(--brand);
+  --accent-bg: oklch(from var(--brand) 0.95 0.03 h);
+  --sans: 'Geist Variable', -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root:not([data-theme='light']) {
+  @media (prefers-color-scheme: dark) {
+    --bg: #0c0d0f;
+    --surface: #131518;
+    --text: #edeef0;
+    --text-muted: #8c939b;
+    --border: #23262b;
+    --accent: oklch(from var(--brand) 0.73 c h);
+    --accent-bg: oklch(from var(--brand) 0.24 0.045 h);
+  }
+}
+
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+.dash { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+.dash h1 { font-size: 20px; letter-spacing: -0.02em; }
+.hint { color: var(--text-muted); font-size: 13px; }
+.error { color: #b3261e; }
+
+.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dash-table th { text-align: left; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-muted); padding: 8px 10px; }
+.dash-table td { padding: 10px; border-top: 1px solid var(--border); }
+.dash-table tbody tr:hover { background: var(--accent-bg); cursor: pointer; }
+
+.chip { padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--accent-bg); color: var(--accent); }
+
+.dash-detail section { margin-top: 24px; }
+.dash-jd { white-space: pre-wrap; font-family: inherit; font-size: 13px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
