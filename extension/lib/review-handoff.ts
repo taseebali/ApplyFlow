@@ -16,6 +16,8 @@ export interface ReviewHandoff {
   role: string;
   jobDescription: string;
   createdAt: number;
+  /** The tab this was built from, so the saved documents reach its record. */
+  tabId?: number;
 }
 
 const KEY = 'review-handoff';

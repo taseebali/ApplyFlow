@@ -86,6 +86,7 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
       company: posting.company,
       role: posting.role,
       jobDescription: built.jobDescription,
+      tabId: await getActiveTabId(),
     });
     await openReviewTab();
   };

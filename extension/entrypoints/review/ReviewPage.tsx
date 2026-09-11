@@ -18,6 +18,9 @@ import { useStoredTheme } from '@/components/ThemeControl';
 import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
 import { LetterPage, ResumePage, type EditableField } from '@/components/ResumePage';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
+import { documentFromBlob } from '@/lib/application-record';
+import { patchRecord } from '@/lib/application-db';
+import { getTabState } from '@/lib/tab-state';
 import type { Profile } from '@/lib/schema';
 
 /**
@@ -217,31 +220,53 @@ export function ReviewPage() {
       }
 
       const names: string[] = [];
+      // Held rather than passed straight through: the same bytes that go to the
+      // documents folder go onto the record, and building them twice would let
+      // the two copies drift.
+      let resumeBlob: Blob | null = null;
+      let letterBlob: Blob | null = null;
+
       if (combine && letterDocument) {
         // Plenty of postings have one upload slot and no second field for a
         // letter, and this is what people already do by hand.
+        const combinedBlob = await combinedToDocxBlob(document, letterDocument);
+        resumeBlob = combinedBlob;
         names.push(
-          await saveToDocumentsFolder(
-            handle,
-            combinedFilename(document, company),
-            await combinedToDocxBlob(document, letterDocument)
-          )
+          await saveToDocumentsFolder(handle, combinedFilename(document, company), combinedBlob)
         );
       } else {
-        names.push(
-          await saveToDocumentsFolder(handle, resumeFilename(document, company), await toDocxBlob(document))
-        );
+        resumeBlob = await toDocxBlob(document);
+        names.push(await saveToDocumentsFolder(handle, resumeFilename(document, company), resumeBlob));
+
         if (letterDocument) {
+          letterBlob = await coverLetterToDocxBlob(letterDocument);
           names.push(
-            await saveToDocumentsFolder(
-              handle,
-              coverLetterFilename(document, company),
-              await coverLetterToDocxBlob(letterDocument)
-            )
+            await saveToDocumentsFolder(handle, coverLetterFilename(document, company), letterBlob)
           );
         }
       }
       setSaved(names);
+
+      /*
+       * The record is the point of saving, not a side effect of it. Everything
+       * that made this application what it is — the posting, the score, the
+       * bullets that went out, the figures that were estimated, and both files
+       * as bytes — is written here, where all of it is in hand at once.
+       */
+      const tabId = handoff.tabId;
+      const applicationId = tabId === undefined ? undefined : (await getTabState(tabId)).applicationId;
+      if (applicationId) {
+        await patchRecord(applicationId, {
+          jobDescription: handoff.jobDescription,
+          matchScore: score,
+          gapCovered: handoff.result.gap.covered.map((g) => g.term),
+          gapMissing: handoff.result.gap.missing.map((g) => g.term),
+          variantIds: bullets.map((b) => b.id),
+          estimatedFigures: estimates,
+          resume: resumeBlob ? await documentFromBlob(names[0]!, resumeBlob) : null,
+          coverLetter: letterBlob && names[1] ? await documentFromBlob(names[1], letterBlob) : null,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.');
     }

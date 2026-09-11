@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyRecord, summarize, wordingOutcomes, type ApplicationRecord } from './application-record';
+import { documentFromBlob, emptyRecord, summarize, wordingOutcomes, type ApplicationRecord } from './application-record';
 
 const record = (over: Partial<ApplicationRecord> = {}): ApplicationRecord => ({
   ...emptyRecord({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1', hostname: 'x' }),
@@ -60,5 +60,17 @@ describe('wordingOutcomes', () => {
 
   it('says nothing about a bullet never sent', () => {
     expect(wordingOutcomes([record({ variantIds: [] })])).toEqual([]);
+  });
+});
+
+describe('documentFromBlob', () => {
+  it('keeps the bytes and the name it was saved under', async () => {
+    // The filename matters as much as the bytes: saveToDocumentsFolder renames
+    // on collision, so what is on disk may not be what was asked for.
+    const blob = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])]);
+    const doc = await documentFromBlob('Jordan_Avery_Resume_Enpal (1).docx', blob, 1234);
+    expect(doc.filename).toBe('Jordan_Avery_Resume_Enpal (1).docx');
+    expect(doc.savedAt).toBe(1234);
+    expect(new Uint8Array(doc.bytes)).toEqual(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
   });
 });

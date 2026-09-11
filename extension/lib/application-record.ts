@@ -144,3 +144,26 @@ export function wordingOutcomes(records: ApplicationRecord[]): WordingOutcome[] 
     .map(([variantId, count]) => ({ variantId, sent: count, replied: replied.get(variantId) ?? 0 }))
     .sort((a, b) => b.replied - a.replied || b.sent - a.sent);
 }
+
+/**
+ * A saved file, ready to store.
+ *
+ * `Blob.arrayBuffer()` is missing in jsdom, where the tests run, so the
+ * FileReader path is the one that works in both places — the same reason
+ * `resume-text.ts` reads files the way it does.
+ */
+export async function documentFromBlob(
+  filename: string,
+  blob: Blob,
+  savedAt = Date.now()
+): Promise<StoredDocument> {
+  const bytes = await (typeof blob.arrayBuffer === 'function'
+    ? blob.arrayBuffer()
+    : new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(blob);
+      }));
+  return { filename, bytes, savedAt };
+}
