@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearRecords, getRecord, listRecords, patchRecord, putRecord, deleteRecord } from './application-db';
 import { emptyRecord } from './application-record';
 
@@ -36,6 +36,19 @@ describe('the application store', () => {
     await expect(patchRecord('missing', { status: 'offer' })).resolves.toBeUndefined();
   });
 
+  it('keeps both fields when two patches race', async () => {
+    // Two callers (review page, dashboard) can patch the same record without
+    // awaiting each other. If get+put aren't one transaction, both reads see
+    // the pre-patch record and whichever write lands second wins outright,
+    // silently dropping the other field.
+    const r = seed('Enpal');
+    await putRecord(r);
+    await Promise.all([patchRecord(r.id, { status: 'interview' }), patchRecord(r.id, { filledCount: 5 })]);
+    const after = await getRecord(r.id);
+    expect(after?.status).toBe('interview');
+    expect(after?.filledCount).toBe(5);
+  });
+
   it('carries document bytes through a round trip', async () => {
     // The reason this is IndexedDB and not storage.local: a .docx is ~40KB and
     // storage.local holds ~10MB for the whole extension.
@@ -55,5 +68,28 @@ describe('the application store', () => {
 
   it('has nothing to say about an empty store', async () => {
     expect(await listRecords()).toEqual([]);
+  });
+
+  it('does not let a failed request block the next one', async () => {
+    const r = seed('Enpal');
+    await putRecord(r);
+
+    // Abort the transaction right after its request is queued — the same
+    // event a real failed request produces (onabort, no oncomplete). Only
+    // closing the connection on oncomplete would leak it here.
+    const realTransaction = IDBDatabase.prototype.transaction;
+    const spy = vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementationOnce(function (
+      this: IDBDatabase,
+      ...args: Parameters<IDBDatabase['transaction']>
+    ) {
+      const tx = realTransaction.apply(this, args);
+      queueMicrotask(() => tx.abort());
+      return tx;
+    });
+
+    await expect(getRecord(r.id)).rejects.toBeTruthy();
+    spy.mockRestore();
+
+    await expect(getRecord(r.id)).resolves.toMatchObject({ company: 'Enpal' });
   });
 });

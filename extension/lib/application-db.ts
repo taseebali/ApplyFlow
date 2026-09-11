@@ -24,10 +24,7 @@ function open(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id' });
-        // The dashboard reads newest first and nothing else sorts, so this is
-        // the only index worth carrying.
-        store.createIndex('appliedAt', 'appliedAt');
+        db.createObjectStore(STORE, { keyPath: 'id' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -44,6 +41,9 @@ function run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRe
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
         tx.oncomplete = () => db.close();
+        // oncomplete never fires for an aborted transaction, so a failed
+        // request would otherwise hold the connection open indefinitely.
+        tx.onabort = () => db.close();
       })
   );
 }
@@ -64,11 +64,33 @@ export async function listRecords(): Promise<ApplicationRecord[]> {
 }
 
 /** Merges into an existing record. A missing id is a no-op, never an error:
- *  the caller is usually a later stage of a run whose record may be gone. */
+ *  the caller is usually a later stage of a run whose record may be gone.
+ *
+ *  Get and put share one transaction rather than going through `run` twice —
+ *  two callers patching the same record concurrently would otherwise each
+ *  read the pre-patch record and one write would silently clobber the
+ *  other's fields. A single transaction serialises against any other
+ *  transaction touching this store, so the second patch always reads the
+ *  first one's result. */
 export async function patchRecord(id: string, patch: Partial<ApplicationRecord>): Promise<void> {
-  const current = await getRecord(id);
-  if (!current) return;
-  await putRecord({ ...current, ...patch, id: current.id });
+  const db = await open();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const getRequest = store.get(id) as IDBRequest<ApplicationRecord | undefined>;
+    getRequest.onsuccess = () => {
+      const current = getRequest.result;
+      if (current) store.put({ ...current, ...patch, id: current.id });
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
 }
 
 export async function deleteRecord(id: string): Promise<void> {
