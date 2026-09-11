@@ -10,6 +10,9 @@ import { rankFrames, type FrameReport } from '@/lib/frames';
 import { updateApplication } from '@/lib/application-log';
 import { runBankGeneration } from '@/lib/bank-run';
 import type { TargetFamily } from '@/lib/target-families';
+import { handleDashboardRequest, isAllowedOrigin, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
+import { getRecord, listRecords, patchRecord } from '@/lib/application-db';
+import { migrateApplicationLog } from '@/lib/application-migrate';
 
 /**
  * Which frames of which tab hold a fillable form. Held in the worker because
@@ -274,6 +277,40 @@ export default defineBackground(() => {
     void runDraft(message.tabId);
     sendResponse({ started: true });
     return true;
+  });
+
+  /*
+   * The dashboard asks; the extension answers.
+   *
+   * The dashboard is a static page with no storage and no server behind it, so
+   * every record it shows comes through here. Two gates, deliberately: the
+   * manifest's `externally_connectable` decides who may send at all, and this
+   * checks the origin again — a mistake in one should not be the only thing
+   * between a web page and an application history.
+   */
+  browser.runtime.onMessageExternal.addListener(
+    (request: DashboardRequest, sender, sendResponse: (response: DashboardResponse) => void) => {
+      if (!sender.origin || !isAllowedOrigin(sender.origin)) {
+        sendResponse({ ok: false, error: 'Not an allowed origin.' });
+        return false;
+      }
+
+      void handleDashboardRequest(request, {
+        list: listRecords,
+        get: getRecord,
+        patch: patchRecord,
+      })
+        .then(sendResponse)
+        .catch(() => sendResponse({ ok: false, error: 'Could not read applications.' }));
+
+      return true;
+    }
+  );
+
+  // One-way, and a no-op after the first run. The old log is capped at 500
+  // entries and cannot hold documents, so nothing is left behind on purpose.
+  browser.runtime.onInstalled.addListener(() => {
+    void migrateApplicationLog();
   });
 
   // A closed tab's application is over; keep session storage from growing.
