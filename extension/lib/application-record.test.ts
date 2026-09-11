@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { documentFromBlob, emptyRecord, summarize, wordingOutcomes, type ApplicationRecord } from './application-record';
+import { documentFromBlob, emptyRecord, summarize, toCsv, wordingOutcomes, type ApplicationRecord } from './application-record';
 
 const record = (over: Partial<ApplicationRecord> = {}): ApplicationRecord => ({
   ...emptyRecord({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1', hostname: 'x' }),
@@ -60,6 +60,32 @@ describe('wordingOutcomes', () => {
 
   it('says nothing about a bullet never sent', () => {
     expect(wordingOutcomes([record({ variantIds: [] })])).toEqual([]);
+  });
+});
+
+describe('toCsv', () => {
+  it('guards a leading =, +, - or @ against being run as a formula', () => {
+    const rows = toCsv([record({ company: '=cmd|"/c calc"!A1' })]).split('\n');
+    expect(rows[1]).toContain(`"'=cmd|""/c calc""!A1"`);
+  });
+
+  it('keeps the fields worth exporting, including ones the old log never had', () => {
+    const csv = toCsv([record({ status: 'interview', matchScore: 0.82, estimatedFigures: ['a', 'b'] })]);
+    const [header, row] = csv.split('\n');
+    expect(header).toContain('status');
+    expect(header).toContain('matchScore');
+    expect(header).toContain('estimatedFigures');
+    expect(row).toContain('"interview"');
+    expect(row).toContain('"0.82"');
+    expect(row).toContain('"2"');
+  });
+
+  it('never puts the job posting or document bytes in a cell', () => {
+    const csv = toCsv([record({ jobDescription: 'a very long posting'.repeat(50) })]);
+    expect(csv).not.toContain('very long posting');
+    expect(csv.split('\n')[0]).not.toContain('jobDescription');
+    expect(csv.split('\n')[0]).not.toContain('resume');
+    expect(csv.split('\n')[0]).not.toContain('coverLetter');
   });
 });
 

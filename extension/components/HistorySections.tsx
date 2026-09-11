@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
-import { listRecords } from '@/lib/application-db';
-import { summarize, type ApplicationStats } from '@/lib/application-record';
+import { clearRecords, listRecords } from '@/lib/application-db';
+import { summarize, toCsv, type ApplicationRecord, type ApplicationStats } from '@/lib/application-record';
 
 /** Where the full history — the list, detail, and status changes — actually lives. */
 const DASHBOARD_URL = 'https://applyflow-dashboard.vercel.app/';
@@ -123,11 +123,24 @@ export function ProfileHistorySection() {
  * actually read, so this keeps only the summary and hands the rest over.
  */
 export function ApplicationHistorySection() {
-  const [stats, setStats] = useState<ApplicationStats | null>(null);
+  const [records, setRecords] = useState<ApplicationRecord[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
-  useEffect(() => {
-    void listRecords().then((records) => setStats(summarize(records)));
-  }, []);
+  const load = () => void listRecords().then(setRecords);
+  useEffect(load, []);
+
+  const stats: ApplicationStats | null = records && summarize(records);
+
+  const exportCsv = () => {
+    if (!records) return;
+    const blob = new Blob([toCsv(records)], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `applyflow-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section>
@@ -164,6 +177,27 @@ export function ApplicationHistorySection() {
       <a className="btn" href={DASHBOARD_URL} target="_blank" rel="noreferrer">
         Open the dashboard
       </a>
+
+      {stats && stats.total > 0 && (
+        <div className="setup-footer mt-3">
+          <button type="button" className="btn" onClick={exportCsv}>
+            Export CSV
+          </button>
+          {confirming ? (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => void clearRecords().then(() => { setConfirming(false); load(); })}
+            >
+              Really clear history
+            </button>
+          ) : (
+            <button type="button" className="btn" onClick={() => setConfirming(true)}>
+              Clear history
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

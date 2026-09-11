@@ -145,6 +145,46 @@ export function wordingOutcomes(records: ApplicationRecord[]): WordingOutcome[] 
     .sort((a, b) => b.replied - a.replied || b.sent - a.sent);
 }
 
+const CSV_COLUMNS: Array<keyof ApplicationRecord> = [
+  'appliedAt',
+  'company',
+  'title',
+  'url',
+  'hostname',
+  'status',
+  'matchScore',
+  'filledCount',
+  'invalidCount',
+  'questionsDrafted',
+  'documentsAttached',
+];
+
+/** A field starting with =, +, - or @ is executed as a formula by spreadsheets. */
+function csvCell(value: unknown): string {
+  const text = String(value ?? '');
+  const guarded = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${guarded.replace(/"/g, '""')}"`;
+}
+
+/**
+ * A summary, not a dump: no `jobDescription` or document bytes, which would
+ * make a row unreadable rather than useful. `estimatedFigures` becomes a
+ * count for the same reason — the figures themselves belong in the record,
+ * not a spreadsheet cell.
+ */
+export function toCsv(records: ApplicationRecord[]): string {
+  const header = [...CSV_COLUMNS, 'estimatedFigures'].join(',');
+  const rows = records.map((record) =>
+    [
+      ...CSV_COLUMNS.map((column) =>
+        csvCell(column === 'appliedAt' ? new Date(record.appliedAt).toISOString() : record[column])
+      ),
+      csvCell(record.estimatedFigures.length),
+    ].join(',')
+  );
+  return [header, ...rows].join('\n');
+}
+
 /**
  * A saved file, ready to store.
  *
