@@ -30,5 +30,24 @@ export default defineConfig({
     action: {
       default_title: 'ApplyFlow',
     },
+    /*
+     * Pins the extension ID.
+     *
+     * Without this, an unpacked extension gets a new ID on every load, and
+     * `externally_connectable` is keyed on that ID — so the dashboard would
+     * lose its connection to the extension on every rebuild. The public half of
+     * the key pair is safe to commit; the private half is in
+     * applyflow-extension.pem, which is gitignored.
+     */
+    key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlc+LvdEbZopZjVow1ELnZFOYeHLk81VIN+rNt51eNzckPDz4Rp8nSfQyx3iMaat5mlqJ6A+s0mtK1HWoWJHsgluyoPmfw+11TAiI8VTuFTXgRLuW/Uvr2QXWjj2nqxVHyjQ33uYk2WDKLWJACv70in+zxm73HJbsVsof9/3LNvQXCJnSfE+mz5GFUV8OCNcYe+pVIcKQ43jLW+4D+YoAHSksohZiDIzg7fojQw/B03Sa0dwX4LyHcmqRvlSN2qOOP4YLamxsPxtkkZ/doZSrFHIYf0CTvotEJ+OmG6hcW9BfyN4tkCr50i86BIpxtSYhqloZl4JJj/a10u8PwyJNqwIDAQAB',
+
+    /*
+     * Which pages may message this extension. Nothing else can, whatever it
+     * sends. The list matches ALLOWED_ORIGINS in lib/dashboard-bridge.ts; both
+     * exist so that a mistake in either one alone is not enough.
+     */
+    externally_connectable: {
+      matches: ['https://applyflow-dashboard.vercel.app/*', 'http://localhost:5174/*'],
+    },
   },
 });

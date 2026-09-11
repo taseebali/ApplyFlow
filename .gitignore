@@ -1,0 +1,3 @@
+# Extension signing key - private half of the pinned extension ID.
+# Whoever holds this can publish an update Chrome accepts as ours.
+applyflow-extension.pem
