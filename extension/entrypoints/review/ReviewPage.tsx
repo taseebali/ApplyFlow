@@ -256,16 +256,22 @@ export function ReviewPage() {
       const tabId = handoff.tabId;
       const applicationId = tabId === undefined ? undefined : (await getTabState(tabId)).applicationId;
       if (applicationId) {
-        await patchRecord(applicationId, {
-          jobDescription: handoff.jobDescription,
-          matchScore: score,
-          gapCovered: handoff.result.gap.covered.map((g) => g.term),
-          gapMissing: handoff.result.gap.missing.map((g) => g.term),
-          variantIds: bullets.map((b) => b.id),
-          estimatedFigures: estimates,
-          resume: resumeBlob ? await documentFromBlob(names[0]!, resumeBlob) : null,
-          coverLetter: letterBlob && names[1] ? await documentFromBlob(names[1], letterBlob) : null,
-        });
+        // Guarded on its own: the files are already on disk by this point, so
+        // a failure here is not a failed save and must not be reported as one.
+        try {
+          await patchRecord(applicationId, {
+            jobDescription: handoff.jobDescription,
+            matchScore: score,
+            gapCovered: handoff.result.gap.covered.map((g) => g.term),
+            gapMissing: handoff.result.gap.missing.map((g) => g.term),
+            variantIds: bullets.map((b) => b.id),
+            estimatedFigures: estimates,
+            resume: resumeBlob ? await documentFromBlob(names[0]!, resumeBlob) : null,
+            coverLetter: letterBlob && names[1] ? await documentFromBlob(names[1], letterBlob) : null,
+          });
+        } catch {
+          setError('Saved to your documents folder, but this application could not be added to your history.');
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.');
