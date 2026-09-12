@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
 import { getDocumentsFolderHandle, saveDocumentsFolderHandle, supportsDocumentsFolder } from '@/lib/document-store';
-import type { LlmSettings, Settings } from '@/lib/settings';
-import { searchDatabases, testConnection, type NotionDatabaseOption } from '@/lib/notion-client';
+import type { LlmSettings } from '@/lib/settings';
 import { ModelPicker } from './ModelPicker';
 import { PROVIDERS, originPatternFor, providerById } from '@/lib/providers';
 import { TextField } from '@/components/fields';
 
 /**
- * Everything that reaches outside the extension: the documents folder, the
- * Notion tracker, and the AI backend.
+ * Everything that reaches outside the extension: the documents folder and the
+ * AI backend.
  */
-
-export type NotionConfig = Settings['notion'];
 
 export function DocumentsSection() {
   // Chromium-only. Rendering the button on a browser that cannot honour it
@@ -68,152 +65,6 @@ export function DocumentsSection() {
         {folderName ? 'Change folder' : 'Grant folder access'}
       </button>
       {error && <p className="error">{error}</p>}
-    </section>
-  );
-}
-
-export function NotionSettingsSection({
-  value,
-  onChange,
-}: {
-  value: NotionConfig;
-  onChange: (value: NotionConfig) => void;
-}) {
-  const [databases, setDatabases] = useState<NotionDatabaseOption[] | null>(null);
-  const [searchState, setSearchState] = useState<'idle' | 'searching' | 'error'>('idle');
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [testing, setTesting] = useState(false);
-
-  const { token, databaseId, skipped } = value;
-
-  // A "Connected" result describes the exact token/database it was run against,
-  // so any edit to either makes it stale. Drop it rather than leave a green pill
-  // sitting above a configuration that was never tested.
-  const update = (patch: Partial<NotionConfig>) => {
-    setTestResult(null);
-    onChange({ ...value, ...patch });
-  };
-
-  const handleFindDatabases = async () => {
-    setSearchState('searching');
-    setSearchError(null);
-    try {
-      const results = await searchDatabases(token);
-      setDatabases(results);
-      setSearchState('idle');
-    } catch (err) {
-      setSearchState('error');
-      setSearchError(err instanceof Error ? err.message : 'Could not search Notion.');
-    }
-  };
-
-  if (skipped) {
-    return (
-      <section>
-        <h2>Notion tracker</h2>
-        <p className="hint">Skipped — the Log to Notion card stays hidden. Everything else works as normal.</p>
-        <button type="button" className="btn" onClick={() => onChange({ ...value, skipped: false })}>
-          Set up Notion after all
-        </button>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      <h2>Notion tracker</h2>
-      <p className="hint">Log every application you send to a Notion database. Optional — everything else works without it.</p>
-      <ol className="setup-steps">
-        <li>
-          Open{' '}
-          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer">
-            Notion integrations
-          </a>{' '}
-          and press <strong>New integration</strong>. Give it any name.
-        </li>
-        <li>Copy the secret it shows you, and paste it below.</li>
-        <li>
-          In Notion, open the database you want to log to, click the <strong>•••</strong> menu at the top right,
-          choose <strong>Connections</strong>, and pick the integration you just made.
-        </li>
-        <li>Press <strong>Find my databases</strong> below and choose it from the list.</li>
-      </ol>
-      <label className="field">
-        <span>Integration token</span>
-        <input type="password" value={token} onChange={(e) => update({ token: e.target.value })} />
-      </label>
-      <button
-        type="button"
-        className="btn mt-3"
-        onClick={handleFindDatabases}
-        disabled={!token || searchState === 'searching'}
-      >
-        {searchState === 'searching' ? 'Searching…' : 'Find my databases'}
-      </button>
-      {searchState === 'error' && <p className="error">{searchError}</p>}
-      {databases && (
-        <div className="database-options">
-          {databases.length === 0 && (
-            <p className="hint">No databases found — make sure you shared one with this integration in Notion.</p>
-          )}
-          {databases.map((db) => (
-            <button
-              key={db.id}
-              type="button"
-              className={`btn database-option ${databaseId === db.id ? 'database-option-selected' : ''}`}
-              onClick={() => update({ databaseId: db.id })}
-            >
-              {db.title}
-            </button>
-          ))}
-        </div>
-      )}
-      <label className="field mt-3">
-        <span>Database ID</span>
-        <input type="text" value={databaseId} onChange={(e) => update({ databaseId: e.target.value })} />
-      </label>
-      <button
-        type="button"
-        className="btn mt-3"
-        disabled={testing}
-        onClick={async () => {
-          setTesting(true);
-          try {
-            const result = await testConnection({ token, databaseId });
-            setTestResult(
-              result.ok
-                ? { ok: true, message: `Connected to ${result.databaseTitle}.` }
-                : { ok: false, message: result.message }
-            );
-          } catch (err) {
-            setTestResult({
-              ok: false,
-              message: err instanceof Error ? err.message : 'Could not reach Notion.',
-            });
-          } finally {
-            setTesting(false);
-          }
-        }}
-      >
-        {testing ? 'Testing…' : 'Test connection'}
-      </button>
-      {testResult && (
-        <p className="status-row mt-2">
-          <span className={`pill ${testResult.ok ? 'pill-success' : 'pill-danger'}`}>{testResult.message}</span>
-        </p>
-      )}
-      <p className="hint mt-4">
-        Not using Notion? Skipping clears anything entered here and hides the tracker entirely, so the step never
-        sits half-finished.
-      </p>
-      <button
-        type="button"
-        className="btn"
-        onClick={() => onChange({ token: '', databaseId: '', skipped: true })}
-      >
-        Skip — I don't use Notion
-      </button>
     </section>
   );
 }

@@ -1,10 +1,10 @@
 /**
  * One application, in full.
  *
- * The old log stored counts: how many fields were filled, whether Notion got a
- * row. It could not answer the question the tool exists to serve — which
- * wording actually gets replies — because it never recorded what was sent.
- * This does, and keeps both finished documents with it.
+ * The old log stored counts: how many fields were filled, how many questions
+ * got drafted. It could not answer the question the tool exists to serve —
+ * which wording actually gets replies — because it never recorded what was
+ * sent. This does, and keeps both finished documents with it.
  */
 
 /** What happened after applying. Set by hand; nothing else can know it. */

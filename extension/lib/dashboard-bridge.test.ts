@@ -81,8 +81,8 @@ describe('what may never leave', () => {
   it('sends only the record fields, so no settings field can ride along', () => {
     // The dashboard is a web page. Anything this returns is readable by it, so
     // the shape is an allowlist rather than a redaction.
-    const sneaky = { ...record, apiKey: 'sk-or-v1-secret', notionToken: 'secret' } as never;
+    const sneaky = { ...record, apiKey: 'sk-or-v1-secret', authToken: 'secret' } as never;
     expect(Object.keys(toTransferable(sneaky))).not.toContain('apiKey');
-    expect(Object.keys(toTransferable(sneaky))).not.toContain('notionToken');
+    expect(Object.keys(toTransferable(sneaky))).not.toContain('authToken');
   });
 });

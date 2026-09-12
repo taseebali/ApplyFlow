@@ -324,9 +324,9 @@ export default defineContentScript({
           const overrides = await getOverridesForHost(location.hostname);
 
           // This script never reads settings at all. Reading them here would
-          // pull the whole stored blob — Notion token and OpenRouter key
-          // included — into a script that runs on every page the user visits,
-          // just to learn one boolean. The worker holds the secrets, decides
+          // pull the whole stored blob — the OpenRouter key included — into a
+          // script that runs on every page the user visits, just to learn one
+          // boolean. The worker holds the secrets, decides
           // whether AI escalation is even configured, and answers with an
           // option index and nothing else.
           const aiOptionFallback = async (question: string, options: string[], value: string) => {

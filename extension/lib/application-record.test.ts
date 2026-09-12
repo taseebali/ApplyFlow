@@ -47,7 +47,7 @@ describe('summarize', () => {
 });
 
 describe('wordingOutcomes', () => {
-  it('reports how each bullet did, which is the thing Notion could never answer', () => {
+  it('reports how each bullet did, which the old log could never answer', () => {
     const outcomes = wordingOutcomes([
       record({ variantIds: ['v1', 'v2'], status: 'interview' }),
       record({ variantIds: ['v1'], status: 'rejected' }),

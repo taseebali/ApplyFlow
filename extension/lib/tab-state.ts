@@ -46,7 +46,6 @@ export interface TabState {
     error?: string;
   };
   draft?: DraftRun;
-  notion?: { loggedUrl: string };
   /**
    * The company and role the user typed, when detection got them wrong or
    * found nothing. Kept per tab because it describes that application, and it

@@ -10,7 +10,7 @@ import {
   WorkHistorySection,
 } from './ProfileSections';
 import { CustomQASection, LogisticsSection, WorkAuthSection } from './AnswerSections';
-import { DocumentsSection, LlmSettingsSection, NotionSettingsSection } from './IntegrationSections';
+import { DocumentsSection, LlmSettingsSection } from './IntegrationSections';
 import {
   ApplicationHistorySection,
   FieldMappingsSection,
@@ -24,7 +24,7 @@ import { ThemeControl } from './ThemeControl';
 import { useProfileEditor } from './useProfileEditor';
 import { Wizard } from './Wizard';
 import { BackIcon } from './icons';
-import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings, type Settings } from '@/lib/settings';
+import { EMPTY_SETTINGS, getSettings, setSettings, type LlmSettings } from '@/lib/settings';
 import { missingRequiredFields, REQUIRED_FIELDS } from '@/lib/profile-completeness';
 import { SETUP_GROUPS, type GroupId } from '@/lib/setup-groups';
 import { devApiKey } from '@/lib/dev-prefill';
@@ -55,8 +55,7 @@ export interface SetupStep {
  * things this does besides filling — attaching a resume and saving a tailored
  * one. Leaving it out on the grounds that a fill does not need it meant a
  * first run that opened with "2 things before you can fill this", which is a
- * bad greeting. The Notion tracker stays out: nothing depends on it, and the
- * readiness line raises it at the moment it matters.
+ * bad greeting.
  */
 const WIZARD_ORDER = ['ai', 'import', 'basics', 'experience', 'answers', 'bank', 'documents', 'done'];
 
@@ -85,11 +84,10 @@ export function SetupView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const focusRef = useRef<HTMLDivElement>(null);
 
-  // The Notion token and the LLM key live here, not inside their sections: the
-  // wizard unmounts a step as soon as you press Next, so section-local state
-  // would be discarded before anything could persist it. Everything on screen
-  // is now saved by the same Save/Finish that saves the profile.
-  const [notion, setNotion] = useState<Settings['notion']>(EMPTY_SETTINGS.notion);
+  // The LLM key lives here, not inside its section: the wizard unmounts a
+  // step as soon as you press Next, so section-local state would be discarded
+  // before anything could persist it. Everything on screen is now saved by
+  // the same Save/Finish that saves the profile.
   const [llm, setLlm] = useState<LlmSettings>(EMPTY_SETTINGS.llm);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Only so the wizard's Next/Skip label can tell a generated bank from an
@@ -99,7 +97,6 @@ export function SetupView({
 
   useEffect(() => {
     getSettings().then((settings) => {
-      setNotion(settings.notion);
       // In a dev build only, and only when nothing is saved yet, prefill the
       // key from .env.local so a cleared profile does not mean re-pasting it.
       // Compiled out of release builds entirely - see lib/dev-prefill.ts.
@@ -145,7 +142,7 @@ export function SetupView({
     // own every setting - the theme is set elsewhere - and a wholesale write
     // silently drops whatever it does not know about.
     const current = await getSettings();
-    await Promise.all([save(), setSettings({ ...current, notion, llm, setupCompleted: true })]);
+    await Promise.all([save(), setSettings({ ...current, llm, setupCompleted: true })]);
   };
 
   if (!loaded || !settingsLoaded) return <div className="loading-state">Loading your profile…</div>;
@@ -328,12 +325,6 @@ export function SetupView({
           </p>
         </section>
       ),
-    },
-    {
-      id: 'notion',
-      title: 'Notion tracker',
-      blurb: 'Optional. Connect a Notion database to log every application you send.',
-      render: () => <NotionSettingsSection value={notion} onChange={setNotion} />,
     },
   ];
 

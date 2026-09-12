@@ -40,16 +40,6 @@ export interface LlmSettings {
 }
 
 export interface Settings {
-  notion: {
-    token: string;
-    databaseId: string;
-    /**
-     * Set when the user has said they do not use Notion. Distinct from simply
-     * having no token: an unconfigured tracker keeps nagging, a skipped one
-     * gets out of the way until the user asks for it back.
-     */
-    skipped: boolean;
-  };
   llm: LlmSettings;
   /**
    * Light, dark, or follow the operating system.
@@ -65,7 +55,6 @@ export interface Settings {
 export type Theme = 'light' | 'dark' | 'system';
 
 export const EMPTY_SETTINGS: Settings = {
-  notion: { token: '', databaseId: '', skipped: false },
   llm: {
     backend: null,
     fallbackBackend: null,
@@ -124,7 +113,6 @@ function migrateLlm(stored: Partial<LlmSettings> & LegacyLlmFields) {
 
 export function applySettingsDefaults(stored: StoredSettings): Settings {
   return {
-    notion: { ...EMPTY_SETTINGS.notion, ...stored.notion },
     llm: migrateLlm(stored.llm ?? {}),
     theme: stored.theme ?? EMPTY_SETTINGS.theme,
     setupCompleted: stored.setupCompleted ?? EMPTY_SETTINGS.setupCompleted,

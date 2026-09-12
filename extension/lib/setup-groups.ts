@@ -54,8 +54,8 @@ export const SETUP_GROUPS: SetupGroup[] = [
   {
     id: 'history',
     title: 'History',
-    blurb: 'Applications, earlier versions, Notion',
-    steps: ['applications', 'versions', 'notion'],
+    blurb: 'Applications, earlier versions',
+    steps: ['applications', 'versions'],
   },
 ];
 

@@ -7,7 +7,6 @@ import { clearTabState, getTabState, patchTabState, type DraftEntry } from '@/li
 import { isJobUrl } from '@/lib/job-urls';
 import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/content';
 import { rankFrames, type FrameReport } from '@/lib/frames';
-import { updateApplication } from '@/lib/application-log';
 import { runBankGeneration } from '@/lib/bank-run';
 import type { TargetFamily } from '@/lib/target-families';
 import { handleDashboardRequest, isAllowedOrigin, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
@@ -161,7 +160,7 @@ async function runDraft(tabId: number): Promise<void> {
     const applicationId = (await getTabState(tabId)).applicationId;
     if (applicationId) {
       const drafted = entries.filter((entry) => entry.text.trim().length > 0 && !entry.error).length;
-      void updateApplication(applicationId, { questionsDrafted: drafted });
+      void patchRecord(applicationId, { questionsDrafted: drafted });
     }
   } catch (err) {
     await fail(err instanceof Error ? err.message : 'Could not draft answers.');

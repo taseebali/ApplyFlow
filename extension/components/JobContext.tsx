@@ -13,8 +13,8 @@ import { getActiveTabId } from '@/lib/active-tab';
  *
  * What the user types here is stored against the tab and is the single source
  * of the company and role for everything downstream — the filename, the
- * letter's salutation, the Notion entry. Detection is a starting point, not an
- * authority.
+ * letter's salutation, the history entry. Detection is a starting point, not
+ * an authority.
  */
 
 export interface Posting {

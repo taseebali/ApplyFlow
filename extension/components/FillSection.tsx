@@ -4,7 +4,8 @@ import { ensureReadPermission, getDocumentsFolderHandle } from '@/lib/document-s
 import { findBestMatch, listFolderFiles, type DocumentKind, type DocumentMatchResult, type FolderFile } from '@/lib/document-matcher';
 import { getTabState, patchTabState, type AttachOutcome } from '@/lib/tab-state';
 import { mergeFillResults } from '@/lib/frames';
-import { recordApplication, updateApplication } from '@/lib/application-log';
+import { emptyRecord } from '@/lib/application-record';
+import { putRecord, patchRecord } from '@/lib/application-db';
 import { useTabState } from '@/components/useTabState';
 import { ActionRow } from '@/components/ActionRow';
 import { AttachIcon } from '@/components/icons';
@@ -148,24 +149,21 @@ export function FillAndAttachSection({
       const merged = mergeFillResults(responses);
 
       // A local record of what this run actually did, so the tool can answer
-      // whether it is helping — and so people who skipped Notion still have a
-      // tracker. Never allowed to fail the fill.
+      // whether it is helping. Never allowed to fail the fill.
       void browser.tabs
         .sendMessage(target, { type: 'get-job-info' } satisfies GetJobInfoMessage)
         .then(async (info: GetJobInfoResponse) => {
-          const entry = await recordApplication({
+          const record = emptyRecord({
             company: info.companyName ?? '',
             title: info.jobTitle ?? '',
             url: info.jobUrl ?? '',
             hostname: responses[0]!.hostname,
-            filledCount: merged.filledCount,
-            invalidCount: responses.reduce((sum, r) => sum + r.invalid.length, 0),
-            // Filled in as those steps happen; see updateApplication.
-            questionsDrafted: 0,
-            documentsAttached: 0,
-            loggedToNotion: false,
           });
-          await patchTabState(target, { applicationId: entry.id });
+          // Filled in as those steps happen; see patchRecord below.
+          record.filledCount = merged.filledCount;
+          record.invalidCount = responses.reduce((sum, r) => sum + r.invalid.length, 0);
+          await putRecord(record);
+          await patchTabState(target, { applicationId: record.id });
         })
         .catch(() => {});
       await patchTabState(target, {
@@ -209,7 +207,7 @@ export function FillAndAttachSection({
 
     if (state.applicationId) {
       const attached = Object.values(merged).filter((outcome) => outcome?.ok).length;
-      void updateApplication(state.applicationId, { documentsAttached: attached });
+      void patchRecord(state.applicationId, { documentsAttached: attached });
     }
   };
 

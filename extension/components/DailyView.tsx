@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { FillAndAttachSection } from '@/components/FillSection';
 import { TailorCard } from '@/components/TailorCard';
 import { DraftAnswersCard } from '@/components/DraftAnswersSection';
-import { LogToNotionSection } from '@/components/NotionSection';
 import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
 import { SpendLine } from '@/components/SpendLine';
 import { FieldMirror, Tally, type FormPlanState } from '@/components/FieldMirror';
@@ -139,7 +138,6 @@ export function DailyView({
         <FillAndAttachSection onOpenSetup={onOpenSetup} />
         <TailorCard posting={posting} onOpenSetup={onOpenSetup} />
         <DraftAnswersCard onOpenSetup={onOpenSetup} />
-        <LogToNotionSection onOpenSetup={onOpenSetup} />
       </div>
 
       <SpendLine />

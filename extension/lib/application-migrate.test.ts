@@ -14,7 +14,6 @@ const legacy = {
   invalidCount: 2,
   questionsDrafted: 3,
   documentsAttached: 1,
-  loggedToNotion: true,
 };
 
 function stubStorage(initial: Record<string, unknown>) {
