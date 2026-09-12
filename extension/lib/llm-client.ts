@@ -49,10 +49,23 @@ const PREVIOUS_ANSWER_EXCERPT_CHARS = 600;
  * means a stalled backend surfaces as a clear failure instead of a spinner
  * that never resolves.
  */
+/**
+ * How long to wait before giving up on one request.
+ *
+ * 90s was tuned against short answers. A cover letter sends the whole posting,
+ * every selected bullet and a page of rules, then asks for several paragraphs
+ * back — the largest prompt and the longest generation this makes. On a busy
+ * free endpoint that is routinely past 90s, so the letter was the one thing
+ * that timed out while everything else worked. The cap scales with the prompt
+ * rather than being one number that has to suit both.
+ */
 const REQUEST_TIMEOUT_MS = 90_000;
+const LONG_REQUEST_TIMEOUT_MS = 240_000;
+/** Roughly the point where a prompt stops being a question and starts being a document. */
+const LONG_PROMPT_CHARS = 4_000;
 
-function timeoutSignal(): AbortSignal {
-  return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+function timeoutSignal(prompt = ''): AbortSignal {
+  return AbortSignal.timeout(prompt.length > LONG_PROMPT_CHARS ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
 }
 
 /**
@@ -193,7 +206,7 @@ async function runWithOllama(prompt: string, llm: LlmSettings): Promise<Completi
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: llm.ollamaModel, prompt, stream: false }),
-    signal: timeoutSignal(),
+    signal: timeoutSignal(prompt),
   });
   if (!response.ok) {
     throw new LlmError(
@@ -247,7 +260,7 @@ async function postToProvider(prompt: string, llm: LlmSettings, models: string[]
       method: 'POST',
       headers: request.headers,
       body: JSON.stringify(payload),
-      signal: timeoutSignal(),
+      signal: timeoutSignal(prompt),
     });
 
   let response = await send(request.body);
@@ -331,7 +344,12 @@ async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
     if (err instanceof LlmError) throw err;
     // An aborted request reads as a cryptic DOMException otherwise.
     if (err instanceof Error && err.name === 'TimeoutError') {
-      throw new LlmError(`${backend} did not answer within ${REQUEST_TIMEOUT_MS / 1000}s.`);
+      // Naming the backend and nothing else sent people checking their key.
+      // A timeout on a free endpoint is almost always the endpoint being busy.
+      throw new LlmError(
+        `${backend} did not answer in time. Free endpoints are shared and slow down under load — try again, or pick a paid model or Ollama under Settings → AI.`,
+        true
+      );
     }
     throw new LlmError(
       backend === 'ollama'

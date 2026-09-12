@@ -94,6 +94,8 @@ export function SetupView({
   // empty one. Nothing else on this screen needs it.
   const [hasBank, setHasBank] = useState(false);
   const [hasDocumentsFolder, setHasDocumentsFolder] = useState(false);
+  /** Bumped on every wizard step change, to re-read what storage events cannot report. */
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -116,12 +118,16 @@ export function SetupView({
       void getDocumentsFolderHandle().then((handle) => setHasDocumentsFolder(Boolean(handle)));
     };
     refresh();
-    // Read once, this went stale the moment the step was used: generating a
-    // bank from inside the step left the button still offering to skip it.
-    // The bank is written by the worker, so storage is where the change shows.
+    // The bank is written by the worker into storage.local, so watching storage
+    // is how that one shows up. The documents folder is NOT: a
+    // FileSystemDirectoryHandle cannot be stored in storage.local at all, so
+    // document-store.ts keeps it in its own IndexedDB and no storage event ever
+    // fires for it. That is why the Documents step still said "Skip" after a
+    // folder was linked. `refreshTick` below re-checks both on every wizard
+    // move, which is the moment the label is actually read.
     browser.storage.local.onChanged.addListener(refresh);
     return () => browser.storage.local.onChanged.removeListener(refresh);
-  }, []);
+  }, [refreshTick]);
 
   useEffect(() => {
     setOpenGroup(group ?? null);
@@ -143,6 +149,12 @@ export function SetupView({
     // silently drops whatever it does not know about.
     const current = await getSettings();
     await Promise.all([save(), setSettings({ ...current, llm, setupCompleted: true })]);
+    // Every wizard move lands here, and that is the only moment the Next/Skip
+    // label is re-read. The documents folder cannot announce itself through a
+    // storage event — a FileSystemDirectoryHandle will not go in storage.local,
+    // so document-store.ts keeps it in its own IndexedDB — which is why the
+    // Documents step still offered to skip itself after a folder was linked.
+    setRefreshTick((n) => n + 1);
   };
 
   if (!loaded || !settingsLoaded) return <div className="loading-state">Loading your profile…</div>;

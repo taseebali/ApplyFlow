@@ -3,6 +3,7 @@ import { getProfile } from './storage';
 import { getSettings } from './settings';
 import { runPrompt } from './llm-client';
 import { bulletsToText } from './schema';
+import { vocabularyFrom } from './tech-terms';
 import { analyseGap, type GapReport } from './keyword-gap';
 import {
   applyRanking,
@@ -94,7 +95,14 @@ export async function tailorResume(input: {
   return {
     document,
     selected,
-    gap: analyseGap({ jobDescription, profileText }),
+    gap: analyseGap({
+      jobDescription,
+      profileText,
+      // The candidate's own skills and tech stacks count as things a posting
+      // can ask for, so matching improves as the profile does rather than
+      // depending on a general vocabulary being complete.
+      vocabulary: vocabularyFrom(profile.skills, profile.projects.map((p) => p.techStack)),
+    }),
     score: scoreSection(selected.map((v) => v.text)).score,
     offline,
   };

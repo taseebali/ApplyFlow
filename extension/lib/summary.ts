@@ -76,8 +76,28 @@ export function canWriteSummary(profile: Profile): boolean {
  * Models wrap a one-line answer in quotes and a preamble often enough that
  * stripping both is cheaper than another round trip.
  */
+/**
+ * Shapes that mean the model returned its own reasoning instead of an answer.
+ *
+ * A free model asked for one line came back with "1. **Analyze the Request:**
+ * - User wants a summary line... - Rules: - Two sentences, max 45 words" — its
+ * working, restating the prompt. Written into the profile, that then went onto
+ * a resume. Stripping a preamble cannot rescue this: there is no summary in it
+ * to find, so the honest move is to refuse it.
+ */
+const REASONING = [
+  /\*\*/, // markdown bold — the prompt asks for plain text
+  /^\s*\d+\.\s/, // a numbered analysis
+  /\buser (wants|asks|is asking)\b/i,
+  /\brules?:/i,
+  /\b(analyz|analys)e the (request|prompt|task)\b/i,
+  /\bstep \d\b/i,
+];
+
+export class SummaryRefused extends Error {}
+
 export function cleanSummary(raw: string): string {
-  return raw
+  const text = raw
     .trim()
     // The whole preamble up to and including the colon, not just its opening
     // words — "Here is the summary:" left "the summary:" behind.
@@ -86,4 +106,22 @@ export function cleanSummary(raw: string): string {
     .replace(/^["'“”]+|["'“”]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  if (!text) throw new SummaryRefused('The model returned nothing.');
+
+  if (REASONING.some((pattern) => pattern.test(text))) {
+    throw new SummaryRefused(
+      'The model returned its own working instead of a summary. Smaller free models often do this — try again, or pick a different model under Settings → AI.'
+    );
+  }
+
+  // Two sentences at 45 words was the instruction. Triple that is not a summary
+  // that drifted long; it is a different kind of output altogether.
+  if (text.split(/\s+/).length > 140) {
+    throw new SummaryRefused(
+      'The model returned an essay rather than a summary line. Try again, or pick a different model under Settings → AI.'
+    );
+  }
+
+  return text;
 }

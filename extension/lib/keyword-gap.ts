@@ -1,4 +1,5 @@
 import { contentTerms } from './bullet-bank';
+import { TECH_TERMS } from './tech-terms';
 
 /**
  * What the posting asks for that your profile never mentions.
@@ -92,17 +93,27 @@ export function analyseGap(input: {
   jobDescription: string;
   /** Everything the candidate has written: bullets, tech stacks, skills. */
   profileText: string;
+  /** The candidate's own skill and technology terms, which count as asks by definition. */
+  vocabulary?: Set<string>;
   limit?: number;
 }): GapReport {
-  const { jobDescription, profileText, limit = 8 } = input;
+  const { jobDescription, profileText, vocabulary = new Set<string>(), limit = 8 } = input;
   const known = new Set(contentTerms(profileText));
 
   const missing: GapTerm[] = [];
   const covered: GapTerm[] = [];
 
   for (const [term, mentions] of postingTerms(jobDescription)) {
-    // A term mentioned once is as likely to be prose as a requirement.
-    if (mentions < 2 && term.length < 4) continue;
+    /*
+     * A positive gate, not a stoplist.
+     *
+     * Subtracting filler from every word in the posting reported "und", "die",
+     * "mit" and "bei" as requirements on a German posting, and "why", "days"
+     * and "built" on an English one — because the stoplist can only ever be as
+     * complete as the last posting that embarrassed it. A term now has to be
+     * recognisably a skill before it can be a requirement at all.
+     */
+    if (!TECH_TERMS.has(term) && !vocabulary.has(term)) continue;
     (known.has(term) ? covered : missing).push({ term, mentions });
   }
 
@@ -113,3 +124,4 @@ export function analyseGap(input: {
     covered: covered.sort(byMentions).slice(0, limit),
   };
 }
+

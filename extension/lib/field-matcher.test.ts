@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fieldSignature, findUnrecognizedFields, matchFields, normalizeText } from './field-matcher';
+import { fieldSignature, findUnrecognizedFields, matchFields, normalizeText,
+  getDisplayLabel,
+} from './field-matcher';
 
 function setBody(html: string) {
   document.body.innerHTML = html;
@@ -209,5 +211,41 @@ describe('salary expectation', () => {
     document.body.innerHTML =
       '<form><label>Describe a time you negotiated a difficult outcome<input name="q"></label></form>';
     expect(matchFields(document)).toEqual([]);
+  });
+});
+
+describe('a label that points at nothing', () => {
+  // Ashby's location field, verbatim from fixtures/forms/enpal-de.html. The
+  // label's `for` names an id nothing carries, and the input has no id and no
+  // name — so every standard lookup misses and the field fell through to its
+  // placeholder. The panel then called it "start_typing" and matching put an
+  // availability answer into the location box.
+  it('reads the label from the wrapper when for= names nothing', () => {
+    document.body.innerHTML = `
+      <div class="_fieldEntry_1e3gg_28">
+        <label class="_label_1e3gg_42" for="_systemfield_location">Location</label>
+        <div class="_inputContainer_d7ago_28">
+          <input class="_input_d7ago_28" placeholder="Start typing..." aria-haspopup="listbox" role="combobox">
+        </div>
+      </div>`;
+    const input = document.querySelector('input')!;
+    expect(getDisplayLabel(input)).toBe('Location');
+  });
+
+  it('does not lend a fieldset legend to every control inside it', () => {
+    // The wrapper only speaks for a control it holds alone; otherwise six
+    // inputs would all answer to the same heading.
+    document.body.innerHTML = `
+      <fieldset>
+        <legend>Work authorisation</legend>
+        <input id="a"><input id="b">
+      </fieldset>`;
+    expect(getDisplayLabel(document.getElementById('a') as HTMLInputElement)).not.toBe('Work authorisation');
+  });
+
+  it('still prefers a real label over the wrapper', () => {
+    document.body.innerHTML = `
+      <div><label for="real">Email address</label><input id="real" placeholder="you@example.com"></div>`;
+    expect(getDisplayLabel(document.getElementById('real') as HTMLInputElement)).toBe('Email address');
   });
 });

@@ -39,7 +39,9 @@ describe('analyseGap', () => {
   });
 
   it('caps the list rather than returning a wall of words', () => {
-    const wordy = Array.from({ length: 60 }, (_, i) => `technology${i} technology${i}`).join(' ');
+    // Real technologies, because invented words are now correctly filtered out
+    // before the cap ever applies.
+    const wordy = 'python docker kubernetes terraform ansible jenkins grafana kafka redis postgres';
     expect(analyseGap({ jobDescription: wordy, profileText: '', limit: 5 }).missing).toHaveLength(5);
   });
 
@@ -87,5 +89,53 @@ describe('the terms a posting is said to ask for', () => {
     expect([...postingTerms('Experience with Go, R, CI/CD and QA.').keys()]).toEqual(
       expect.arrayContaining(['go', 'ci', 'cd', 'qa'])
     );
+  });
+});
+
+describe('what counts as a thing the posting asks for', () => {
+  // Straight off the panel, twice. An English posting produced "why", "days",
+  // "built", "manual". A German one produced "und", "mit", "bei", "die",
+  // "auf", "du", "zu". Both times the stoplist was the wrong shape of fix.
+  const GERMAN = `
+    Wir suchen eine Person, die mit uns Prozesse automatisiert. Du arbeitest
+    mit Python und Docker, bei der Analyse von Daten auf unseren Systemen.
+    Erfahrung mit FastAPI und Kubernetes ist ein Plus.
+  `;
+
+  const gap = (jobDescription: string, profileText: string, vocabulary?: Set<string>) =>
+    analyseGap({ jobDescription, profileText, vocabulary, limit: 20 });
+
+  const terms = (report: ReturnType<typeof gap>) =>
+    [...report.covered, ...report.missing].map((t) => t.term);
+
+  it('reports no German filler as a requirement', () => {
+    const report = gap(GERMAN, 'Python, Docker');
+    for (const filler of ['und', 'mit', 'bei', 'die', 'auf', 'du', 'zu', 'wir', 'ist']) {
+      expect(terms(report)).not.toContain(filler);
+    }
+  });
+
+  it('still finds the technologies in a German posting', () => {
+    const report = gap(GERMAN, 'Python, Docker');
+    expect(report.covered.map((t) => t.term)).toEqual(expect.arrayContaining(['python', 'docker']));
+    expect(report.missing.map((t) => t.term)).toEqual(expect.arrayContaining(['fastapi', 'kubernetes']));
+  });
+
+  it('reports no English filler either', () => {
+    const english = 'Why we built this: you will find manual work across the flow in days.';
+    expect(terms(gap(english, 'Python'))).toEqual([]);
+  });
+
+  it('counts a skill the candidate lists, even one no vocabulary knows', () => {
+    // An in-house tool named in the profile is a real ask when the posting
+    // names it, whatever a general list thinks.
+    const report = gap('Experience with Enpalyzer is required.', 'Enpalyzer', new Set(['enpalyzer']));
+    expect(report.covered.map((t) => t.term)).toContain('enpalyzer');
+  });
+
+  it('puts a technology the profile never mentions in missing, not covered', () => {
+    const report = gap('We use Kubernetes heavily.', 'Python and Docker only');
+    expect(report.missing.map((t) => t.term)).toContain('kubernetes');
+    expect(report.covered.map((t) => t.term)).not.toContain('kubernetes');
   });
 });

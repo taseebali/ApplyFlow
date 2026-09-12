@@ -243,6 +243,9 @@ export function assembleResume(
 function asBullets(text: string): string[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
+  // An imported bullet that is only punctuation — a literal "..." came through
+  // one resume — is not a line worth printing on a page.
+  if (!/[a-z]/i.test(trimmed)) return [];
   if (trimmed.length <= 200) return [trimmed];
   return trimmed
     .split(/(?<=[.!?])\s+(?=[A-Z])/)

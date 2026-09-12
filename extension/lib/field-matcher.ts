@@ -114,6 +114,34 @@ function getLabelText(el: FillableElement): string {
     if (byName?.textContent && !byName.contains(el)) return byName.textContent;
   }
 
+  /*
+   * A control with no id and no name, whose label points at neither.
+   *
+   * Ashby's location field is exactly this shape:
+   *
+   *   <label for="_systemfield_location">Location</label>
+   *   <div><input placeholder="Start typing..." role="combobox"></div>
+   *
+   * Nothing on the page carries `_systemfield_location`, and the input has no
+   * id and no name, so every lookup above misses. The field then fell through
+   * to its placeholder and the panel called it "start_typing" — and matching on
+   * that put an availability answer into the location box.
+   *
+   * The label is right there, one wrapper up. Walk out to the nearest ancestor
+   * that holds a label and exactly one control, so a fieldset holding six
+   * inputs never lends its legend to all six.
+   */
+  let scope: Element | null = el.parentElement;
+  for (let depth = 0; depth < 4 && scope; depth += 1) {
+    const controls = scope.querySelectorAll('input, select, textarea, [contenteditable]');
+    if (controls.length === 1) {
+      const nearby = scope.querySelector('label, legend, [class*="label" i], [class*="title" i]');
+      const text = nearby?.textContent?.trim();
+      if (text && !nearby!.contains(el)) return text;
+    }
+    scope = scope.parentElement;
+  }
+
   return '';
 }
 
