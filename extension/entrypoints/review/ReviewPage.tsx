@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { takeReview, type ReviewHandoff } from '@/lib/review-handoff';
 import { getBank, reviseVariant, setBank, type BulletVariant } from '@/lib/bullet-bank';
 import { scoreSection } from '@/lib/bullet-quality';
 import { coverLetterFaults } from '@/lib/cover-letter';
+import type { CoverLetterDocument, HeadingKey, ResumeDocument } from '@/lib/resume-document';
 import {
   assembleCoverLetter,
   assembleResume,
@@ -17,6 +18,17 @@ import { getProfile } from '@/lib/storage';
 import { useStoredTheme } from '@/components/ThemeControl';
 import { KeywordChips, ScoreRing } from '@/components/ScoreRing';
 import { LetterPage, ResumePage, type EditableField } from '@/components/ResumePage';
+import { DocumentStyleBar } from '@/components/DocumentStyleBar';
+import {
+  contentBudgetPx,
+  DEFAULT_STYLE,
+  fontStack,
+  getDocumentStyle,
+  marginPx,
+  setDocumentStyle,
+  sizePx,
+  type DocumentStyle,
+} from '@/lib/document-style';
 import { ensureReadPermission, getDocumentsFolderHandle, saveToDocumentsFolder } from '@/lib/document-store';
 import { documentFromBlob } from '@/lib/application-record';
 import { patchRecord } from '@/lib/application-db';
@@ -34,12 +46,14 @@ import type { Profile } from '@/lib/schema';
  */
 
 /**
- * A4 at 96dpi, less the one-inch margins the export uses. The preview cannot
- * be pixel-identical to Word's line breaking, so the rule is drawn a little
- * early and the trim aims under it: overshooting onto a second page is the
- * failure that matters, and a slightly short page is not a failure at all.
+ * The preview cannot be pixel-identical to Word's line breaking, so the rule
+ * is drawn a little early and the trim aims under it: overshooting onto a
+ * second page is the failure that matters, and a slightly short page is not a
+ * failure at all.
+ *
+ * The budget itself now comes from the chosen margin rather than a constant —
+ * narrowing the margins really does buy room, and the trim has to know it.
  */
-const PAGE_CONTENT_PX = 931;
 const FITS_UNDER = 0.97;
 
 /** Where trimming starts. It comes down from here until the page fits. */
@@ -57,6 +71,23 @@ const START_PROJECTS = 8;
  */
 const MIN_PROJECTS = 3;
 
+/**
+ * The chosen settings, handed to the page as CSS custom properties.
+ *
+ * The sheet is built from these rather than from fixed pixel values, so every
+ * size on it — the name, the section rules, the bullets — scales with the body
+ * size, and the page-end rule moves with the margin. One source for what the
+ * screen shows and what the .docx contains.
+ */
+function sheetVariables(style: DocumentStyle): CSSProperties {
+  return {
+    '--doc-font': fontStack(style.font),
+    '--doc-size': `${sizePx(style.size)}px`,
+    '--doc-line': String(style.line),
+    '--doc-margin': `${marginPx(style.margin)}px`,
+  } as CSSProperties;
+}
+
 export function ReviewPage() {
   const [handoff, setHandoff] = useState<ReviewHandoff | null>(null);
   const [company, setCompany] = useState('');
@@ -68,7 +99,7 @@ export function ReviewPage() {
    * document rather than written back into the profile: the profile is the
    * master and this is one application's copy of it.
    */
-  const [edits, setEdits] = useState<Partial<Record<EditableField, unknown>>>({});
+  const [edits, setEdits] = useState<Partial<ResumeDocument>>({});
   const [showing, setShowing] = useState<'resume' | 'letter'>('resume');
   const [edited, setEdited] = useState<Set<string>>(new Set());
   const [kept, setKept] = useState(false);
@@ -76,6 +107,14 @@ export function ReviewPage() {
   const [saved, setSaved] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [maxProjects, setMaxProjects] = useState(START_PROJECTS);
+  const [style, setStyle] = useState<DocumentStyle>(DEFAULT_STYLE);
+  /**
+   * Edits to the letter's furniture — recipient, date, subject, sign-off.
+   * Held over the assembled letter for the same reason the resume's are held
+   * over the assembled resume: the profile is the master, and this is one
+   * application's copy.
+   */
+  const [letterEdits, setLetterEdits] = useState<Partial<CoverLetterDocument>>({});
   const pageRef = useRef<HTMLDivElement>(null);
   useStoredTheme();
 
@@ -87,7 +126,17 @@ export function ReviewPage() {
       setLetter(data?.letter?.text ?? '');
     });
     void getProfile().then(setProfile);
+    void getDocumentStyle().then(setStyle);
   }, []);
+
+  // Written back on every change, so the font someone picks is the font the
+  // next application opens in rather than a setting they re-choose each time.
+  const changeStyle = (next: DocumentStyle) => {
+    setStyle(next);
+    void setDocumentStyle(next);
+  };
+
+  const pageBudget = contentBudgetPx(style.margin);
 
   const assembled =
     profile && handoff ? assembleResume(profile, bullets, handoff.jobDescription, maxProjects) : null;
@@ -99,21 +148,28 @@ export function ReviewPage() {
   const editField = (field: EditableField, text: string, index?: number) => {
     setEdits((current) => {
       if (!assembled) return current;
-      if (index === undefined) return { ...current, [field]: text };
+      // `skillLabel` never reaches here: it always carries an index and is
+      // handled with the rest of the skills line below.
+      if (index === undefined) return { ...current, [field]: text } as Partial<ResumeDocument>;
 
-      if (field === 'skills') {
-        const groups = (current.skills as typeof assembled.skills) ?? assembled.skills;
+      // Both halves of a skills line — the group's name and its terms — land
+      // on the same `skills` array, so they are handled together.
+      if (field === 'skills' || field === 'skillLabel') {
+        const groups = current.skills ?? assembled.skills;
         return {
           ...current,
-          skills: groups.map((group, i) =>
-            i === index ? { ...group, items: text.split(',').map((t) => t.trim()).filter(Boolean) } : group
-          ),
+          skills: groups.map((group, i) => {
+            if (i !== index) return group;
+            if (field === 'skillLabel') return { ...group, label: text };
+            return { ...group, items: text.split(',').map((t) => t.trim()).filter(Boolean) };
+          }),
         };
       }
 
-      const lines = ((current[field] as string[]) ?? assembled[field as 'education' | 'certifications']).slice();
+      const key = field as 'education' | 'certifications';
+      const lines = (current[key] ?? assembled[key]).slice();
       lines[index] = text;
-      return { ...current, [field]: lines };
+      return { ...current, [key]: lines };
     });
   };
 
@@ -126,6 +182,29 @@ export function ReviewPage() {
    * lowest-ranked project until the rendered content clears the rule, which is
    * the same question the reader's printer asks.
    */
+  const editSection = (
+    kind: 'experience' | 'projects',
+    index: number,
+    field: 'heading' | 'meta' | 'link',
+    text: string
+  ) => {
+    setEdits((current) => {
+      if (!assembled) return current;
+      const list = current[kind] ?? assembled[kind];
+      return {
+        ...current,
+        [kind]: list.map((section, i) => (i === index ? { ...section, [field]: text } : section)),
+      };
+    });
+  };
+
+  const editHeading = (key: HeadingKey, text: string) => {
+    setEdits((current) => ({
+      ...current,
+      headings: { ...(current.headings ?? {}), [key]: text },
+    }));
+  };
+
   useLayoutEffect(() => {
     const element = pageRef.current;
     if (!element || showing !== 'resume') return;
@@ -134,14 +213,15 @@ export function ReviewPage() {
     // 192px of margin against the content budget and over-trimmed by a quarter.
     const content = element.querySelector('.doc');
     const height = content?.scrollHeight ?? element.scrollHeight;
-    if (height > PAGE_CONTENT_PX * FITS_UNDER && maxProjects > MIN_PROJECTS) {
+    if (height > pageBudget * FITS_UNDER && maxProjects > MIN_PROJECTS) {
       setMaxProjects((current) => current - 1);
     }
-  }, [maxProjects, bullets, edits, showing]);
+  }, [maxProjects, bullets, edits, showing, pageBudget]);
 
   // Editing can only ever shorten or lengthen the page, so the trim starts
-  // over rather than staying where an earlier, longer draft left it.
-  useEffect(() => setMaxProjects(START_PROJECTS), [bullets.length, profile]);
+  // over rather than staying where an earlier, longer draft left it. A larger
+  // font or a wider margin is the same question asked again.
+  useEffect(() => setMaxProjects(START_PROJECTS), [bullets.length, profile, style]);
 
   if (!handoff || !profile || !document) {
     return (
@@ -183,7 +263,7 @@ export function ReviewPage() {
   const score = scoreSection(bullets.map((b) => b.text)).score;
   const asked = handoff.result.gap.covered.length + handoff.result.gap.missing.length;
 
-  const letterDocument = letter.trim()
+  const assembledLetter = letter.trim()
     ? assembleCoverLetter({
         profile,
         company,
@@ -193,11 +273,15 @@ export function ReviewPage() {
       })
     : null;
 
+  // Same rule as the resume: retyped lines sit on top of the assembled ones,
+  // so changing the company below does not discard a salutation someone fixed.
+  const letterDocument = assembledLetter ? { ...assembledLetter, ...letterEdits } : null;
+
   const letterFaults = letterDocument
     ? coverLetterFaults(letter, bullets.map((b) => b.text), { company, role: handoff.role })
     : [];
 
-  const overflowing = (pageRef.current?.querySelector('.doc')?.scrollHeight ?? 0) > PAGE_CONTENT_PX;
+  const overflowing = (pageRef.current?.querySelector('.doc')?.scrollHeight ?? 0) > pageBudget;
 
   // Every figure on the page that came from the model rather than the profile.
   const estimates = [...new Set(bullets.flatMap((variant) => variant.estimated ?? []))];
@@ -229,17 +313,17 @@ export function ReviewPage() {
       if (combine && letterDocument) {
         // Plenty of postings have one upload slot and no second field for a
         // letter, and this is what people already do by hand.
-        const combinedBlob = await combinedToDocxBlob(document, letterDocument);
+        const combinedBlob = await combinedToDocxBlob(document, letterDocument, style);
         resumeBlob = combinedBlob;
         names.push(
           await saveToDocumentsFolder(handle, combinedFilename(document, company), combinedBlob)
         );
       } else {
-        resumeBlob = await toDocxBlob(document);
+        resumeBlob = await toDocxBlob(document, style);
         names.push(await saveToDocumentsFolder(handle, resumeFilename(document, company), resumeBlob));
 
         if (letterDocument) {
-          letterBlob = await coverLetterToDocxBlob(letterDocument);
+          letterBlob = await coverLetterToDocxBlob(letterDocument, style);
           names.push(
             await saveToDocumentsFolder(handle, coverLetterFilename(document, company), letterBlob)
           );
@@ -404,7 +488,8 @@ export function ReviewPage() {
       </div>
 
       <div className="review-doc">
-        {letterDocument && (
+        <div className="doc-toolbar">
+          {letterDocument && (
           <div className="doc-tabs" role="tablist">
             {(['resume', 'letter'] as const).map((view) => (
               <button
@@ -419,14 +504,27 @@ export function ReviewPage() {
               </button>
             ))}
           </div>
-        )}
+          )}
+          <DocumentStyleBar style={style} onChange={changeStyle} />
+        </div>
 
-        <div className="doc-sheet">
+        <div className="doc-sheet" style={sheetVariables(style)}>
           <div className="doc-body" ref={pageRef}>
             {showing === 'resume' || !letterDocument ? (
-              <ResumePage document={document} onEditBullet={editBullet} onEdit={editField} />
+              <ResumePage
+                document={document}
+                onEditBullet={editBullet}
+                onEditSection={editSection}
+                onEditHeading={editHeading}
+                onEdit={editField}
+              />
             ) : (
-              <LetterPage letter={letterDocument} body={letter} onEditBody={setLetter} />
+              <LetterPage
+                letter={letterDocument}
+                body={letter}
+                onEditBody={setLetter}
+                onEditLetter={(patch) => setLetterEdits((current) => ({ ...current, ...patch }))}
+              />
             )}
           </div>
           {/* Where the first page ends. Anything below it is a second page. */}

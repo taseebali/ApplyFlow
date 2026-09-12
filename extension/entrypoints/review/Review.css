@@ -13,7 +13,15 @@
  * "does this fit on one page" is answered by looking rather than by guessing.
  */
 .review {
+  /*
+   * Centred, with room around it. Without these two lines the whole screen sat
+   * flush against the top-left corner of the window — the rail hard against
+   * the edge, the paper touching the top — with the remaining width empty on
+   * the right. Nothing else was wrong with it; it simply had no margin.
+   */
   max-width: 1240px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4) 64px;
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   align-items: start;
@@ -54,11 +62,19 @@
   }
 }
 
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
 .doc-tabs {
   display: flex;
   gap: 2px;
   padding: 3px;
-  margin-bottom: var(--space-3);
   width: max-content;
   border-radius: var(--radius-lg);
   background: var(--surface-hover);
@@ -81,10 +97,54 @@
   font-weight: 600;
 }
 
-/* A4 at 96dpi. The sheet is the paper; the rule is where page one ends. */
+/* How the document is set, above the document it sets. */
+.doc-style {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.doc-style-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 4px 6px;
+}
+
+.doc-style-font {
+  min-width: 130px;
+}
+
+.doc-style-reset {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 4px 8px;
+}
+
+.doc-style-reset:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/*
+ * A4 at 96dpi. The sheet is the paper; the rule is where page one ends.
+ *
+ * `min-height` because the sheet is a page whether or not the content fills
+ * it: without it a short resume rendered as a stubby white strip that read as
+ * a broken layout rather than as a page with room left on it.
+ */
 .doc-sheet {
   position: relative;
   width: 794px;
+  min-height: 1123px;
   max-width: 100%;
   background: #ffffff;
   border: 1px solid var(--border);
@@ -94,15 +154,15 @@
 }
 
 .doc-body {
-  padding: 96px;
+  padding: var(--doc-margin, 96px);
 }
 
 .doc-page-rule {
   position: absolute;
   left: 0;
   right: 0;
-  /* 96px top margin + 931px of content. */
-  top: 1027px;
+  /* The bottom margin of page one: A4's 1123px, less the margin below it. */
+  top: calc(1123px - var(--doc-margin, 96px));
   border-top: 1px dashed var(--wait);
 }
 
@@ -132,11 +192,16 @@
   color: #1a1a1a;
 }
 
+/*
+ * Typeface, size and leading come from the toolbar, as custom properties set
+ * on the sheet. Every size below is in `em`, so choosing 12pt scales the name
+ * and the section rules with the body rather than leaving them behind.
+ */
 .doc {
   color: #1a1a1a;
-  font-family: Calibri, Carlito, 'Segoe UI', sans-serif;
-  font-size: 14px;
-  line-height: 1.35;
+  font-family: var(--doc-font, Calibri, Carlito, 'Segoe UI', sans-serif);
+  font-size: var(--doc-size, 14px);
+  line-height: var(--doc-line, 1.35);
 }
 
 .doc p {
@@ -145,20 +210,20 @@
 
 .doc-name {
   margin: 0;
-  font-size: 21px;
+  font-size: 1.5em;
   font-weight: 700;
   text-align: center;
 }
 
 .doc-name-small {
-  font-size: 16px;
+  font-size: 1.14em;
   text-align: left;
 }
 
 .doc-headline,
 .doc-contact {
   text-align: center;
-  font-size: 13px;
+  font-size: 0.93em;
 }
 
 .doc-name-small ~ .doc-contact {
@@ -166,8 +231,8 @@
 }
 
 .doc-heading {
-  margin: 14px 0 4px;
-  font-size: 14px;
+  margin: 1em 0 0.3em;
+  font-size: 1em;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -184,12 +249,12 @@
 
 .doc-meta {
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.93em;
   color: #333333;
 }
 
 .doc-link {
-  font-size: 12.5px;
+  font-size: 0.89em;
 }
 
 .doc .doc-link {
@@ -228,6 +293,31 @@
   margin: 0 -2px;
 }
 
+/* Text that shares a line with other text: an entry's title and its dates, a
+   skill group's name and its terms, a section title inside its rule. */
+.editable-inline {
+  display: inline-block;
+  min-width: 1ch;
+}
+
+.doc-entry-title {
+  font-weight: 700;
+}
+
+/* The gap that used to be three literal spaces in the markup, which HTML
+   collapses to one. */
+.doc-meta {
+  margin-left: 10px;
+}
+
+.doc-skill-label {
+  font-weight: 700;
+}
+
+.doc-skill-label::after {
+  content: ':';
+}
+
 .editable:hover {
   background: #f2f2f2;
 }
@@ -251,7 +341,7 @@
   border-radius: 999px;
   background: #f5e2a8;
   color: #6b4e00;
-  font-size: 10px;
+  font-size: 0.72em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -283,7 +373,7 @@
  */
 @media print {
   .review-rail,
-  .doc-tabs,
+  .doc-toolbar,
   .doc-page-rule {
     display: none !important;
   }
@@ -296,6 +386,9 @@
 
   .doc-sheet {
     width: auto;
+    /* The printer supplies the page; forcing A4's height here would add a
+       blank second sheet to every short resume. */
+    min-height: 0;
     border: 0;
     border-radius: 0;
     box-shadow: none;

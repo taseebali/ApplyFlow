@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assembleResume, resumeFilename } from './resume-document';
+import { assembleResume, headingText, resumeFilename } from './resume-document';
 import { makeVariant } from './bullet-bank';
 import { EMPTY_PROFILE, type Profile } from './schema';
 
@@ -384,5 +384,26 @@ describe('what earns a place on the page', () => {
       []
     );
     expect(resume.languages).toBe('German (B2)  ·  English (C2)');
+  });
+});
+
+describe('what a section is called', () => {
+  // Renaming a heading was the one thing on the page that could only be done
+  // by saving the file and retyping it in Word. A German application wants
+  // "Berufserfahrung", not "Experience".
+  const base = assembleResume(EMPTY_PROFILE, []);
+
+  it('uses the standard title when nothing has been renamed', () => {
+    expect(headingText(base, 'experience')).toBe('Experience');
+  });
+
+  it('uses the rename when there is one', () => {
+    expect(headingText({ ...base, headings: { projects: 'Selected Work' } }, 'projects')).toBe(
+      'Selected Work'
+    );
+  });
+
+  it('leaves the other headings alone', () => {
+    expect(headingText({ ...base, headings: { projects: 'Selected Work' } }, 'skills')).toBe('Skills');
   });
 });

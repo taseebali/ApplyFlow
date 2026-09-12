@@ -1,4 +1,11 @@
 import { contentTerms, type BulletVariant } from './bullet-bank';
+import {
+  DEFAULT_STYLE,
+  halfPoints,
+  lineTwips,
+  twips,
+  type DocumentStyle,
+} from './document-style';
 import { postingTerms } from './keyword-gap';
 import { CONVENTIONS, type LetterLanguage } from './letter-language';
 import { parseSkillRows } from './skill-groups';
@@ -62,6 +69,39 @@ export interface ResumeDocument {
   certifications: string[];
   /** Sections left off because the page only has room for so many. */
   omitted: string[];
+  /**
+   * Renamed section headings, when the user has renamed any.
+   *
+   * Optional and sparse: a document that has never been retitled carries
+   * nothing, and `headingText` falls back. People do rename these — "Selected
+   * Projects", or the German set for a German application — and before this
+   * the only way was to save the file and retype them in Word.
+   */
+  headings?: Partial<Record<HeadingKey, string>>;
+}
+
+export type HeadingKey =
+  | 'summary'
+  | 'experience'
+  | 'projects'
+  | 'education'
+  | 'certifications'
+  | 'languages'
+  | 'skills';
+
+export const DEFAULT_HEADINGS: Record<HeadingKey, string> = {
+  summary: 'Summary',
+  experience: 'Experience',
+  projects: 'Projects',
+  education: 'Education',
+  certifications: 'Certifications',
+  languages: 'Languages',
+  skills: 'Skills',
+};
+
+/** What a section is called on this document, renamed or not. */
+export function headingText(document: ResumeDocument, key: HeadingKey): string {
+  return document.headings?.[key] ?? DEFAULT_HEADINGS[key];
 }
 
 /**
@@ -315,13 +355,36 @@ export function resumeFilename(document: ResumeDocument, company: string): strin
  *
  * Lazy-imported: `docx` is megabytes, and most sessions never export anything.
  */
-export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
+export async function toDocxBlob(resume: ResumeDocument, style = DEFAULT_STYLE): Promise<Blob> {
   const { Document, Packer } = await import('docx');
   const doc = new Document({
-    sections: [{ properties: {}, children: await resumeParagraphs(resume) }],
-    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+    sections: [{ properties: pageProperties(style), children: await resumeParagraphs(resume, style) }],
+    styles: documentDefaults(style),
   });
   return Packer.toBlob(doc);
+}
+
+/**
+ * Typeface, size and leading, in one place for all three exports.
+ *
+ * Set as the document default rather than on every run, so a paragraph that
+ * does not say otherwise inherits it — which is also how Word itself behaves
+ * when someone opens the file and changes the body style.
+ */
+function documentDefaults(style: DocumentStyle) {
+  return {
+    default: {
+      document: {
+        run: { font: style.font, size: halfPoints(style.size) },
+        paragraph: { spacing: { line: lineTwips(style.line), lineRule: 'auto' as const } },
+      },
+    },
+  };
+}
+
+function pageProperties(style: DocumentStyle) {
+  const margin = twips(style.margin);
+  return { page: { margin: { top: margin, right: margin, bottom: margin, left: margin } } };
 }
 
 /**
@@ -329,22 +392,32 @@ export async function toDocxBlob(resume: ResumeDocument): Promise<Blob> {
  * the combined export can place them after the letter rather than rebuilding
  * the layout a second time and drifting from it.
  */
-async function resumeParagraphs(resume: ResumeDocument) {
+async function resumeParagraphs(resume: ResumeDocument, style: DocumentStyle = DEFAULT_STYLE) {
   const { Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
+
+  /*
+   * Every size on the page as a ratio of the body size, so choosing 12pt
+   * scales the name and the section rules with it. They used to be absolute
+   * half-points — 32 for the name, 22 for a heading — which meant a larger
+   * body size made the document look wrong rather than larger.
+   */
+  const scaled = (ratio: number) => Math.round(halfPoints(style.size) * ratio);
 
   const heading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 240, after: 80 },
-      children: [new TextRun({ text: text.toUpperCase(), bold: true, size: 22 })],
+      children: [new TextRun({ text: text.toUpperCase(), bold: true, size: scaled(1.05) })],
     });
 
   const sectionParagraphs = (section: ResumeSection) => [
     new Paragraph({
       spacing: { before: 120, after: 40 },
       children: [
-        new TextRun({ text: section.heading, bold: true, size: 22 }),
-        ...(section.meta ? [new TextRun({ text: `   ${section.meta}`, italics: true, size: 20 })] : []),
+        new TextRun({ text: section.heading, bold: true, size: scaled(1.05) }),
+        ...(section.meta
+          ? [new TextRun({ text: `   ${section.meta}`, italics: true, size: scaled(0.95) })]
+          : []),
       ],
     }),
     // A real list, not a hyphen typed at the start of a line: parsers read the
@@ -356,7 +429,7 @@ async function resumeParagraphs(resume: ResumeDocument) {
       ? [
           new Paragraph({
             spacing: { after: 60 },
-            children: [new TextRun({ text: section.link, size: 19, color: '555555' })],
+            children: [new TextRun({ text: section.link, size: scaled(0.9), color: '555555' })],
           }),
         ]
       : []),
@@ -365,43 +438,43 @@ async function resumeParagraphs(resume: ResumeDocument) {
   const children = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: resume.name, bold: true, size: 32 })],
+      children: [new TextRun({ text: resume.name, bold: true, size: scaled(1.52) })],
     }),
     ...(resume.headline
       ? [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: resume.headline, size: 22 })],
+            children: [new TextRun({ text: resume.headline, size: scaled(1.05) })],
           }),
         ]
       : []),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: resume.contactLine, size: 20 })],
+      children: [new TextRun({ text: resume.contactLine, size: scaled(0.95) })],
     }),
     ...(resume.linksLine
       ? [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: resume.linksLine, size: 20 })],
+            children: [new TextRun({ text: resume.linksLine, size: scaled(0.95) })],
           }),
         ]
       : []),
 
     ...(resume.summary
-      ? [heading('Summary'), new Paragraph({ text: resume.summary, spacing: { after: 40 } })]
+      ? [heading(headingText(resume, 'summary')), new Paragraph({ text: resume.summary, spacing: { after: 40 } })]
       : []),
 
     ...(resume.experience.length > 0
-      ? [heading('Experience'), ...resume.experience.flatMap(sectionParagraphs)]
+      ? [heading(headingText(resume, 'experience')), ...resume.experience.flatMap(sectionParagraphs)]
       : []),
-    ...(resume.projects.length > 0 ? [heading('Projects'), ...resume.projects.flatMap(sectionParagraphs)] : []),
+    ...(resume.projects.length > 0 ? [heading(headingText(resume, 'projects')), ...resume.projects.flatMap(sectionParagraphs)] : []),
     ...(resume.education.length > 0
-      ? [heading('Education'), ...resume.education.map((line) => new Paragraph({ text: line, spacing: { after: 40 } }))]
+      ? [heading(headingText(resume, 'education')), ...resume.education.map((line) => new Paragraph({ text: line, spacing: { after: 40 } }))]
       : []),
     ...(resume.certifications.length > 0
       ? [
-          heading('Certifications'),
+          heading(headingText(resume, 'certifications')),
           ...resume.certifications.map(
             (line) => new Paragraph({ text: line, bullet: { level: 0 }, spacing: { after: 40 } })
           ),
@@ -409,12 +482,12 @@ async function resumeParagraphs(resume: ResumeDocument) {
       : []),
 
     ...(resume.languages
-      ? [heading('Languages'), new Paragraph({ text: resume.languages, spacing: { after: 40 } })]
+      ? [heading(headingText(resume, 'languages')), new Paragraph({ text: resume.languages, spacing: { after: 40 } })]
       : []),
 
     ...(resume.skills.length > 0
       ? [
-          heading('Skills'),
+          heading(headingText(resume, 'skills')),
           // One line per group, the label bold, so forty terms read as four
           // categories rather than one comma run.
           ...resume.skills.map(
@@ -505,24 +578,27 @@ function splitParagraphs(body: string): string[] {
  * Renders a cover letter to .docx — same reasoning as the resume: Word parses
  * reliably, and the user can edit what comes out.
  */
-export async function coverLetterToDocxBlob(letter: CoverLetterDocument): Promise<Blob> {
+export async function coverLetterToDocxBlob(
+  letter: CoverLetterDocument,
+  style = DEFAULT_STYLE
+): Promise<Blob> {
   const { Document, Packer } = await import('docx');
   const doc = new Document({
-    sections: [{ properties: {}, children: await letterParagraphs(letter) }],
-    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+    sections: [{ properties: pageProperties(style), children: await letterParagraphs(letter, style) }],
+    styles: documentDefaults(style),
   });
   return Packer.toBlob(doc);
 }
 
 /** As `resumeParagraphs`, for the letter. */
-async function letterParagraphs(letter: CoverLetterDocument) {
+async function letterParagraphs(letter: CoverLetterDocument, style: DocumentStyle = DEFAULT_STYLE) {
   const { Paragraph, TextRun, AlignmentType } = await import('docx');
 
   const line = (text: string, options: { bold?: boolean; after?: number; right?: boolean } = {}) =>
     new Paragraph({
       alignment: options.right ? AlignmentType.RIGHT : AlignmentType.LEFT,
       spacing: { after: options.after ?? 0 },
-      children: [new TextRun({ text, bold: options.bold, size: 21 })],
+      children: [new TextRun({ text, bold: options.bold, size: halfPoints(style.size) })],
     });
 
   const last = (index: number, list: unknown[], gap: number) => (index === list.length - 1 ? gap : 0);
@@ -554,18 +630,19 @@ async function letterParagraphs(letter: CoverLetterDocument) {
  */
 export async function combinedToDocxBlob(
   resume: ResumeDocument,
-  letter: CoverLetterDocument
+  letter: CoverLetterDocument,
+  style = DEFAULT_STYLE
 ): Promise<Blob> {
   const { Document, Packer, Paragraph, TextRun, PageBreak } = await import('docx');
   const [letterChildren, resumeChildren] = await Promise.all([
-    letterParagraphs(letter),
-    resumeParagraphs(resume),
+    letterParagraphs(letter, style),
+    resumeParagraphs(resume, style),
   ]);
 
   const doc = new Document({
     sections: [
       {
-        properties: {},
+        properties: pageProperties(style),
         children: [
           ...letterChildren,
           new Paragraph({ children: [new PageBreak()] }),
@@ -573,7 +650,7 @@ export async function combinedToDocxBlob(
         ],
       },
     ],
-    styles: { default: { document: { run: { font: 'Calibri', size: 21 } } } },
+    styles: documentDefaults(style),
   });
 
   return Packer.toBlob(doc);
