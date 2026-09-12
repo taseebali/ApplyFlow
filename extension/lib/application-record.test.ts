@@ -64,9 +64,19 @@ describe('wordingOutcomes', () => {
 });
 
 describe('toCsv', () => {
-  it('guards a leading =, +, - or @ against being run as a formula', () => {
-    const rows = toCsv([record({ company: '=cmd|"/c calc"!A1' })]).split('\n');
-    expect(rows[1]).toContain(`"'=cmd|""/c calc""!A1"`);
+  it('guards each of the four formula-injection prefixes independently', () => {
+    const prefixes = ['=', '+', '-', '@'];
+    for (const prefix of prefixes) {
+      const rows = toCsv([record({ company: `${prefix}formula` })]).split('\n');
+      expect(rows[1]).toContain(`"'${prefix}formula"`);
+    }
+  });
+
+  it('escapes double quotes, commas, and newlines in CSV fields', () => {
+    const csv = toCsv([record({ company: 'hello"world,test\nvalue' })]);
+    // Double quotes are escaped by doubling, field is wrapped in quotes.
+    // Commas and newlines are preserved; the field stays quoted.
+    expect(csv).toContain(`"hello""world,test\nvalue"`);
   });
 
   it('keeps the fields worth exporting, including ones the old log never had', () => {
