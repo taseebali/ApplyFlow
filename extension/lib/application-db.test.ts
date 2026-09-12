@@ -70,6 +70,31 @@ describe('the application store', () => {
     expect(await listRecords()).toEqual([]);
   });
 
+  it('does not call a write done until its transaction commits', async () => {
+    // A put reports success inside the transaction, long before the data is
+    // durable. If the transaction then aborts — a full disk, or the quota
+    // gone on two 40KB .docx files — the caller has already been told the
+    // application was saved, and nothing ever corrects it.
+    // Aborted *after* the put reports success, which is the window the bug
+    // lived in: aborting earlier would fail the request itself and be caught
+    // either way.
+    const realPut = IDBObjectStore.prototype.put;
+    const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      const request = realPut.apply(this, args);
+      request.addEventListener('success', () => request.transaction!.abort());
+      return request;
+    });
+
+    const r = seed('Enpal');
+    await expect(putRecord(r)).rejects.toBeTruthy();
+    spy.mockRestore();
+
+    expect(await getRecord(r.id)).toBeNull();
+  });
+
   it('does not let a failed request block the next one', async () => {
     const r = seed('Enpal');
     await putRecord(r);

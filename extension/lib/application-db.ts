@@ -32,18 +32,37 @@ function open(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * One transaction, settled when it commits.
+ *
+ * `request.onsuccess` fires inside the transaction, not on commit: a write
+ * that resolved there had already told the caller it succeeded when the
+ * transaction went on to abort — which is exactly what quota exhaustion on an
+ * 80KB pair of .docx files looks like. Settling on `oncomplete` instead means
+ * a resolved write is a committed one.
+ */
 function run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return open().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
         const tx = db.transaction(STORE, mode);
         const request = work(tx.objectStore(STORE));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => db.close();
-        // oncomplete never fires for an aborted transaction, so a failed
-        // request would otherwise hold the connection open indefinitely.
-        tx.onabort = () => db.close();
+        // Read at commit rather than in an onsuccess handler, which would also
+        // overwrite any handler `work` set for itself.
+        tx.oncomplete = () => {
+          db.close();
+          resolve(request.result);
+        };
+        // A failed request aborts its transaction, so this is also where a
+        // request error lands. Closing here too: oncomplete never fires for an
+        // aborted transaction, and the connection would be held indefinitely.
+        tx.onabort = () => {
+          db.close();
+          // An abort with no error of its own still has to reject with
+          // something: a caller that catches `undefined` cannot say what went
+          // wrong, and every message here ends up in front of the user.
+          reject(tx.error ?? request.error ?? new Error('The write was rolled back.'));
+        };
       })
   );
 }
@@ -66,30 +85,20 @@ export async function listRecords(): Promise<ApplicationRecord[]> {
 /** Merges into an existing record. A missing id is a no-op, never an error:
  *  the caller is usually a later stage of a run whose record may be gone.
  *
- *  Get and put share one transaction rather than going through `run` twice —
+ *  Get and put share one transaction rather than being two calls to `run` —
  *  two callers patching the same record concurrently would otherwise each
  *  read the pre-patch record and one write would silently clobber the
  *  other's fields. A single transaction serialises against any other
  *  transaction touching this store, so the second patch always reads the
  *  first one's result. */
 export async function patchRecord(id: string, patch: Partial<ApplicationRecord>): Promise<void> {
-  const db = await open();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const getRequest = store.get(id) as IDBRequest<ApplicationRecord | undefined>;
-    getRequest.onsuccess = () => {
-      const current = getRequest.result;
+  await run<ApplicationRecord | undefined>('readwrite', (store) => {
+    const request = store.get(id) as IDBRequest<ApplicationRecord | undefined>;
+    request.onsuccess = () => {
+      const current = request.result;
       if (current) store.put({ ...current, ...patch, id: current.id });
     };
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onabort = () => {
-      db.close();
-      reject(tx.error);
-    };
+    return request;
   });
 }
 
