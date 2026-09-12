@@ -15,10 +15,18 @@ import { STATUSES, type ApplicationRecord, type ApplicationStatus } from './appl
  * megabytes through a message channel that serialises to JSON.
  */
 
-export const ALLOWED_ORIGINS = [
-  'https://applyflow-dashboard.vercel.app',
-  'http://localhost:5174',
-];
+/**
+ * The pages allowed to ask. Development only, and empty in a release build.
+ *
+ * To add a production origin: deploy the dashboard to a host you actually
+ * own, then add that host here *and* to `externally_connectable` in
+ * wxt.config.ts. Never the other way round — an origin listed before it is
+ * registered is an allowlist entry handed to whoever claims the name first,
+ * and on a free subdomain that is first-come-first-served. A stranger holding
+ * a listed origin can read every application, both .docx files included, and
+ * rewrite statuses, on every machine the extension is installed on.
+ */
+const ALLOWED_ORIGINS: string[] = import.meta.env.DEV ? ['http://localhost:5174'] : [];
 
 export function isAllowedOrigin(origin: string): boolean {
   return ALLOWED_ORIGINS.includes(origin);

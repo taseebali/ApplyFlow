@@ -4,9 +4,6 @@ import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/stora
 import { clearRecords, listRecords } from '@/lib/application-db';
 import { summarize, toCsv, type ApplicationRecord, type ApplicationStats } from '@/lib/application-record';
 
-/** Where the full history — the list, detail, and status changes — actually lives. */
-const DASHBOARD_URL = 'https://applyflow-dashboard.vercel.app/';
-
 /**
  * What ApplyFlow has recorded: taught fields, earlier profiles, applications.
  */
@@ -119,8 +116,8 @@ export function ProfileHistorySection() {
 
 /**
  * Every application put through the tool, kept locally. Answers "is this
- * helping?" — but the panel is 400px and the dashboard is where a history is
- * actually read, so this keeps only the summary and hands the rest over.
+ * helping?" — but the panel is 400px, so it keeps only the summary. The full
+ * history is read in the dashboard, or exported as CSV.
  */
 export function ApplicationHistorySection() {
   const [records, setRecords] = useState<ApplicationRecord[] | null>(null);
@@ -172,11 +169,9 @@ export function ApplicationHistorySection() {
         )
       )}
 
-      {/* The panel is 400px. The dashboard is where this is actually read —
-          the panel keeps the summary and hands over. */}
-      <a className="btn" href={DASHBOARD_URL} target="_blank" rel="noreferrer">
-        Open the dashboard
-      </a>
+      {/* No link to the dashboard: it is not deployed anywhere, and a button
+          opening a 404 is worse than no button. The CSV below is how the full
+          history leaves the panel until there is a host to point at. */}
 
       {stats && stats.total > 0 && (
         <div className="setup-footer mt-3">

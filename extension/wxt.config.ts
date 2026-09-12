@@ -3,7 +3,9 @@ import { defineConfig } from 'wxt';
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
-  manifest: {
+  // A function, not an object, so `externally_connectable` can be left out of a
+  // release build entirely — see the bottom of this file.
+  manifest: ({ mode }) => ({
     name: 'ApplyFlow',
     description:
       'Fill job applications from a profile that stays on your machine: autofill, document attach, AI drafts, and a dashboard of everything you have applied to.',
@@ -44,9 +46,15 @@ export default defineConfig({
      * Which pages may message this extension. Nothing else can, whatever it
      * sends. The list matches ALLOWED_ORIGINS in lib/dashboard-bridge.ts; both
      * exist so that a mistake in either one alone is not enough.
+     *
+     * Development only, and absent from a release manifest. A listed origin is
+     * trusted by every installed copy: anyone who can serve that host can read
+     * the user's whole application history, documents included. Listing a host
+     * before it is registered hands that to whoever claims it first, so a
+     * production origin goes in here only once it is deployed and owned.
      */
-    externally_connectable: {
-      matches: ['https://applyflow-dashboard.vercel.app/*', 'http://localhost:5174/*'],
-    },
-  },
+    ...(mode === 'development'
+      ? { externally_connectable: { matches: ['http://localhost:5174/*'] } }
+      : {}),
+  }),
 });
