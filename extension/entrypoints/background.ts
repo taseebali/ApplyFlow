@@ -1,4 +1,4 @@
-import { getSettings } from '@/lib/settings';
+import { forgetNotionSettings, getSettings } from '@/lib/settings';
 import { chooseOptionWithAi } from '@/lib/option-ai';
 import { getProfile } from '@/lib/storage';
 import { draftAnswer } from '@/lib/llm-client';
@@ -310,6 +310,9 @@ export default defineBackground(() => {
   // entries and cannot hold documents, so nothing is left behind on purpose.
   browser.runtime.onInstalled.addListener(() => {
     void migrateApplicationLog();
+    // Nothing reads the old Notion token any more, which is not the same as it
+    // being gone: it is still on disk, and still a live credential.
+    void forgetNotionSettings();
   });
 
   // A closed tab's application is over; keep session storage from growing.

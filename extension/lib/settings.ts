@@ -125,6 +125,22 @@ export async function getSettings(): Promise<Settings> {
   return stored ? applySettingsDefaults(stored) : EMPTY_SETTINGS;
 }
 
+/**
+ * Deletes the Notion integration token left behind by an earlier version.
+ *
+ * `applySettingsDefaults` stopped carrying `notion` forward, so nothing reads
+ * it any more — but the stored object still holds a live API token, and it
+ * would sit there until the user happened to save settings again. A token
+ * nothing uses is a token that should not be on disk. Run once on update.
+ */
+export async function forgetNotionSettings(): Promise<void> {
+  const result = await browser.storage.local.get(SETTINGS_KEY);
+  const stored = result[SETTINGS_KEY] as Record<string, unknown> | undefined;
+  if (!stored || !('notion' in stored)) return;
+  delete stored.notion;
+  await browser.storage.local.set({ [SETTINGS_KEY]: stored });
+}
+
 export async function setSettings(settings: Settings): Promise<void> {
   await browser.storage.local.set({ [SETTINGS_KEY]: settings });
 }
