@@ -14,10 +14,10 @@ and why the extension cannot work without it.
 | `storage` | Stores the user's own profile, settings, learned field mappings, and application history on their machine. Nothing is sent to a server we operate — there is no server. |
 | `sidePanel` | The entire interface is the side panel. It sits beside the job application so the user never leaves the page they are filling. |
 | `<all_urls>` content script | Job applications are hosted on thousands of domains — every company's careers page, plus Greenhouse, Lever, Workday, Personio, SmartRecruiters and others, frequently embedded in an iframe on the employer's own site. There is no enumerable list. The script only reads form structure and only writes when the user presses a button. |
-| `https://api.notion.com/*` | Optional. Logs an application to the user's own Notion database using a token they supply. Skippable, and the feature hides itself when skipped. |
 | `https://openrouter.ai/*`, `https://api.anthropic.com/*`, `https://api.openai.com/*`, `https://api.groq.com/*` | Optional AI answer drafting, using the user's own API key with the provider they choose. Only called when the user presses "Draft answers". |
 | `http://localhost:11434/*` | Optional local drafting via Ollama, so a user can keep everything on their own machine. |
 | `optional_host_permissions: https://*/*` | Only for a self-hosted or less common OpenAI-compatible endpoint. Nothing is granted until the user enters their own URL and presses the button; Chrome then prompts for that single host. HTTPS only — the request carries an API key. |
+| `externally_connectable` (`https://applyflow-dashboard.vercel.app/*`, `http://localhost:5174/*`) | Lets those two pages, and only those two, send the extension a message asking for the user's own application records or a status change. This is not a host permission: it grants nothing to the extension, only lets a named page reach in and ask. The extension never sends anything to them unprompted, and no other page can send this message at all. |
 
 ## Single purpose
 
@@ -31,10 +31,16 @@ and why the extension cannot work without it.
 - **Not sold, not transferred** to third parties for any purpose.
 - **Not used** for creditworthiness or lending.
 - **Sent off the device only when the user acts**, and only to:
-  - the user's own Notion workspace, when they press "Log to Notion";
   - the AI provider the user configured with their own key, when they press
     "Draft answers" or import a resume with AI parsing enabled.
 - Nothing is sent to any endpoint operated by this project.
+- **The dashboard changes none of this.** It replaced the old Notion tracker,
+  and it is not a destination: it is a static page with no server, no
+  database, and no account, and it holds nothing. It asks the extension for
+  the user's own application records over `chrome.runtime.sendMessage`, which
+  is browser-internal message passing, not a network request — nothing
+  leaves the device to populate it. Opened in a browser without the
+  extension installed, it correctly shows nothing.
 
 ## The privacy policy must state plainly
 
