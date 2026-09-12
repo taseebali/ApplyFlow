@@ -164,6 +164,11 @@ export interface WordingOutcome {
  * The whole reason for recording `variantIds`. With enough applications this
  * says which framing of a piece of work gets answered — something no amount of
  * counting filled fields could ever show.
+ *
+ * The dashboard renders this, over the records it has already fetched, from
+ * its own copy in dashboard/src/bridge.ts — copied for the same reason the
+ * transfer types are, since it is a separate npm project. This is the tested
+ * one: change one, change both.
  */
 export function wordingOutcomes(records: ApplicationRecord[]): WordingOutcome[] {
   const sent = new Map<string, number>();

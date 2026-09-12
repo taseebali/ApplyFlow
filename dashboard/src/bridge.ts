@@ -63,6 +63,43 @@ export type DashboardResponse =
   | { ok: true; records?: TransferableRecord[]; record?: DetailedRecord | null }
   | { ok: false; error: string };
 
+/** Anything past `applied` is a reply, however it went. */
+const REPLIED: ApplicationStatus[] = ['replied', 'interview', 'rejected', 'offer'];
+
+export interface WordingOutcome {
+  variantId: string;
+  sent: number;
+  replied: number;
+}
+
+/**
+ * How each bullet has done, over the records already fetched.
+ *
+ * The whole reason `variantIds` is recorded, and the question the tool exists
+ * to answer: with enough applications this says which framing of a piece of
+ * work gets answered. Mirrors `wordingOutcomes` in the extension's
+ * lib/application-record.ts, copied for the same reason the types above are —
+ * change one, change both.
+ */
+export function wordingOutcomes(records: TransferableRecord[]): WordingOutcome[] {
+  const sent = new Map<string, number>();
+  const replied = new Map<string, number>();
+
+  for (const r of records) {
+    const isReply = REPLIED.includes(r.status);
+    for (const id of r.variantIds) {
+      sent.set(id, (sent.get(id) ?? 0) + 1);
+      if (isReply) replied.set(id, (replied.get(id) ?? 0) + 1);
+    }
+  }
+
+  return [...sent.entries()]
+    .map(([variantId, count]) => ({ variantId, sent: count, replied: replied.get(variantId) ?? 0 }))
+    // Replies first, not reply rate: one bullet sent once and answered once
+    // would otherwise outrank one answered five times in nine.
+    .sort((a, b) => b.replied - a.replied || b.sent - a.sent);
+}
+
 export class NoExtensionError extends Error {}
 
 export function askExtension(request: DashboardRequest): Promise<DashboardResponse> {

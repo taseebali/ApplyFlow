@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { askExtension, NoExtensionError, type TransferableRecord } from './bridge';
+import { askExtension, NoExtensionError, wordingOutcomes, type TransferableRecord } from './bridge';
 import { ApplicationList } from './ApplicationList';
 import { ApplicationDetail } from './ApplicationDetail';
 
@@ -40,8 +40,54 @@ export function App() {
       {selected ? (
         <ApplicationDetail id={selected} onBack={() => setSelected(null)} onChanged={refresh} />
       ) : (
-        <ApplicationList records={records} onOpen={setSelected} />
+        <>
+          <ApplicationList records={records} onOpen={setSelected} />
+          <Wording records={records} />
+        </>
       )}
     </main>
+  );
+}
+
+/**
+ * Which resume wording gets answered — the question the whole record exists
+ * to answer, and one no count of filled fields could ever reach.
+ *
+ * The ids are the bank's own, shown raw: resolving them to the bullet text
+ * would need the bank, which lives in the extension and is not part of this
+ * page's protocol.
+ */
+function Wording({ records }: { records: TransferableRecord[] }) {
+  const outcomes = wordingOutcomes(records);
+  if (outcomes.length === 0) return null;
+
+  return (
+    <section className="dash-wording">
+      <h2>Wording that gets replies</h2>
+      <p className="hint">
+        Each bullet variant that has gone out, and how often the application came back. Meaningful once the
+        same bullet has been sent a few times.
+      </p>
+      <table className="dash-table dash-table-static">
+        <thead>
+          <tr>
+            <th>Bullet variant</th>
+            <th>Sent</th>
+            <th>Replied</th>
+            <th>Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {outcomes.map((o) => (
+            <tr key={o.variantId}>
+              <td><code>{o.variantId}</code></td>
+              <td>{o.sent}</td>
+              <td>{o.replied}</td>
+              <td>{Math.round((o.replied / o.sent) * 100)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
