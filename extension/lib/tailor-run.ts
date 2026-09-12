@@ -1,3 +1,4 @@
+import { asProse, ModelReasoned } from './model-output';
 import { getBank } from './bullet-bank';
 import { getProfile } from './storage';
 import { getSettings } from './settings';
@@ -154,14 +155,36 @@ export async function writeCoverLetter(input: {
   const posting = { company: input.company, role: input.role };
   const faultsOf = (text: string) => coverLetterFaults(text, bulletTexts, posting);
 
-  const first = (await runPrompt(prompt, settings.llm)).trim();
-  if (isAcceptable(first, bulletTexts, posting)) {
+  /*
+   * A reply that is the model's own deliberation rather than a letter has no
+   * letter inside it to keep, so it falls through to the retry that already
+   * exists here instead of failing the run. Only when both attempts come back
+   * as working does the error reach the user.
+   */
+  const attempt = async (): Promise<string | null> => {
+    try {
+      return asProse(await runPrompt(prompt, settings.llm));
+    } catch (err) {
+      if (err instanceof ModelReasoned) return null;
+      throw err;
+    }
+  };
+
+  const first = await attempt();
+  if (first && isAcceptable(first, bulletTexts, posting)) {
     return { text: first, faults: faultsOf(first), retried: false, language };
   }
 
-  const second = (await runPrompt(prompt, settings.llm)).trim();
+  const second = await attempt();
+  const usable = [first, second].filter((text): text is string => text !== null);
+  if (usable.length === 0) {
+    throw new ModelReasoned(
+      'The model wrote out its own reasoning twice instead of a cover letter. Smaller free models often do this — try again, or pick a different model under Settings → AI.'
+    );
+  }
+
   // Keep whichever is less wrong, so a retry can never make things worse.
-  const best = faultsOf(second).length < faultsOf(first).length ? second : first;
+  const best = usable.reduce((a, b) => (faultsOf(b).length < faultsOf(a).length ? b : a));
 
   return { text: best, faults: faultsOf(best), retried: true, language };
 }

@@ -11,6 +11,7 @@ import { LlmError } from './llm-error';
 
 export { LlmError };
 import { lengthRuleFor } from './answer-length';
+import { asProse, stripReasoning } from './model-output';
 import { recordSpend } from './spend';
 import { nextCandidates } from './model-router';
 import { getCooldowns, recordFailure, recordUnavailable } from './model-cooldowns';
@@ -397,7 +398,10 @@ export async function runPromptDetailed(prompt: string, llm: LlmSettings): Promi
   // card alone, so a bank generation — dozens of requests — reported nothing.
   const record = async (completion: Completion) => {
     await recordSpend(completion);
-    return completion;
+    // Every caller gets the answer without the model's thinking around it,
+    // including the ones parsing JSON — a `<think>` block before valid JSON
+    // breaks a parser just as surely as it confuses a reader.
+    return { ...completion, text: stripReasoning(completion.text) };
   };
 
   try {
@@ -422,8 +426,18 @@ export async function runPrompt(prompt: string, llm: LlmSettings): Promise<strin
   return (await runPromptDetailed(prompt, llm)).text;
 }
 
+/**
+ * One answer to one question on a form.
+ *
+ * `asProse` rather than the raw text: this is the completion that goes into a
+ * job application, and a model that spent its whole budget deliberating — "Let
+ * me re-read Rule 5", nine hundred words, cut off mid-sentence — returned no
+ * answer to put there. Failing visibly is the only honest option; the caller
+ * already shows a per-question error and keeps the other answers.
+ */
 export async function draftAnswer(context: DraftContext, llm: LlmSettings): Promise<Completion> {
-  return runPromptDetailed(buildPrompt(context), llm);
+  const completion = await runPromptDetailed(buildPrompt(context), llm);
+  return { ...completion, text: asProse(completion.text) };
 }
 
 /**

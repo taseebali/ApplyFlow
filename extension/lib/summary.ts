@@ -1,3 +1,4 @@
+import { looksLikeReasoning, stripReasoning } from './model-output';
 import { bulletsToText, type Profile } from './schema';
 
 /**
@@ -76,29 +77,13 @@ export function canWriteSummary(profile: Profile): boolean {
  * Models wrap a one-line answer in quotes and a preamble often enough that
  * stripping both is cheaper than another round trip.
  */
-/**
- * Shapes that mean the model returned its own reasoning instead of an answer.
- *
- * A free model asked for one line came back with "1. **Analyze the Request:**
- * - User wants a summary line... - Rules: - Two sentences, max 45 words" — its
- * working, restating the prompt. Written into the profile, that then went onto
- * a resume. Stripping a preamble cannot rescue this: there is no summary in it
- * to find, so the honest move is to refuse it.
- */
-const REASONING = [
-  /\*\*/, // markdown bold — the prompt asks for plain text
-  /^\s*\d+\.\s/, // a numbered analysis
-  /\buser (wants|asks|is asking)\b/i,
-  /\brules?:/i,
-  /\b(analyz|analys)e the (request|prompt|task)\b/i,
-  /\bstep \d\b/i,
-];
-
 export class SummaryRefused extends Error {}
 
 export function cleanSummary(raw: string): string {
-  const text = raw
-    .trim()
+  // The same guard every other caller of the model uses. It lived here first,
+  // for summaries only, while drafted answers and cover letters had the same
+  // hole — the fault is the model's, not this prompt's.
+  const text = stripReasoning(raw)
     // The whole preamble up to and including the colon, not just its opening
     // words — "Here is the summary:" left "the summary:" behind.
     .replace(/^(here (is|are)|here's|sure|certainly)\b[^:]*:\s*/i, '')
@@ -109,7 +94,7 @@ export function cleanSummary(raw: string): string {
 
   if (!text) throw new SummaryRefused('The model returned nothing.');
 
-  if (REASONING.some((pattern) => pattern.test(text))) {
+  if (looksLikeReasoning(text)) {
     throw new SummaryRefused(
       'The model returned its own working instead of a summary. Smaller free models often do this — try again, or pick a different model under Settings → AI.'
     );
