@@ -84,6 +84,43 @@ export function emptyRecord(
   };
 }
 
+/** One frame's answer to a fill, as far as the record is concerned. */
+export interface FillOutcome {
+  hostname: string;
+  filledCount: number;
+  /** Values the form rejected. Only the count is kept; the labels are the panel's. */
+  invalid: unknown[];
+}
+
+/**
+ * The record for a posting after a fill run.
+ *
+ * A second fill of the same posting must land on the record that posting
+ * already has. A fresh one would double every total and count the same
+ * bullets twice in `wordingOutcomes` — and orphan the first record, which by
+ * then holds the documents and the score. Counts add rather than replace,
+ * because an application split over several pages or frames is one
+ * application filled in several runs.
+ */
+export function recordForFill(
+  posting: Pick<ApplicationRecord, 'company' | 'title' | 'url'>,
+  outcomes: FillOutcome[],
+  existing: ApplicationRecord | null = null
+): ApplicationRecord {
+  const base =
+    existing ?? emptyRecord({ ...posting, hostname: outcomes[0]?.hostname ?? '' });
+  return {
+    ...base,
+    // The posting is often only readable on one page of a multi-step flow, so
+    // a later run can know a company or title that the first one could not.
+    company: base.company || posting.company,
+    title: base.title || posting.title,
+    url: base.url || posting.url,
+    filledCount: base.filledCount + outcomes.reduce((sum, o) => sum + o.filledCount, 0),
+    invalidCount: base.invalidCount + outcomes.reduce((sum, o) => sum + o.invalid.length, 0),
+  };
+}
+
 export interface ApplicationStats {
   total: number;
   last30Days: number;

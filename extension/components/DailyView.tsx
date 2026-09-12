@@ -10,6 +10,7 @@ import { usePrimaryAction } from '@/components/PrimaryAction';
 import { frameOf, localId, writable } from '@/lib/field-plan';
 import type { FillPageMessage, FillPageResponse } from '@/entrypoints/content';
 import { getActiveTabId } from '@/lib/active-tab';
+import { saveFillToRecord } from '@/lib/fill-record';
 import type { JumpToFieldMessage, PickOptionMessage } from '@/entrypoints/content';
 import type { PlannedField } from '@/lib/field-plan';
 import type { Posting } from '@/components/JobContext';
@@ -70,14 +71,23 @@ export function DailyView({
           byFrame.set(frameId, [...(byFrame.get(frameId) ?? []), localId(id)]);
         }
 
-        await Promise.all(
+        const responses = await Promise.all(
           [...byFrame.entries()].map(([frameId, only]) =>
             browser.tabs
               .sendMessage(tabId, { type: 'fill-page', only } satisfies FillPageMessage,
                 frameId === null ? {} : { frameId })
+              .then((response) => response as FillPageResponse)
               .catch(() => undefined)
           )
         );
+
+        // This is the path an application is actually filled by, so it is the
+        // path that has to record one. Without it the history, and everything
+        // the review page later attaches to it, has nothing to attach to.
+        await saveFillToRecord(
+          tabId,
+          responses.filter((response): response is FillPageResponse => response !== undefined)
+        ).catch(() => undefined);
       } finally {
         setWriting(false);
         setReviewing(false);

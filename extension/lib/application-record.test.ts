@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { documentFromBlob, emptyRecord, summarize, toCsv, wordingOutcomes, type ApplicationRecord } from './application-record';
+import {
+  documentFromBlob,
+  emptyRecord,
+  recordForFill,
+  summarize,
+  toCsv,
+  wordingOutcomes,
+  type ApplicationRecord,
+} from './application-record';
 
 const record = (over: Partial<ApplicationRecord> = {}): ApplicationRecord => ({
   ...emptyRecord({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1', hostname: 'x' }),
@@ -15,6 +23,59 @@ describe('emptyRecord', () => {
     expect(r.coverLetter).toBeNull();
     expect(r.variantIds).toEqual([]);
     expect(r.id).toMatch(/[0-9a-f-]{36}/);
+  });
+});
+
+describe('recordForFill', () => {
+  const frame = (over: { hostname?: string; filledCount?: number; invalid?: unknown[] } = {}) => ({
+    hostname: 'boards.greenhouse.io',
+    filledCount: 4,
+    invalid: [],
+    ...over,
+  });
+
+  it('makes a record for a posting that has none yet', () => {
+    const r = recordForFill({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1' }, [frame()]);
+    expect(r.company).toBe('Enpal');
+    expect(r.hostname).toBe('boards.greenhouse.io');
+    expect(r.filledCount).toBe(4);
+    expect(r.status).toBe('applied');
+  });
+
+  it('adds up the frames of one embedded application', () => {
+    const r = recordForFill({ company: 'Enpal', title: '', url: '' }, [
+      frame({ filledCount: 4, invalid: ['phone'] }),
+      frame({ filledCount: 3, invalid: ['start date', 'salary'] }),
+    ]);
+    expect(r.filledCount).toBe(7);
+    expect(r.invalidCount).toBe(3);
+  });
+
+  it('adds to the record this posting already has, never a second one', () => {
+    // The case that would otherwise double every total and count the same
+    // bullets twice in wordingOutcomes — and orphan the record holding the
+    // documents and the score.
+    const first = recordForFill({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1' }, [frame()]);
+    const withWork = { ...first, variantIds: ['v1'], documentsAttached: 2 };
+    const second = recordForFill({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1' }, [frame()], withWork);
+
+    expect(second.id).toBe(first.id);
+    expect(second.filledCount).toBe(8);
+    expect(second.variantIds).toEqual(['v1']);
+    expect(second.documentsAttached).toBe(2);
+  });
+
+  it('fills in a company the first page of the flow could not read', () => {
+    const first = recordForFill({ company: '', title: '', url: '' }, [frame()]);
+    const second = recordForFill({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1' }, [frame()], first);
+    expect(second.company).toBe('Enpal');
+    expect(second.title).toBe('AI Intern');
+  });
+
+  it('keeps what was already known when a later page reads nothing', () => {
+    const first = recordForFill({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1' }, [frame()]);
+    const second = recordForFill({ company: '', title: '', url: '' }, [frame()], first);
+    expect(second.company).toBe('Enpal');
   });
 });
 

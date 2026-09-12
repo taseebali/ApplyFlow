@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { UndoFillMessage, UndoFillResponse, AttachDocumentsMessage, AttachDocumentsResponse, FillPageMessage, FillPageResponse, GetJobInfoMessage, GetJobInfoResponse } from '@/entrypoints/content';
+import type { UndoFillMessage, UndoFillResponse, AttachDocumentsMessage, AttachDocumentsResponse, FillPageMessage, FillPageResponse } from '@/entrypoints/content';
 import { ensureReadPermission, getDocumentsFolderHandle } from '@/lib/document-store';
 import { findBestMatch, listFolderFiles, type DocumentKind, type DocumentMatchResult, type FolderFile } from '@/lib/document-matcher';
 import { getTabState, patchTabState, type AttachOutcome } from '@/lib/tab-state';
 import { mergeFillResults } from '@/lib/frames';
-import { emptyRecord } from '@/lib/application-record';
-import { putRecord, patchRecord } from '@/lib/application-db';
+import { patchRecord } from '@/lib/application-db';
+import { saveFillToRecord } from '@/lib/fill-record';
 import { useTabState } from '@/components/useTabState';
 import { ActionRow } from '@/components/ActionRow';
 import { AttachIcon } from '@/components/icons';
@@ -149,23 +149,10 @@ export function FillAndAttachSection({
       const merged = mergeFillResults(responses);
 
       // A local record of what this run actually did, so the tool can answer
-      // whether it is helping. Never allowed to fail the fill.
-      void browser.tabs
-        .sendMessage(target, { type: 'get-job-info' } satisfies GetJobInfoMessage)
-        .then(async (info: GetJobInfoResponse) => {
-          const record = emptyRecord({
-            company: info.companyName ?? '',
-            title: info.jobTitle ?? '',
-            url: info.jobUrl ?? '',
-            hostname: responses[0]!.hostname,
-          });
-          // Filled in as those steps happen; see patchRecord below.
-          record.filledCount = merged.filledCount;
-          record.invalidCount = responses.reduce((sum, r) => sum + r.invalid.length, 0);
-          await putRecord(record);
-          await patchTabState(target, { applicationId: record.id });
-        })
-        .catch(() => {});
+      // whether it is helping. Never allowed to fail the fill, and shared with
+      // the diff-sheet path so a re-fill adds to this posting's record instead
+      // of starting a second one.
+      void saveFillToRecord(target, responses).catch(() => {});
       await patchTabState(target, {
         fill: {
           status: 'done',
