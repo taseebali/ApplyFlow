@@ -7,12 +7,13 @@ import { getTabState, patchTabState } from './tab-state';
  * Writes what a fill did into this tab's application record.
  *
  * The only place a record is created, so the two fill paths cannot disagree
- * about what a record looks like or about when a new one is due. The tab's
- * `applicationId` is the posting's identity: the background worker clears the
- * tab's state when the tab moves to a *different* posting, so an id that is
- * still there means the same application, and re-filling it adds to the
- * record that already carries its documents and score rather than starting a
- * second one.
+ * about what a record looks like. What guarantees identity is not the tab's
+ * `applicationId` — the background worker is supposed to clear it when the
+ * tab moves to a different posting, but an iframe-embedded application and a
+ * URL `isJobUrl` doesn't recognise both skip that clear. It is `recordForFill`
+ * comparing `info.jobUrl` against the URL the existing record was filed
+ * under: a stale `applicationId` pointing at the wrong posting is caught
+ * there and a fresh record is started, whatever this tab's state still says.
  *
  * Never allowed to fail a fill — the form is already filled by the time this
  * runs, and a history write is not worth reporting as a failed fill.
@@ -32,6 +33,9 @@ export async function saveFillToRecord(tabId: number, outcomes: FillOutcome[]): 
 
   await putRecord(record);
   // The id is what every later stage — attach, drafting, the review page's
-  // documents and score — patches against.
-  if (!existing) await patchTabState(tabId, { applicationId: record.id });
+  // documents and score — patches against. Compared by id rather than
+  // `!existing`: recordForFill hands back a new id whenever it decided this
+  // is a different posting than `existing` was, even though `existing` was
+  // not null.
+  if (record.id !== existing?.id) await patchTabState(tabId, { applicationId: record.id });
 }

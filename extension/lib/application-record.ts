@@ -93,6 +93,22 @@ export interface FillOutcome {
 }
 
 /**
+ * Origin and path, so a URL that picked up a tracking parameter between
+ * visits — `?utm_source=`, `?gh_src=`, a Lever referral tag — still counts as
+ * the same posting. The posting id itself lives in the path on every ATS this
+ * extension supports (a board slug, a UUID); query strings there are
+ * campaign noise, not identity.
+ */
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/$/, '');
+  } catch {
+    return url;
+  }
+}
+
+/**
  * The record for a posting after a fill run.
  *
  * A second fill of the same posting must land on the record that posting
@@ -101,14 +117,28 @@ export interface FillOutcome {
  * then holds the documents and the score. Counts add rather than replace,
  * because an application split over several pages or frames is one
  * application filled in several runs.
+ *
+ * `existing` is whatever the caller's tab state currently points at — not
+ * proof it's the same posting. An iframe-embedded application or a URL
+ * `isJobUrl` fails to recognise can leave that state uncleared while the tab
+ * has moved on to a second posting, so this checks for itself: an `existing`
+ * record filed under a different URL is a different application, whatever
+ * the caller thought it was tracking. Empty URLs (a posting page that could
+ * not be read yet) never count as a mismatch, only two different non-empty
+ * ones do.
  */
 export function recordForFill(
   posting: Pick<ApplicationRecord, 'company' | 'title' | 'url'>,
   outcomes: FillOutcome[],
   existing: ApplicationRecord | null = null
 ): ApplicationRecord {
-  const base =
-    existing ?? emptyRecord({ ...posting, hostname: outcomes[0]?.hostname ?? '' });
+  const samePosting =
+    existing !== null &&
+    (existing.url === '' || posting.url === '' || normalizeUrl(existing.url) === normalizeUrl(posting.url));
+
+  const base = samePosting
+    ? (existing as ApplicationRecord)
+    : emptyRecord({ ...posting, hostname: outcomes[0]?.hostname ?? '' });
   return {
     ...base,
     // The posting is often only readable on one page of a multi-step flow, so

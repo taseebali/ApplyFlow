@@ -77,6 +77,47 @@ describe('recordForFill', () => {
     const second = recordForFill({ company: '', title: '', url: '' }, [frame()], first);
     expect(second.company).toBe('Enpal');
   });
+
+  it('reuses the record when the same posting is filled twice, tracking parameter and all', () => {
+    // A page revisited from a different link can pick up a fresh utm_source
+    // between fills. Comparing the raw string would misread that as a second
+    // posting and orphan the first record's documents and score.
+    const first = recordForFill(
+      { company: 'Enpal', title: 'AI Intern', url: 'https://boards.greenhouse.io/enpal/jobs/1' },
+      [frame()]
+    );
+    const second = recordForFill(
+      { company: 'Enpal', title: 'AI Intern', url: 'https://boards.greenhouse.io/enpal/jobs/1?utm_source=li' },
+      [frame()],
+      first
+    );
+    expect(second.id).toBe(first.id);
+    expect(second.filledCount).toBe(8);
+  });
+
+  it('starts a new record when a second posting is filled in the same tab', () => {
+    // This is the case a stale tab-state applicationId gets wrong: an
+    // iframe-embedded application, or a URL isJobUrl does not recognise,
+    // never clears the tab's stored id, so `existing` here is posting A's
+    // record even though the tab has moved on to posting B. Landing B's
+    // counts and identity on A's record — and later having ReviewPage
+    // overwrite A's documents and score with B's — is exactly the bug this
+    // guards against.
+    const first = recordForFill(
+      { company: 'Enpal', title: 'AI Intern', url: 'https://boards.greenhouse.io/enpal/jobs/1' },
+      [frame()]
+    );
+    const second = recordForFill(
+      { company: 'Other Co', title: 'Backend Engineer', url: 'https://boards.greenhouse.io/otherco/jobs/2' },
+      [frame({ filledCount: 5 })],
+      first
+    );
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.company).toBe('Other Co');
+    expect(second.title).toBe('Backend Engineer');
+    expect(second.filledCount).toBe(5);
+  });
 });
 
 describe('summarize', () => {
