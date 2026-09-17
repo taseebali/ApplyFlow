@@ -12,6 +12,43 @@ export type ApplicationStatus = 'applied' | 'replied' | 'interview' | 'rejected'
 
 export const STATUSES: ApplicationStatus[] = ['applied', 'replied', 'interview', 'rejected', 'offer'];
 
+/** How much this one matters, relative to the rest of the pipeline. */
+export type Priority = 'none' | 'low' | 'medium' | 'high';
+
+export const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high'];
+
+/**
+ * The fields a person edits after applying, as opposed to the ones a fill run
+ * writes.
+ *
+ * Kept as its own type because it is exactly the write surface the dashboard
+ * is allowed: everything else on a record is produced by the extension while
+ * applying, and a page on another origin has no business overwriting what
+ * actually went out. `set-properties` in dashboard-bridge.ts validates against
+ * this and nothing wider.
+ */
+export interface EditableProperties {
+  status: ApplicationStatus;
+  priority: Priority;
+  /** Free-form labels, the user's own vocabulary. */
+  tags: string[];
+  /** What to do next about this one, in the user's words. */
+  nextAction: string;
+  /** When to do it. Epoch ms so it sorts without parsing. */
+  nextActionAt: number | null;
+  /** Whatever the posting said, as it said it — "€65–75k", "DOE", "". */
+  salary: string;
+}
+
+export const EMPTY_PROPERTIES: EditableProperties = {
+  status: 'applied',
+  priority: 'none',
+  tags: [],
+  nextAction: '',
+  nextActionAt: null,
+  salary: '',
+};
+
 /** Anything past `applied` is a reply, however it went. */
 const REPLIED: ApplicationStatus[] = ['replied', 'interview', 'rejected', 'offer'];
 
@@ -29,14 +66,13 @@ export interface StoredDocument {
   savedAt: number;
 }
 
-export interface ApplicationRecord {
+export interface ApplicationRecord extends EditableProperties {
   id: string;
   appliedAt: number;
   company: string;
   title: string;
   url: string;
   hostname: string;
-  status: ApplicationStatus;
 
   filledCount: number;
   /** Values written that the form rejected — worth knowing which sites do this. */
@@ -66,7 +102,7 @@ export function emptyRecord(
   return {
     id: crypto.randomUUID(),
     appliedAt: Date.now(),
-    status: 'applied',
+    ...EMPTY_PROPERTIES,
     filledCount: 0,
     invalidCount: 0,
     questionsDrafted: 0,
@@ -81,6 +117,27 @@ export function emptyRecord(
     resume: null,
     coverLetter: null,
     ...seed,
+  };
+}
+
+/**
+ * A record read back from a database written before these fields existed.
+ *
+ * Every record already on disk predates `priority`, `tags`, `nextAction` and
+ * `salary`, and IndexedDB hands back exactly what was stored. Filling the gaps
+ * on read rather than migrating the store means no upgrade transaction over
+ * every record — and a record written by an older build that is still running
+ * in another tab is read correctly too.
+ */
+export function withProperties(record: ApplicationRecord): ApplicationRecord {
+  return {
+    ...record,
+    status: STATUSES.includes(record.status) ? record.status : 'applied',
+    priority: PRIORITIES.includes(record.priority) ? record.priority : 'none',
+    tags: Array.isArray(record.tags) ? record.tags : [],
+    nextAction: typeof record.nextAction === 'string' ? record.nextAction : '',
+    nextActionAt: typeof record.nextActionAt === 'number' ? record.nextActionAt : null,
+    salary: typeof record.salary === 'string' ? record.salary : '',
   };
 }
 

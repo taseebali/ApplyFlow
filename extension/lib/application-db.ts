@@ -1,4 +1,4 @@
-import type { ApplicationRecord } from './application-record';
+import { withProperties, type ApplicationRecord } from './application-record';
 
 /**
  * Where applications live.
@@ -73,13 +73,17 @@ export async function putRecord(record: ApplicationRecord): Promise<void> {
 
 export async function getRecord(id: string): Promise<ApplicationRecord | null> {
   const found = await run<ApplicationRecord | undefined>('readonly', (store) => store.get(id));
-  return found ?? null;
+  // Every read goes through `withProperties`, so a record stored before the
+  // editable properties existed reaches callers with the same shape as a new
+  // one. Doing it here rather than at each call site means there is no path
+  // that can hand out a record with a missing `tags` array.
+  return found ? withProperties(found) : null;
 }
 
 /** Newest first — the order the dashboard and the history panel both want. */
 export async function listRecords(): Promise<ApplicationRecord[]> {
   const all = await run<ApplicationRecord[]>('readonly', (store) => store.getAll());
-  return all.sort((a, b) => b.appliedAt - a.appliedAt);
+  return all.map(withProperties).sort((a, b) => b.appliedAt - a.appliedAt);
 }
 
 /** Merges into an existing record. A missing id is a no-op, never an error:

@@ -6,6 +6,7 @@ import {
   summarize,
   toCsv,
   wordingOutcomes,
+  withProperties,
   type ApplicationRecord,
 } from './application-record';
 
@@ -210,5 +211,43 @@ describe('documentFromBlob', () => {
     expect(doc.filename).toBe('Jordan_Avery_Resume_Enpal (1).docx');
     expect(doc.savedAt).toBe(1234);
     expect(new Uint8Array(doc.bytes)).toEqual(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
+  });
+});
+
+describe('withProperties', () => {
+  it('fills the fields a record written before they existed does not have', () => {
+    // Exactly what IndexedDB hands back for a record stored by an earlier
+    // build: the old shape, with none of the editable properties on it.
+    const old = {
+      id: 'a',
+      appliedAt: 1,
+      company: 'Enpal',
+      title: 'AI Intern',
+      url: 'https://x/1',
+      hostname: 'x',
+      status: 'applied',
+      filledCount: 3,
+    } as unknown as ApplicationRecord;
+
+    expect(withProperties(old)).toMatchObject({
+      priority: 'none',
+      tags: [],
+      nextAction: '',
+      nextActionAt: null,
+      salary: '',
+      filledCount: 3,
+    });
+  });
+
+  it('leaves a record that already has them alone', () => {
+    const current = { ...emptyRecord({ company: 'a', title: 'b', url: 'c', hostname: 'd' }), tags: ['Remote'], priority: 'high' as const };
+    expect(withProperties(current).tags).toEqual(['Remote']);
+    expect(withProperties(current).priority).toBe('high');
+  });
+
+  it('replaces a status or priority it does not recognise rather than passing it on', () => {
+    const wrong = { ...emptyRecord({ company: 'a', title: 'b', url: 'c', hostname: 'd' }), status: 'hired', priority: 'urgent' } as unknown as ApplicationRecord;
+    expect(withProperties(wrong).status).toBe('applied');
+    expect(withProperties(wrong).priority).toBe('none');
   });
 });
