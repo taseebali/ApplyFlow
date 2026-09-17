@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import { version } from './package.json' with { type: 'json' };
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -9,12 +10,19 @@ export default defineConfig({
     name: 'ApplyFlow',
     description:
       'Fill job applications from a profile that stays on your machine: autofill, document attach, AI drafts, and a dashboard of everything you have applied to.',
-    // Store listings order by version, so this is the number a release is cut
-    // against. Keep it in step with package.json and the git tag.
-    version: '1.0.0',
+    /*
+     * Read from package.json rather than written twice.
+     *
+     * The release workflow checks the git tag against package.json, so a
+     * literal here was a second version nothing compared — a build could ship
+     * a manifest that disagreed with the tag it was cut from and pass every
+     * gate. There is now one number.
+     */
+    version,
     permissions: ['storage', 'sidePanel'],
-    // Every destination is pinned. There is no user-configurable endpoint, so
-    // the extension cannot be pointed at an arbitrary host.
+    // The providers that ship with the extension. Each is pinned, so choosing
+    // one of these grants nothing beyond it. A self-hosted endpoint is the one
+    // exception and it is handled below, at runtime, one host at a time.
     host_permissions: [
       'https://openrouter.ai/*',
       'https://api.anthropic.com/*',

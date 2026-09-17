@@ -60,9 +60,12 @@ and why the extension cannot work without it.
 - [ ] Publish the privacy policy at a stable URL and put it in the listing.
 - [ ] Screenshots: the side panel next to a real application, the setup wizard,
       the drafting card. No personal data visible in any of them.
-- [ ] Confirm `npm run build` passes, including the bundled-secret check.
+- [ ] Confirm `npm run build` passes, including the bundled-secret check. The
+      check now runs on `zip` and `build:firefox` too, so the artefact that
+      actually ships is scanned rather than only a local build.
 - [ ] Load the built `chrome-mv3` folder unpacked and walk the whole flow once.
-- [ ] Check the version in `wxt.config.ts` matches `package.json` and the tag.
+- [ ] Check `package.json`'s version matches the tag. The manifest reads its
+      version from there, so there is only one number to get right.
 
 ## Firefox
 

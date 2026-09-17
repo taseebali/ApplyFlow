@@ -2,11 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # The branch work happens on, as well as master: a branch that carries the
+    # whole product and only meets CI at merge time is a branch nothing has
+    # checked.
+    branches: [master, ui-redesign-ai-drafting]
   pull_request:
 
 jobs:
-  check:
+  extension:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,4 +24,27 @@ jobs:
       - run: npm ci
       - run: npm run compile
       - run: npm test
+      - run: npm run build
+
+  # The dashboard is a separate npm project, so nothing above covers it. It
+  # holds the page every application record is read through, and until this
+  # existed it was the one part of the repo that could not fail a build.
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run compile
+      - run: npm test
+      # The transfer types are copied between the two projects because neither
+      # can import the other. This is what stops the copies drifting apart.
+      - run: npm run check:mirror
       - run: npm run build

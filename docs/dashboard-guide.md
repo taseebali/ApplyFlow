@@ -62,9 +62,19 @@ On a fresh clone the ID will differ; paste the real one into `bridge.ts`.
 
 **Open `http://localhost:5174`.**
 
-You should see either your applications or "Nothing applied for yet." If you see
-"ApplyFlow is not installed in this browser", the ID is wrong or you loaded the
-production build.
+You should see either your applications or "Nothing applied for yet." If not,
+the page says which of four things went wrong rather than a generic error, and
+each one has a different fix:
+
+| What it says | What happened |
+|---|---|
+| **This browser cannot ask** | No `chrome.runtime` at all — a non-Chromium browser, or the page opened from a file on disk instead of being served. |
+| **ApplyFlow is not answering** | Nothing responded on that extension id: not installed, switched off, or a release build (which trusts no external page by design). |
+| **ApplyFlow refused this page** | Installed and answering, but this origin is not on its allowlist — almost always the dev server on a port other than 5174. |
+| **ApplyFlow stopped answering** | The background worker died mid-request. It restarts; press Check again. |
+
+The page rechecks by itself whenever the tab regains focus, so installing the
+extension in another tab and coming back is enough — no reload needed.
 
 **Put a real application in it.** The dashboard only shows what the extension has
 recorded, and a record is created when you fill a form:
@@ -97,6 +107,7 @@ the origin, and it has to be written into **four** places, which must agree:
 |---|---|
 | `extension/lib/dashboard-bridge.ts` | `ALLOWED_ORIGINS` is `import.meta.env.DEV ? [localhost] : []` — a release build allows nothing. Put the deployed origin in the non-DEV half. |
 | `extension/lib/dashboard-bridge.test.ts` | the test asserting which origins are refused |
+| `dashboard/src/Connection.tsx` | the port named in the "refused" message, if it changed |
 | `extension/wxt.config.ts` | add `https://<host>/*` to `externally_connectable.matches` |
 | `dashboard/src/bridge.ts` | nothing — the page does not need its own origin |
 
@@ -137,10 +148,25 @@ Expected: `{ok: false, error: 'Unknown request.'}`. If that ever returns
 settings, an API key, or profile data, stop and fix it before using the
 dashboard anywhere.
 
-The bridge accepts exactly three requests — `list`, `get`, and `set-status` —
-and `set-status` is the only write. Everything returned is assembled field by
-field from the record, never spread, so a field added to the record tomorrow
+The bridge accepts exactly three requests — `list`, `get`, and `set-properties`
+— and `set-properties` is the only write. Everything returned is assembled field
+by field from the record, never spread, so a field added to the record tomorrow
 cannot leak by being forgotten.
+
+`set-properties` is validated the same way in reverse. It writes six fields and
+no others — status, priority, tags, next action, due date and salary — each one
+read through `readProperties`, which caps the lengths, folds duplicate tags and
+strips control characters. A patch naming `resume` or `filledCount` writes
+nothing: what actually went out is the extension's record of it, not the
+dashboard's to rewrite. Worth confirming after a deploy:
+
+```js
+chrome.runtime.sendMessage('jlfojkgndajebhpbcegdimapokhjpdik', {
+  type: 'set-properties', id: '<a real id>', properties: { filledCount: 9999 },
+})
+```
+
+Expected: `{ok: false, error: 'Nothing valid to write.'}`.
 
 ---
 
@@ -173,3 +199,17 @@ project stays as the hosted option for anyone who wants it.
 
 Doing both is reasonable. Doing only the extension page is simpler and safer, and
 would let the `externally_connectable` entry be deleted outright.
+
+---
+
+## 4. Keeping the two projects in step
+
+`dashboard/` and `extension/` are separate npm projects, so neither can import
+the other. The transfer types and `wordingOutcomes` are therefore copied into
+`dashboard/src/bridge.ts`, and the design tokens into
+`dashboard/src/tokens.css`.
+
+Copies drift. `npm run check:mirror` in `dashboard/` compares the member names
+of every shared shape against the extension's and fails when they disagree; CI
+runs it on every push. If it fails, both copies need the same change — it is
+telling you one of them was forgotten, not that the check is wrong.

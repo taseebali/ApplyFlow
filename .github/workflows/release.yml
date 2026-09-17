@@ -35,6 +35,8 @@ jobs:
 
       # The tag is the source of truth for the version; a mismatch means the
       # manifest users install would disagree with the release they downloaded.
+      # The manifest reads its version from package.json (see wxt.config.ts),
+      # so checking package.json is checking the manifest.
       - name: Verify the tag matches the manifest version
         working-directory: extension
         run: |
@@ -63,4 +65,5 @@ jobs:
             3. Click **Load unpacked** and pick the unzipped folder.
 
             Your profile stays on your own machine. Nothing is sent anywhere
-            unless you set up Notion logging or AI drafting yourself.
+            unless you set up AI drafting yourself, and then only to the
+            provider you chose, on your own API key.
