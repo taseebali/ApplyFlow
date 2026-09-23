@@ -12,7 +12,8 @@ import { useFormPlan } from '@/components/FieldMirror';
 import { useActiveTab } from '@/components/useActiveTab';
 import type { JumpToFieldMessage } from '@/entrypoints/content';
 import { frameOf, localId, type PlannedField } from '@/lib/field-plan';
-import { GearIcon } from '@/components/icons';
+import { GearIcon, TrackerIcon } from '@/components/icons';
+import { openDashboard } from '@/lib/dashboard-page';
 import { getSettings } from '@/lib/settings';
 import type { GroupId } from '@/lib/setup-groups';
 import './App.css';
@@ -105,6 +106,21 @@ function App() {
                 <MagnifyingGlassIcon size={15} weight="light" aria-hidden="true" />
                 <span>Search or run a command</span>
                 <kbd>⌘K</kbd>
+              </button>
+              {/*
+                The dashboard, one click from the main screen. It lived only
+                inside Setup → Application history, which is two clicks behind
+                a gear — a place nobody finds something they did not already
+                know was there.
+              */}
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => void openDashboard()}
+                aria-label="Open the dashboard"
+                title="Every application you have sent"
+              >
+                <TrackerIcon />
               </button>
               <button type="button" className="icon-btn" onClick={() => openSetup()} aria-label="Settings">
                 <GearIcon />

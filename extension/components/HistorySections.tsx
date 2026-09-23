@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { clearFieldOverrides, getFieldOverrides, type FieldOverrides } from '@/lib/field-overrides';
 import { getSnapshots, restoreSnapshot, type ProfileSnapshot } from '@/lib/storage';
+import { openDashboard } from '@/lib/dashboard-page';
 import { clearRecords, listRecords } from '@/lib/application-db';
 import { summarize, toCsv, type ApplicationRecord, type ApplicationStats } from '@/lib/application-record';
 
@@ -180,15 +181,7 @@ export function ApplicationHistorySection() {
         <button
           type="button"
           className="btn btn-primary"
-          // WXT types getURL against the entrypoints it compiles. The
-          // dashboard is copied into public/ by scripts/bundle-dashboard.mjs
-          // and is served all the same, so the path is asserted rather than
-          // inferred.
-          onClick={() =>
-            void browser.tabs.create({
-              url: browser.runtime.getURL('/dashboard/index.html' as '/sidepanel.html'),
-            })
-          }
+          onClick={() => void openDashboard()}
         >
           Open the dashboard
         </button>
