@@ -24,7 +24,7 @@ describe('detectResumeFormat', () => {
 
 describe('extractResumeText', () => {
   it('reads a plain text file and normalizes whitespace without losing line breaks', async () => {
-    const file = new File(['Jordan   Ali\r\n\r\n\r\n\r\nEXPERIENCE  \n  Engineer '], 'cv.txt');
+    const file = new File(['Jordan   Avery\r\n\r\n\r\n\r\nEXPERIENCE  \n  Engineer '], 'cv.txt');
     await expect(extractResumeText(file)).resolves.toBe('Jordan Avery\n\nEXPERIENCE\nEngineer');
   });
 

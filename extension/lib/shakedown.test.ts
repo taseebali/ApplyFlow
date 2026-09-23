@@ -17,7 +17,7 @@ import { EMPTY_PROFILE } from './schema';
  * path still produces the right page when the pieces are put back together.
  */
 
-const TEXT = readFileSync(join(__dirname, '..', 'fixtures', 'real-resume.txt'), 'utf8');
+const TEXT = readFileSync(join(__dirname, '..', 'fixtures', 'sample-resume.txt'), 'utf8');
 
 /** An AI-agents internship, in the shape the panel scrapes them. */
 const POSTING = `

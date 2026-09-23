@@ -8,7 +8,8 @@
     "A German-language form on a German ATS — the primary user's actual case, and the first fixture that tests the German aliases against a real page rather than labels we wrote ourselves.",
     "First and last name have visually-hidden (sr-only) labels and rely on placeholders; the inputs themselves are visible, so they must still be filled.",
     "Labels carry a trailing '(erforderlich)' inside an sr-only span, so the matched text is 'e mail erforderlich' rather than 'e mail'.",
-    "'Gehaltsvorstellung' is required here and originally had no schema field, so it was left blank. Adding logistics.salaryExpectation raised this fixture from 5/6 to 6/6 — the change that motivated the field."
+    "'Gehaltsvorstellung' is required here and originally had no schema field, so it was left blank. Adding logistics.salaryExpectation raised this fixture from 5/6 to 6/6 — the change that motivated the field.",
+    "The phone field's placeholder digits were changed to +49 30 1234 5678. Personio's own placeholder was a dummy mobile number, but scripts/check-no-secrets.mjs cannot tell a site's dummy from a captured real one — and a capture is exactly where a real number leaks. The shape is unchanged, which is all matching reads."
   ],
   "expect": {
     "field-first_name": "contact.firstName",

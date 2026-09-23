@@ -40,7 +40,7 @@ describe('adaptToField', () => {
   it('does not throw when the page declares a malformed pattern', () => {
     // A broken pattern attribute used to throw out of the whole fill.
     const el = input({ type: 'tel', pattern: '+?[0-9]+' });
-    expect(adaptToField('+49 176', el)).toBe('+49 176');
+    expect(adaptToField('+49 30', el)).toBe('+49 30');
   });
 
   it('leaves a phone number alone when the form already accepts it', () => {

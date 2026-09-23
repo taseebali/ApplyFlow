@@ -18,6 +18,49 @@ const PATTERNS = [
   /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/,
 ];
 
+/*
+ * Personal data that must not be committed.
+ *
+ * A resume fixture with the author's real name, mobile number and email was
+ * committed and pushed to a public repository, and shipped to reviewers inside
+ * the Firefox sources zip on every release. The fixtures README already said
+ * "No personal data. These files are committed and public" — this is what
+ * makes that something other than a sentence.
+ *
+ * Shapes rather than a blocklist of one person's details: a German mobile
+ * number and a real mailbox at a consumer provider are what a captured form or
+ * a pasted resume actually leaks.
+ */
+const PII_PATTERNS = [
+  [/\+49\s?1[5-7][0-9](?:\s?[0-9]){7,9}/, 'a German mobile number'],
+  [/[A-Za-z0-9._%+-]+@(?:gmail|googlemail|outlook|hotmail|yahoo|gmx|web)\.[a-z.]{2,}/i, 'a personal email address'],
+];
+
+/** Source files people actually author, rather than the build output. */
+const SOURCE_DIRS = ['lib', 'components', 'entrypoints', 'fixtures', 'scripts'];
+
+function checkNoPersonalData() {
+  for (const dir of SOURCE_DIRS) {
+    let entries;
+    try {
+      entries = files(dir);
+    } catch {
+      continue; // A directory that does not exist here is not a failure.
+    }
+    for (const path of entries) {
+      if (!/\.(ts|tsx|js|mjs|json|txt|html|md)$/.test(path)) continue;
+      const text = readFileSync(path, 'utf8');
+      for (const [pattern, what] of PII_PATTERNS) {
+        if (pattern.test(text)) {
+          // The match itself is not printed: this runs in CI logs.
+          console.error(`Looks like ${what} in ${path}. Fixtures and tests are public — use an invented one.`);
+          failed = true;
+        }
+      }
+    }
+  }
+}
+
 let failed = false;
 
 /**
@@ -43,6 +86,7 @@ function checkNoCommittedKeys() {
 }
 
 checkNoCommittedKeys();
+checkNoPersonalData();
 
 function* files(dir) {
   for (const entry of readdirSync(dir)) {

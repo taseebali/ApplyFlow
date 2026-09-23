@@ -1,0 +1,45 @@
+JORDAN AVERY
+Berlin, Germany | +49 30 12345678 | jordan.avery@example.com
+linkedin.com/in/jordanavery | github.com/jordanavery
+SUMMARY
+Computer Science student (Hochschule Berlin) who builds real agent systems, not prompt demos: tool-calling loops, cost-
+bounded orchestration, and evaluation harnesses that measure whether the agent is actually right. Python-first, currently
+building TypeScript fluency. Ships independently — scopes a problem, builds a working system, measures it, and iterates
+without waiting on direction.
+RELEVANT EXPERIENCE & PROJECTS
+Repo Triage Agent — LLM Agent for Automated Workflow Triage
+● Built an autonomous agent using the Anthropic API's tool-use protocol: the model plans, calls tools (file search,
+ripgrep, bounded file reads), observes results, and iterates — with a hard-capped tool-call budget enforced in code,
+not just the prompt, to keep runs cost-bounded.
+● Built an evaluation harness scoring the agent against 10 real, verified bug fixes: 90% file-match rate, 70% root-
+cause match rate, at an average of 7.4 tool calls per case — measured, not assumed.
+● Debugged real agent failure modes directly: malformed JSON output, runaway tool-call loops, path-traversal risks
+in file access — and fixed each with a code-level guardrail, not a prompt patch.
+● Containerized with Docker for reproducible, one-command deployment.
+github.com/jordanavery/repo-triage
+VERDICT — AutoML Decision-Intelligence Platform
+● Built an end-to-end AutoML pipeline (scikit-learn) automating preprocessing, training, and evaluation across
+multiple models, replacing manual, ad-hoc comparisons with a repeatable system.
+● Implemented SHAP-based explainability, counterfactual explanations, and cost-aware model selection, mapping
+raw predictions to business decisions and recommended actions.
+● Live demo: huggingface.co/spaces/jordanavery/verdict
+github.com/jordanavery/verdict
+Real-Time Vision & AI Narration System
+● Built an end-to-end automation pipeline chaining real-time YOLOv8 object detection, BLIP scene captioning, and
+text-to-speech into a single working system.
+● Optimized GPU inference to 8-9 FPS at 35-40ms detection latency, cutting GPU memory use to 0.7GB via
+selective captioning and mixed-precision (FP16) inference.
+github.com/jordanavery/real-time-vision-system
+SKILLS
+● AI & Automation: LLM APIs (Anthropic, OpenAI), tool-calling / agent orchestration, prompt engineering,
+evaluation harness design
+● Languages: Python (primary), TypeScript (beginner, actively building fluency), JavaScript, SQL
+● Technical: FastAPI, Docker, REST APIs, Git, Linux
+● Data & ML: PyTorch, scikit-learn, Pandas, NumPy, model evaluation
+EDUCATION
+B.Sc. Computer Science | Hochschule Berlin | April 2024 – Present
+Grade: 1.6 (German scale — top-tier academic performance)
+CERTIFICATIONS
+● Supervised Machine Learning: Regression and Classification — DeepLearning.AI, March 2025
+● Database Design — DataCamp, June 2026
+● Intermediate SQL — DataCamp, June 2026

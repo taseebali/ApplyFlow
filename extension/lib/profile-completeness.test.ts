@@ -9,7 +9,7 @@ const filled: Profile = {
     firstName: 'Jordan',
     lastName: 'Avery',
     email: 'a@example.com',
-    phone: '+49 1700000000',
+    phone: '+49 3000000000',
     city: 'Berlin',
     country: 'Germany',
   },

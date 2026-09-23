@@ -364,14 +364,14 @@ describe('links and certifications, as real resumes print them', () => {
 /**
  * The real thing, not a fixture written to pass.
  *
- * fixtures/real-resume.txt is the resume page of an application actually sent,
+ * fixtures/sample-resume.txt is the resume page of an application actually sent,
  * extracted from its PDF. Three separate faults only showed up here: Word's
  * default bullet glyph was missing from the list, the heading "RELEVANT
  * EXPERIENCE & PROJECTS" matched no section pattern, and a bullet ending in a
  * URL swallowed the next project's title.
  */
 describe('a real resume, end to end', () => {
-  const TEXT = readFileSync(join(__dirname, '..', 'fixtures', 'real-resume.txt'), 'utf-8');
+  const TEXT = readFileSync(join(__dirname, '..', 'fixtures', 'sample-resume.txt'), 'utf-8');
 
   it('finds every project, with its link', () => {
     const projects = parseResumeHeuristic(TEXT).projects;
