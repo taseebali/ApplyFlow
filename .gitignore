@@ -8,3 +8,6 @@ graphify-out/
 # The dashboard, built and copied into the extension by
 # extension/scripts/bundle-dashboard.mjs. Generated on every build.
 extension/public/dashboard/
+
+# The built extension, copied into the npm package by packaging/npm/build.mjs.
+packaging/npm/extension/

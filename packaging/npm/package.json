@@ -1,0 +1,34 @@
+{
+  "name": "applyflow",
+  "version": "1.0.0",
+  "description": "Fill job applications from a profile that stays on your machine. Unpacks the built browser extension, ready to load.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "applyflow": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "extension",
+    "README.md"
+  ],
+  "keywords": [
+    "job-application",
+    "autofill",
+    "browser-extension",
+    "chrome-extension",
+    "ats",
+    "resume"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jordanavery/ApplyFlow-autofiller.git"
+  },
+  "homepage": "https://github.com/jordanavery/ApplyFlow-autofiller#readme",
+  "bugs": {
+    "url": "https://github.com/jordanavery/ApplyFlow-autofiller/issues"
+  }
+}

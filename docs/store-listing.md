@@ -1,5 +1,11 @@
 # Chrome Web Store submission
 
+> **Not the current plan.** Distribution is `npx applyflow` and the zip on each
+> GitHub release — see packaging/npm. This is kept because the permission
+> justifications and data-handling disclosures below are the clearest statement
+> of what the extension does with what, and because a store listing is a
+> decision that can be revisited. Nothing here is scheduled.
+
 Everything a reviewer asks for, written down so it is not improvised at
 submission time. Nothing here is submitted automatically — publishing is a
 deliberate act, and the account owner does it.
@@ -57,7 +63,8 @@ and why the extension cannot work without it.
 
 ## Before submitting
 
-- [ ] Publish the privacy policy at a stable URL and put it in the listing.
+- [x] Publish the privacy policy at a stable URL and put it in the listing.
+      Written: docs/privacy-policy.md.
 - [ ] Screenshots: the side panel next to a real application, the setup wizard,
       the drafting card. No personal data visible in any of them.
 - [ ] Confirm `npm run build` passes, including the bundled-secret check. The

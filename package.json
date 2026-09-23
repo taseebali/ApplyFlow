@@ -1,0 +1,10 @@
+{
+  "name": "applyflow-repo",
+  "private": true,
+  "description": "Workspace root: build and packaging scripts that span extension/ and dashboard/.",
+  "type": "module",
+  "scripts": {
+    "pack:npm": "node packaging/npm/build.mjs",
+    "test": "npm test --prefix extension && npm test --prefix dashboard"
+  }
+}

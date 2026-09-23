@@ -23,27 +23,59 @@ Your profile is stored locally (`chrome.storage.local`). Data leaves your comput
 
 ## Getting started
 
-The extension source lives in [`extension/`](extension).
+```bash
+npx applyflow
+```
+
+That unpacks the built extension and prints where. Then open
+`chrome://extensions` (or `brave://extensions`), turn on **Developer mode**,
+click **Load unpacked**, and pick that folder.
+
+The zip attached to each [release](https://github.com/jordanavery/ApplyFlow-autofiller/releases)
+is the same build, if you would rather not use npm. Chrome does not let a
+script add an extension to your browser unless it came from the Web Store, so
+those clicks are yours to make either way.
+
+Click the toolbar icon to open the side panel. The first time it opens, with no
+profile saved yet, it walks you through a short guided setup (AI drafting,
+resume import, contact info, work history, education, projects, languages,
+saved answers, job preferences, documents) — every step can be skipped. After
+that, the panel opens straight into a compact daily view of action cards ("Fill
+this page", "Attach documents", "Draft answers"); the gear icon in the header
+reopens the same setup sections as plain tabs whenever you need to change
+something, and the icon beside it opens the dashboard.
+
+### Building it yourself
 
 ```bash
 cd extension
 npm install
+npm install --prefix ../dashboard   # the dashboard is bundled into the extension
 npm run build
 ```
 
-Then load `extension/.output/chrome-mv3` as an unpacked extension:
-
-1. Open `chrome://extensions` (or `brave://extensions`)
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select `extension/.output/chrome-mv3`
-
-Click the toolbar icon to open the side panel. The first time it opens, with no profile saved yet, it walks you through a short guided setup (AI drafting, resume import, contact info, work history, education, projects, languages, saved answers, job preferences, documents) — every step can be skipped. After that, the panel opens straight into a compact daily view of action cards ("Fill this page", "Attach documents", "Draft answers"); the gear icon in the header reopens the same setup sections as plain tabs whenever you need to change something.
+The output is `extension/.output/chrome-mv3`, which is what both the npm
+package and the release zip carry.
 
 Run the test suite with `npm test` (Vitest) from `extension/`. The dashboard is
-a separate project with its own: `cd dashboard && npm install && npm test`, plus
+a separate project with its own: `cd dashboard && npm test`, plus
 `npm run check:mirror`, which fails if the types the two projects copy between
 each other have drifted apart.
 
 ## Tech stack
 
 [WXT](https://wxt.dev) + React + TypeScript, Manifest V3, Chrome side panel API.
+
+## Privacy
+
+Your profile, your documents and your application history are held by your own
+browser on your own machine. There is no server, no account, no analytics and
+no telemetry. Data leaves your computer only when you press a button that says
+it will, and only to the AI provider you configured with your own key — or
+nowhere at all, with [Ollama](https://ollama.com) running locally.
+
+Full policy: [docs/privacy-policy.md](docs/privacy-policy.md).
+
+## Licence
+
+[MIT](LICENSE).

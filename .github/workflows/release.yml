@@ -10,10 +10,17 @@ on:
 
 permissions:
   contents: write
+  # npm provenance signs the package against this workflow run, which is what
+  # lets anyone verify the tarball on npm was built from this tag.
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Job level, not step level: a step's own `env:` block is not in scope for
+    # that step's `if:`, so the guard below would never see the token.
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,6 +65,17 @@ jobs:
         working-directory: extension
         run: npm run zip
 
+      # npm is the second way to get it, and the one that needs no browsing to
+      # a releases page: `npx applyflow` unpacks the same build. Skipped
+      # silently when no NPM_TOKEN is configured, so a fork's tag still cuts a
+      # GitHub release rather than failing here.
+      - name: Publish to npm
+        if: env.NPM_TOKEN != ''
+        run: |
+          node packaging/npm/build.mjs
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          npm publish packaging/npm --provenance --access public
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -66,9 +84,20 @@ jobs:
           body: |
             ## Install
 
-            1. Download `applyflow-*-chrome.zip` below and unzip it.
-            2. Open `chrome://extensions` (or `brave://extensions`) and turn on **Developer mode**.
-            3. Click **Load unpacked** and pick the unzipped folder.
+            ```
+            npx applyflow
+            ```
+
+            Or download `applyflow-*-chrome.zip` below and unzip it.
+
+            Then:
+
+            1. Open `chrome://extensions` (or `brave://extensions`) and turn on **Developer mode**.
+            2. Click **Load unpacked** and pick the folder.
+
+            Chrome does not allow an extension to be installed by a script
+            unless it came from the Web Store, so those clicks are yours to
+            make whichever way you got the folder.
 
             Your profile stays on your own machine. Nothing is sent anywhere
             unless you set up AI drafting yourself, and then only to the
