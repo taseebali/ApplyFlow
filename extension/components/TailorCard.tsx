@@ -22,9 +22,13 @@ const LABELS: Record<What, string> = {
 
 /**
  * How many model requests each choice costs, so the price is visible before it
- * is paid. Selecting from the bank is local and free; ranking the shortlist and
- * writing a letter are one request each, and a letter on its own skips the
- * ranking because it does not read the ordering.
+ * is paid.
+ *
+ * One either way, which is what lets this stay a flat number: with a bank the
+ * request ranks a shortlist that already exists, and without one it writes the
+ * bullets for this posting and no ranking call follows. A letter is one more,
+ * and a letter on its own skips the ranking because it does not read the
+ * ordering.
  */
 const REQUESTS: Record<What, number> = { resume: 1, letter: 1, both: 2 };
 
@@ -153,8 +157,9 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
             ))}
           </div>
           <p className="hint">
-            Nothing is sent until you choose. Picking the wording for a resume happens on this machine and costs
-            nothing; ranking it for this posting and writing a letter are one request each.
+            Nothing is sent until you choose. With a tailoring bank the wording is picked on this machine for
+            nothing, and only ranking it for this posting costs a request; without one the bullets are written
+            for this posting instead, which is the same single request. A letter is one more.
           </p>
 
           {status.kind === 'error' && status.message.includes('bank') && (

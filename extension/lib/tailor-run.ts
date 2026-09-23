@@ -1,5 +1,6 @@
 import { asProse, ModelReasoned } from './model-output';
 import { getBank } from './bullet-bank';
+import { tailorFromProfile } from './direct-tailor';
 import { getProfile } from './storage';
 import { getSettings } from './settings';
 import { runPrompt } from './llm-client';
@@ -60,27 +61,52 @@ export async function tailorResume(input: {
   const { jobDescription, family = null, families = [], maxPerSource = 3, rank = true } = input;
 
   const [profile, bank, settings] = await Promise.all([getProfile(), getBank(), getSettings()]);
-  if (!bank || bank.variants.length === 0) {
-    throw new Error('No tailoring bank yet. Generate one under Setup → Tailoring bank.');
-  }
+  const hasBank = Boolean(bank && bank.variants.length > 0);
 
-  const angles = families.length > 0 ? anglesForFamily(families, family) : DEFAULT_ANGLES;
-  const candidates = shortlist({ jobDescription, bank: bank.variants, family, angles });
-
-  // Relevance is the model's judgement; without one, term overlap already
-  // ordered the shortlist, so the feature degrades rather than disappears.
-  let ordered = candidates;
+  /*
+   * Two routes to the same shortlist.
+   *
+   * With a bank, selection is free: the writing already happened, so this is
+   * term overlap plus one small ranking call. Without one, the bullets are
+   * written for this posting in a single request — which is the whole of the
+   * cost, and is why no ranking call follows it. The variants are the same
+   * shape either way, so everything below this point is identical.
+   *
+   * A missing bank used to be a hard error telling the user to go and generate
+   * one first. Nothing about tailoring actually required it: every fact a
+   * bullet can contain is in the profile.
+   */
+  let candidates: BulletVariant[];
   let offline = true;
-  if (rank && settings.llm.backend) {
-    try {
-      const reply = await runPrompt(buildRankingPrompt(jobDescription, candidates), settings.llm);
-      ordered = applyRanking(candidates, parseRanking(reply));
-      offline = false;
-    } catch {
-      // A ranking failure is not worth losing the resume over.
-      ordered = candidates;
+  let variantPool: BulletVariant[];
+
+  if (hasBank) {
+    const angles = families.length > 0 ? anglesForFamily(families, family) : DEFAULT_ANGLES;
+    candidates = shortlist({ jobDescription, bank: bank!.variants, family, angles });
+    variantPool = bank!.variants;
+
+    // Relevance is the model's judgement; without one, term overlap already
+    // ordered the shortlist, so the feature degrades rather than disappears.
+    if (rank && settings.llm.backend) {
+      try {
+        const reply = await runPrompt(buildRankingPrompt(jobDescription, candidates), settings.llm);
+        candidates = applyRanking(candidates, parseRanking(reply));
+        offline = false;
+      } catch {
+        // A ranking failure is not worth losing the resume over.
+      }
     }
+  } else {
+    const direct = await tailorFromProfile(profile, jobDescription, settings.llm);
+    // Already written against this posting, and already in the order the model
+    // returned them. Ranking what was just written for the job would be paying
+    // twice to ask the same question.
+    candidates = direct.variants;
+    variantPool = direct.variants;
+    offline = false;
   }
+
+  const ordered = candidates;
 
   // Variety and per-role limits are not matters of judgement, so they are
   // applied after the model and override it.
@@ -90,7 +116,7 @@ export async function tailorResume(input: {
   const profileText = [
     ...profile.workHistory.map((w) => bulletsToText(w.bullets)),
     ...profile.projects.map((p) => `${bulletsToText(p.bullets)} ${p.techStack}`),
-    ...bank.variants.map((v) => v.text),
+    ...variantPool.map((v) => v.text),
   ].join('\n');
 
   return {
