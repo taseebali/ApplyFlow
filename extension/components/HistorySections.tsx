@@ -169,9 +169,30 @@ export function ApplicationHistorySection() {
         )
       )}
 
-      {/* No link to the dashboard: it is not deployed anywhere, and a button
-          opening a 404 is worse than no button. The CSV below is how the full
-          history leaves the panel until there is a host to point at. */}
+      {/*
+        The dashboard is bundled into the extension rather than hosted, so this
+        opens whether or not anything has been applied for yet and whether or
+        not this is a release build. It used to be absent entirely: there was
+        no host to point at, and a button opening a 404 is worse than no
+        button.
+      */}
+      <div className="setup-footer mt-3">
+        <button
+          type="button"
+          className="btn btn-primary"
+          // WXT types getURL against the entrypoints it compiles. The
+          // dashboard is copied into public/ by scripts/bundle-dashboard.mjs
+          // and is served all the same, so the path is asserted rather than
+          // inferred.
+          onClick={() =>
+            void browser.tabs.create({
+              url: browser.runtime.getURL('/dashboard/index.html' as '/sidepanel.html'),
+            })
+          }
+        >
+          Open the dashboard
+        </button>
+      </div>
 
       {stats && stats.total > 0 && (
         <div className="setup-footer mt-3">

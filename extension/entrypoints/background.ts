@@ -279,6 +279,41 @@ export default defineBackground(() => {
   });
 
   /*
+   * The dashboard again, this time as one of our own pages.
+   *
+   * The same dashboard build is bundled into the extension and opened at
+   * chrome-extension://<id>/dashboard/index.html. A message from an extension
+   * page never reaches `onMessageExternal` — that listener is only for other
+   * origins — so it arrives here, and it is gated the same way drafting is:
+   * our id, no tab, and a URL inside the extension. A content script always
+   * has `sender.tab`, so a page cannot dress itself up as this.
+   *
+   * `__dashboard` marks the message so it is not confused with the panel's own
+   * traffic, which shares this listener.
+   */
+  browser.runtime.onMessage.addListener(
+    (message: DashboardRequest & { __dashboard?: boolean }, sender, sendResponse: (r: DashboardResponse) => void) => {
+      if (!message?.__dashboard) return undefined;
+
+      const fromOurPage =
+        sender.id === browser.runtime.id &&
+        sender.tab === undefined &&
+        (sender.url?.startsWith(browser.runtime.getURL('/')) ?? false);
+
+      if (!fromOurPage) {
+        sendResponse({ ok: false, error: 'Not an allowed origin.' });
+        return true;
+      }
+
+      void handleDashboardRequest(message, { list: listRecords, get: getRecord, patch: patchRecord })
+        .then(sendResponse)
+        .catch(() => sendResponse({ ok: false, error: 'Could not read applications.' }));
+
+      return true;
+    }
+  );
+
+  /*
    * The dashboard asks; the extension answers.
    *
    * The dashboard is a static page with no storage and no server behind it, so

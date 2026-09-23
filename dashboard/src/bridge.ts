@@ -162,6 +162,20 @@ function noReceiver(message: string | undefined): boolean {
   return /receiving end does not exist|could not establish connection|invalid extension id/i.test(message ?? '');
 }
 
+/**
+ * Whether this page is being served from inside the extension itself.
+ *
+ * The same build runs in two places. Served from chrome-extension://<id>/
+ * it is one of the extension's own pages: `chrome.runtime.id` is set, the
+ * message goes to the ordinary `onMessage` listener rather than the external
+ * one, and it works in a release build — which trusts no external page at all.
+ * Served from the dev server it is a web page like any other and has to name
+ * the extension it is addressing.
+ */
+export function isExtensionPage(): boolean {
+  return typeof chrome !== 'undefined' && typeof chrome.runtime?.id === 'string' && location.protocol === 'chrome-extension:';
+}
+
 export function askExtension(request: DashboardRequest): Promise<DashboardResponse> {
   return new Promise((resolve, reject) => {
     if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
@@ -179,7 +193,7 @@ export function askExtension(request: DashboardRequest): Promise<DashboardRespon
       reject(new BridgeError({ kind: 'unreachable' }));
     }, TIMEOUT_MS);
 
-    chrome.runtime.sendMessage(EXTENSION_ID, request, (response?: DashboardResponse) => {
+    const reply = (response?: DashboardResponse) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -195,7 +209,13 @@ export function askExtension(request: DashboardRequest): Promise<DashboardRespon
         return;
       }
       resolve(response);
-    });
+    };
+
+    // Inside the extension the id is implicit; from the dev server it is the
+    // address. Passing our own id from an extension page would route to
+    // `onMessageExternal`, which never fires for the extension's own pages.
+    if (isExtensionPage()) chrome.runtime.sendMessage({ ...request, __dashboard: true }, reply);
+    else chrome.runtime.sendMessage(EXTENSION_ID, request, reply);
   });
 }
 

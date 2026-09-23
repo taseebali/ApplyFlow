@@ -4,3 +4,7 @@ applyflow-extension.pem
 
 # Knowledge-graph output from the graphify skill. Regenerated on demand.
 graphify-out/
+
+# The dashboard, built and copied into the extension by
+# extension/scripts/bundle-dashboard.mjs. Generated on every build.
+extension/public/dashboard/
