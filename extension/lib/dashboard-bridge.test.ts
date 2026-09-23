@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  handleDashboardRequest,
-  isAllowedOrigin,
-  readProperties,
-  toTransferable,
-} from './dashboard-bridge';
+import { handleDashboardRequest, readProperties, toTransferable } from './dashboard-bridge';
 import { emptyRecord } from './application-record';
 
 const record = emptyRecord({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1', hostname: 'x' });
@@ -14,29 +9,6 @@ const deps = {
   get: async (id: string) => (id === record.id ? record : null),
   patch: async () => {},
 };
-
-describe('isAllowedOrigin', () => {
-  it('accepts the local dev server, which is all a dev build trusts', () => {
-    // Tests run as a development build, so this is the whole list.
-    expect(import.meta.env.DEV).toBe(true);
-    expect(isAllowedOrigin('http://localhost:5174')).toBe(true);
-  });
-
-  it('trusts no host nobody has deployed', () => {
-    // The vercel.app subdomain this once listed was never registered, so the
-    // allowlist named a page any stranger could have claimed and served.
-    expect(isAllowedOrigin('https://applyflow-dashboard.vercel.app')).toBe(false);
-  });
-
-  it('refuses anything else, however close it looks', () => {
-    // externally_connectable already restricts who can send, but a second
-    // check here costs nothing and means a mistake in the manifest is not the
-    // only thing standing between a page and this data.
-    expect(isAllowedOrigin('http://localhost:5174.evil.com')).toBe(false);
-    expect(isAllowedOrigin('https://evil.com')).toBe(false);
-    expect(isAllowedOrigin('')).toBe(false);
-  });
-});
 
 describe('handleDashboardRequest', () => {
   it('lists applications', async () => {

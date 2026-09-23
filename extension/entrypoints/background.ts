@@ -9,7 +9,7 @@ import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/co
 import { rankFrames, type FrameReport } from '@/lib/frames';
 import { runBankGeneration } from '@/lib/bank-run';
 import type { TargetFamily } from '@/lib/target-families';
-import { handleDashboardRequest, isAllowedOrigin, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
+import { handleDashboardRequest, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
 import { getRecord, listRecords, patchRecord } from '@/lib/application-db';
 import { migrateApplicationLog } from '@/lib/application-migrate';
 
@@ -279,14 +279,17 @@ export default defineBackground(() => {
   });
 
   /*
-   * The dashboard again, this time as one of our own pages.
+   * The dashboard asks; the extension answers.
    *
-   * The same dashboard build is bundled into the extension and opened at
-   * chrome-extension://<id>/dashboard/index.html. A message from an extension
-   * page never reaches `onMessageExternal` — that listener is only for other
-   * origins — so it arrives here, and it is gated the same way drafting is:
-   * our id, no tab, and a URL inside the extension. A content script always
-   * has `sender.tab`, so a page cannot dress itself up as this.
+   * The dashboard is one of the extension's own pages, bundled in and opened
+   * at chrome-extension://<id>/dashboard/index.html, so this is the only way
+   * in. There is no `onMessageExternal` listener and no origin allowlist any
+   * more: the extension answers no outside page at all, in any build, which
+   * is a boundary that cannot be misconfigured because it does not exist.
+   *
+   * Gated the same way drafting is — our id, no tab, and a URL inside the
+   * extension. A content script always carries `sender.tab`, so a web page
+   * cannot dress itself up as this.
    *
    * `__dashboard` marks the message so it is not confused with the panel's own
    * traffic, which shares this listener.
@@ -306,34 +309,6 @@ export default defineBackground(() => {
       }
 
       void handleDashboardRequest(message, { list: listRecords, get: getRecord, patch: patchRecord })
-        .then(sendResponse)
-        .catch(() => sendResponse({ ok: false, error: 'Could not read applications.' }));
-
-      return true;
-    }
-  );
-
-  /*
-   * The dashboard asks; the extension answers.
-   *
-   * The dashboard is a static page with no storage and no server behind it, so
-   * every record it shows comes through here. Two gates, deliberately: the
-   * manifest's `externally_connectable` decides who may send at all, and this
-   * checks the origin again — a mistake in one should not be the only thing
-   * between a web page and an application history.
-   */
-  browser.runtime.onMessageExternal.addListener(
-    (request: DashboardRequest, sender, sendResponse: (response: DashboardResponse) => void) => {
-      if (!sender.origin || !isAllowedOrigin(sender.origin)) {
-        sendResponse({ ok: false, error: 'Not an allowed origin.' });
-        return false;
-      }
-
-      void handleDashboardRequest(request, {
-        list: listRecords,
-        get: getRecord,
-        patch: patchRecord,
-      })
         .then(sendResponse)
         .catch(() => sendResponse({ ok: false, error: 'Could not read applications.' }));
 

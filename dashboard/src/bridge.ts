@@ -7,13 +7,15 @@
  * of yours being on it: open it in a browser without the extension and it shows
  * nothing, because there is nothing there to show.
  *
+ * This build is served from inside the extension itself, at
+ * chrome-extension://<id>/dashboard/index.html, so the message is an ordinary
+ * same-extension one. There is no hosted copy and no origin allowlist: the
+ * extension answers no outside page at all, in any build.
+ *
  * The types below mirror lib/dashboard-bridge.ts in the extension. They are
  * copied rather than imported because this is a separate npm project; if you
  * change one, change both. `npm run check:mirror` fails when they drift.
  */
-
-/** Set by the pinned key in extension/wxt.config.ts. */
-export const EXTENSION_ID = 'jlfojkgndajebhpbcegdimapokhjpdik';
 
 export type ApplicationStatus = 'applied' | 'replied' | 'interview' | 'rejected' | 'offer';
 export const STATUSES: ApplicationStatus[] = ['applied', 'replied', 'interview', 'rejected', 'offer'];
@@ -131,12 +133,9 @@ export type ConnectionState =
   | { kind: 'ready' }
   /** Not a Chromium browser, or the page was opened straight off disk. */
   | { kind: 'no-runtime' }
-  /** Nothing answered on the extension id: absent, disabled, or a release
-   *  build, which lists no external page at all. */
+  /** Nothing answered: the worker is gone, or this page is being served from
+   *  somewhere that is not the extension. */
   | { kind: 'not-installed' }
-  /** Something answered and refused us — installed, but this origin is not on
-   *  its allowlist. Almost always the wrong port. */
-  | { kind: 'refused'; error: string }
   /** It began answering and then stopped. A worker that died mid-request. */
   | { kind: 'unreachable' };
 
@@ -163,22 +162,26 @@ function noReceiver(message: string | undefined): boolean {
 }
 
 /**
- * Whether this page is being served from inside the extension itself.
+ * Whether this page is being served from inside the extension.
  *
- * The same build runs in two places. Served from chrome-extension://<id>/
- * it is one of the extension's own pages: `chrome.runtime.id` is set, the
- * message goes to the ordinary `onMessage` listener rather than the external
- * one, and it works in a release build — which trusts no external page at all.
- * Served from the dev server it is a web page like any other and has to name
- * the extension it is addressing.
+ * True whenever it is doing its job. False on the Vite dev server, which is
+ * still useful for working on the layout — every connection state renders
+ * there — but cannot reach the extension, by design.
  */
 export function isExtensionPage(): boolean {
-  return typeof chrome !== 'undefined' && typeof chrome.runtime?.id === 'string' && location.protocol === 'chrome-extension:';
+  return (
+    typeof chrome !== 'undefined' &&
+    typeof chrome.runtime?.id === 'string' &&
+    // Guarded: this module is unit-tested outside a browser, where there is no
+    // `location` at all and reading it would throw rather than answer false.
+    typeof location !== 'undefined' &&
+    location.protocol === 'chrome-extension:'
+  );
 }
 
 export function askExtension(request: DashboardRequest): Promise<DashboardResponse> {
   return new Promise((resolve, reject) => {
-    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+    if (!isExtensionPage() || !chrome.runtime?.sendMessage) {
       reject(new BridgeError({ kind: 'no-runtime' }));
       return;
     }
@@ -204,18 +207,13 @@ export function askExtension(request: DashboardRequest): Promise<DashboardRespon
         reject(new BridgeError(noReceiver(failure) ? { kind: 'not-installed' } : { kind: 'unreachable' }));
         return;
       }
-      if (!response.ok && /origin/i.test(response.error)) {
-        reject(new BridgeError({ kind: 'refused', error: response.error }));
-        return;
-      }
       resolve(response);
     };
 
-    // Inside the extension the id is implicit; from the dev server it is the
-    // address. Passing our own id from an extension page would route to
-    // `onMessageExternal`, which never fires for the extension's own pages.
-    if (isExtensionPage()) chrome.runtime.sendMessage({ ...request, __dashboard: true }, reply);
-    else chrome.runtime.sendMessage(EXTENSION_ID, request, reply);
+    // No extension id: inside the extension it is implicit, and naming our own
+    // id would route to `onMessageExternal`, which never fires for the
+    // extension's own pages and no longer exists.
+    chrome.runtime.sendMessage({ ...request, __dashboard: true }, reply);
   });
 }
 

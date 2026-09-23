@@ -6,10 +6,8 @@
  * says what happened, why, and the one thing to do about it — a shared "could
  * not connect" would leave a person to guess between four different problems.
  */
-import { ArrowClockwise, Plugs, PlugsConnected, Warning } from '@phosphor-icons/react';
-import { EXTENSION_ID, type ConnectionState, type FailedState } from './bridge';
-
-const PORT = '5174';
+import { ArrowClockwise, Plugs, PlugsConnected } from '@phosphor-icons/react';
+import { type ConnectionState, type FailedState } from './bridge';
 
 export function Connection({ state, onRetry }: { state: ConnectionState; onRetry: () => void }) {
   // `ready` never reaches here — App renders the list instead — but narrowing
@@ -37,8 +35,8 @@ export function Connection({ state, onRetry }: { state: ConnectionState; onRetry
         Check again
       </button>
       <p className="hint" style={{ marginTop: 'var(--space-6)' }}>
-        Nothing on this page is stored here. It has no server, no database and no account — open it
-        without the extension and there is genuinely nothing to show.
+        Nothing on this page is stored here. It has no server, no database and no account — every
+        application it shows is read from the extension on this machine, as the page is drawn.
       </p>
     </main>
   );
@@ -47,15 +45,16 @@ export function Connection({ state, onRetry }: { state: ConnectionState; onRetry
 const CONTENT: Record<FailedState['kind'], () => React.ReactNode> = {
   'no-runtime': () => (
     <>
-      <h1>This browser cannot ask</h1>
+      <h1>Open this from the extension</h1>
       <p>
-        The dashboard reaches the extension over <code>chrome.runtime</code>, which only exists in
-        Chrome, Brave, Edge and other Chromium browsers — and only on a page served over http or
-        https.
+        The dashboard lives inside ApplyFlow and reads your applications straight from it. Served
+        from anywhere else — a dev server, a file on disk — there is nothing for it to read.
       </p>
       <p>
-        If this page was opened from a file on disk, serve it instead: <code>npx vite</code> from the{' '}
-        <code>dashboard</code> folder.
+        Open it from the panel: the <strong>dashboard icon</strong> in the header, next to the gear.
+        Its real address is{' '}
+        <code>chrome-extension://&lt;extension-id&gt;/dashboard/index.html</code>, which you can
+        bookmark.
       </p>
     </>
   ),
@@ -63,40 +62,13 @@ const CONTENT: Record<FailedState['kind'], () => React.ReactNode> = {
   'not-installed': () => (
     <>
       <h1>ApplyFlow is not answering</h1>
-      <p>Nothing responded on this extension id. That is one of three things:</p>
-      <ol>
-        <li>The extension is not installed in this browser.</li>
-        <li>
-          It is installed but switched off — check <code>chrome://extensions</code>.
-        </li>
-        <li>
-          It is a release build. A published ApplyFlow deliberately trusts no external page at all,
-          so only a development build answers this dashboard.
-        </li>
-      </ol>
-      <p className="hint">
-        Expected id <span className="mono">{EXTENSION_ID}</span>
-      </p>
-    </>
-  ),
-
-  refused: () => (
-    <>
-      <h1>ApplyFlow refused this page</h1>
       <p>
-        The extension is installed and it answered — it just does not trust this address. It accepts{' '}
-        <code>http://localhost:{PORT}</code> and nothing else.
+        This page is inside the extension but nothing replied, which usually means the extension was
+        reloaded or updated while this tab stayed open.
       </p>
       <p>
-        If the dev server moved to another port, stop it and start it again on {PORT}; if you are
-        running it somewhere else on purpose, that origin has to be added to both{' '}
-        <code>externally_connectable</code> in <code>extension/wxt.config.ts</code> and{' '}
-        <code>ALLOWED_ORIGINS</code> in <code>extension/lib/dashboard-bridge.ts</code>.
-      </p>
-      <p className="hint">
-        <Warning size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 4 }} />
-        Only ever list a host you have registered. A listed origin can read every application on
-        every machine the extension is installed on.
+        Reload the tab. If that does not do it, check ApplyFlow is still enabled under{' '}
+        <code>chrome://extensions</code>.
       </p>
     </>
   ),

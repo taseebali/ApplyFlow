@@ -4,9 +4,7 @@ import { version } from './package.json' with { type: 'json' };
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
-  // A function, not an object, so `externally_connectable` can be left out of a
-  // release build entirely — see the bottom of this file.
-  manifest: ({ mode }) => ({
+  manifest: () => ({
     name: 'ApplyFlow',
     description:
       'Fill job applications from a profile that stays on your machine: autofill, document attach, AI drafts, and a dashboard of everything you have applied to.',
@@ -42,27 +40,12 @@ export default defineConfig({
     /*
      * Pins the extension ID.
      *
-     * Without this, an unpacked extension gets a new ID on every load, and
-     * `externally_connectable` is keyed on that ID — so the dashboard would
-     * lose its connection to the extension on every rebuild. The public half of
-     * the key pair is safe to commit; the private half is in
-     * applyflow-extension.pem, which is gitignored.
+     * Without this an unpacked extension gets a new ID on every load, and the
+     * dashboard's own address — chrome-extension://<id>/dashboard/index.html —
+     * would change with it, so every bookmark and open tab would go stale on
+     * each rebuild. The public half of the key pair is safe to commit; the
+     * private half is in applyflow-extension.pem, which is gitignored.
      */
     key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlc+LvdEbZopZjVow1ELnZFOYeHLk81VIN+rNt51eNzckPDz4Rp8nSfQyx3iMaat5mlqJ6A+s0mtK1HWoWJHsgluyoPmfw+11TAiI8VTuFTXgRLuW/Uvr2QXWjj2nqxVHyjQ33uYk2WDKLWJACv70in+zxm73HJbsVsof9/3LNvQXCJnSfE+mz5GFUV8OCNcYe+pVIcKQ43jLW+4D+YoAHSksohZiDIzg7fojQw/B03Sa0dwX4LyHcmqRvlSN2qOOP4YLamxsPxtkkZ/doZSrFHIYf0CTvotEJ+OmG6hcW9BfyN4tkCr50i86BIpxtSYhqloZl4JJj/a10u8PwyJNqwIDAQAB',
-
-    /*
-     * Which pages may message this extension. Nothing else can, whatever it
-     * sends. The list matches ALLOWED_ORIGINS in lib/dashboard-bridge.ts; both
-     * exist so that a mistake in either one alone is not enough.
-     *
-     * Development only, and absent from a release manifest. A listed origin is
-     * trusted by every installed copy: anyone who can serve that host can read
-     * the user's whole application history, documents included. Listing a host
-     * before it is registered hands that to whoever claims it first, so a
-     * production origin goes in here only once it is deployed and owned.
-     */
-    ...(mode === 'development'
-      ? { externally_connectable: { matches: ['http://localhost:5174/*'] } }
-      : {}),
   }),
 });

@@ -60,10 +60,19 @@ describe('wordingOutcomes', () => {
 
 type Callback = (response?: unknown) => void;
 
+/**
+ * The dashboard only ever runs as an extension page now, so the stub has to
+ * look like one: an id on `chrome.runtime`, a chrome-extension: protocol, and
+ * `sendMessage(request, callback)` with no extension id in front of it.
+ */
 function fakeChrome(behaviour: { lastError?: string; response?: unknown; silent?: boolean }) {
+  // The tests run in node, which has no `location`; the page always has one,
+  // and its protocol is half of what says this is an extension page.
+  vi.stubGlobal('location', { protocol: 'chrome-extension:' });
   const runtime = {
+    id: 'jlfojkgndajebhpbcegdimapokhjpdik',
     lastError: undefined as { message: string } | undefined,
-    sendMessage: (_id: string, _request: unknown, callback: Callback) => {
+    sendMessage: (_request: unknown, callback: Callback) => {
       if (behaviour.silent) return;
       runtime.lastError = behaviour.lastError ? { message: behaviour.lastError } : undefined;
       callback(behaviour.response);
@@ -74,12 +83,22 @@ function fakeChrome(behaviour: { lastError?: string; response?: unknown; silent?
 
 afterEach(() => {
   delete (globalThis as { chrome?: unknown }).chrome;
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe('askExtension', () => {
   it('says the browser cannot ask when there is no runtime at all', async () => {
     delete (globalThis as { chrome?: unknown }).chrome;
+    await expect(askExtension({ type: 'list' })).rejects.toMatchObject({ state: { kind: 'no-runtime' } });
+  });
+
+  it('refuses to ask at all when served from somewhere that is not the extension', async () => {
+    // The dev server is the case: a page there has no chrome.runtime.id, and
+    // pretending otherwise is what used to end in "ApplyFlow refused this
+    // page" — an error about an allowlist that no longer exists.
+    fakeChrome({ response: { ok: true, records: [] } });
+    (globalThis as { chrome?: { runtime: { id?: string } } }).chrome!.runtime.id = undefined;
     await expect(askExtension({ type: 'list' })).rejects.toMatchObject({ state: { kind: 'no-runtime' } });
   });
 
@@ -90,11 +109,6 @@ describe('askExtension', () => {
     await expect(askExtension({ type: 'list' })).rejects.toMatchObject({
       state: { kind: 'not-installed' },
     });
-  });
-
-  it('separates a refusal from an absence, because they ask different things of the reader', async () => {
-    fakeChrome({ response: { ok: false, error: 'Not an allowed origin.' } });
-    await expect(askExtension({ type: 'list' })).rejects.toMatchObject({ state: { kind: 'refused' } });
   });
 
   it('does not read an ordinary failure as a refusal', async () => {

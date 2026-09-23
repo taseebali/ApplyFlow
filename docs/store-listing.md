@@ -17,7 +17,7 @@ and why the extension cannot work without it.
 | `https://openrouter.ai/*`, `https://api.anthropic.com/*`, `https://api.openai.com/*`, `https://api.groq.com/*` | Optional AI answer drafting, using the user's own API key with the provider they choose. Only called when the user presses "Draft answers". |
 | `http://localhost:11434/*` | Optional local drafting via Ollama, so a user can keep everything on their own machine. |
 | `optional_host_permissions: https://*/*` | Only for a self-hosted or less common OpenAI-compatible endpoint. Nothing is granted until the user enters their own URL and presses the button; Chrome then prompts for that single host. HTTPS only — the request carries an API key. |
-| `externally_connectable` | Not present in a release build. It exists only in a development build, where it lists `http://localhost:5174/*` — the dashboard running on the developer's own machine — so that page can ask the extension for the user's own application records. The dashboard is not deployed, and no origin is listed speculatively: a listed origin can read the user's application history, so it is added only once there is a real, registered host to name. A shipped build answers no external page at all. |
+
 
 ## Single purpose
 
@@ -35,12 +35,12 @@ and why the extension cannot work without it.
     "Draft answers" or import a resume with AI parsing enabled.
 - Nothing is sent to any endpoint operated by this project.
 - **The dashboard changes none of this.** It replaced the old Notion tracker,
-  and it is not a destination: it is a static page with no server, no
-  database, and no account, and it holds nothing. It asks the extension for
-  the user's own application records over `chrome.runtime.sendMessage`, which
-  is browser-internal message passing, not a network request — nothing
-  leaves the device to populate it. Opened in a browser without the
-  extension installed, it correctly shows nothing.
+  and it is not a destination: it is a page inside the extension itself, with
+  no server, no database, and no account, and it holds nothing. It reads the
+  user's own application records over `chrome.runtime.sendMessage`, which is
+  browser-internal message passing, not a network request — nothing leaves the
+  device to populate it. The extension declares no `externally_connectable` and
+  answers no page outside itself, so no website can reach this data.
 
 ## The privacy policy must state plainly
 
