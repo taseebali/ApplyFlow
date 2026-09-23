@@ -20,11 +20,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: |
+            extension/package-lock.json
+            dashboard/package-lock.json
 
+      # Both projects. The extension's build bundles the dashboard into itself
+      # (scripts/bundle-dashboard.mjs), so a checkout with only the extension's
+      # dependencies cannot produce a release at all.
       - name: Install
-        working-directory: extension
-        run: npm ci
+        run: |
+          npm ci --prefix extension
+          npm ci --prefix dashboard
 
       # A tagged build that does not typecheck or pass its tests must not ship.
       - name: Check

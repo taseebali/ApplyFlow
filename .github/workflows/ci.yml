@@ -11,20 +11,21 @@ on:
 jobs:
   extension:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: extension
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: extension/package-lock.json
-      - run: npm ci
-      - run: npm run compile
-      - run: npm test
-      - run: npm run build
+          cache-dependency-path: |
+            extension/package-lock.json
+            dashboard/package-lock.json
+      # Both, because `npm run build` bundles the dashboard into the extension.
+      - run: npm ci --prefix extension
+      - run: npm ci --prefix dashboard
+      - run: npm run compile --prefix extension
+      - run: npm test --prefix extension
+      - run: npm run build --prefix extension
 
   # The dashboard is a separate npm project, so nothing above covers it. It
   # holds the page every application record is read through, and until this

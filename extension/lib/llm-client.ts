@@ -91,7 +91,7 @@ function timeoutSignal(prompt = ''): AbortSignal {
  *
  * The fence marker is stripped from the content so it cannot be closed early.
  */
-function fence(tag: string, content: string): string {
+export function fence(tag: string, content: string): string {
   const marker = `<<<${tag}>>>`;
   const endMarker = `<<<END_${tag}>>>`;
   const safe = content.split(marker).join('').split(endMarker).join('');
@@ -251,6 +251,25 @@ async function candidatesFor(llm: LlmSettings): Promise<string[]> {
   return candidates;
 }
 
+/**
+ * Whether an endpoint may be sent an API key.
+ *
+ * HTTPS anywhere, or plain HTTP only on loopback — a model on this machine,
+ * whose traffic never leaves it. An unparseable URL is refused rather than
+ * assumed safe.
+ */
+export function isSafeEndpoint(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:') return true;
+    if (parsed.protocol !== 'http:') return false;
+    // Exact hosts, not a suffix test: "localhost.evil.com" is not loopback.
+    return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function postToProvider(
   prompt: string,
   llm: LlmSettings,
@@ -266,6 +285,24 @@ async function postToProvider(
   }
   if (!baseUrl) {
     throw new LlmError(`No endpoint set for ${provider.label}. Open Settings and add its base URL.`);
+  }
+
+  /*
+   * HTTPS, enforced where the key is actually sent.
+   *
+   * `originPatternFor` refuses a plaintext host, so the permission button will
+   * not grant one — but nothing re-checked here, and a cross-origin fetch to a
+   * host that answers with permissive CORS succeeds without any permission at
+   * all. The request carries `Authorization: Bearer <key>`, so "HTTPS only"
+   * was a claim the granting path made and the sending path did not keep.
+   *
+   * Loopback is the exception, and only loopback: Ollama is a local process
+   * and its traffic never crosses a network.
+   */
+  if (!isSafeEndpoint(baseUrl)) {
+    throw new LlmError(
+      `${provider.label} is set to a plain http:// address. The request carries your API key, so only https:// is allowed — or localhost, for a model running on this machine.`
+    );
   }
 
   const request = buildRequest(provider, baseUrl, apiKey, models, prompt, {

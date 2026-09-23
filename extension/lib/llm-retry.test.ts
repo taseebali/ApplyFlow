@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runPrompt, testLlmConnection } from './llm-client';
+import { isSafeEndpoint, runPrompt, testLlmConnection } from './llm-client';
 import { LlmError } from './llm-error';
 import type { LlmSettings } from './settings';
 
@@ -287,5 +287,40 @@ describe('the connection test is a probe, not a run', () => {
     fetchMock.mockImplementation(async () => ok('ok'));
     const result = await withTimers(testLlmConnection(LLM, 'openrouter'));
     expect(result).toEqual({ ok: true, model: 'primary/model' });
+  });
+});
+
+describe('where a key may be sent', () => {
+  it('refuses a plaintext endpoint, which the permission button already refused', async () => {
+    // `originPatternFor` will not grant a host permission for http://, but a
+    // cross-origin fetch to a host answering with permissive CORS needs no
+    // permission — and the request carries Authorization: Bearer <key>.
+    const result = await withTimers(
+      testLlmConnection(
+        { ...LLM, provider: 'custom', baseUrl: 'http://attacker.example/v1', apiKeys: { custom: 'k' } },
+        'openrouter'
+      )
+    );
+
+    expect(result.ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows a model running on this machine over plain http', async () => {
+    fetchMock.mockImplementation(async () => ok('ok'));
+    const result = await withTimers(
+      testLlmConnection(
+        { ...LLM, provider: 'custom', baseUrl: 'http://localhost:1234/v1', apiKeys: { custom: 'k' } },
+        'openrouter'
+      )
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not take a lookalike host for loopback', () => {
+    expect(isSafeEndpoint('http://localhost.evil.com/v1')).toBe(false);
+    expect(isSafeEndpoint('http://127.0.0.1:11434')).toBe(true);
+    expect(isSafeEndpoint('https://api.openai.com/v1')).toBe(true);
+    expect(isSafeEndpoint('not a url')).toBe(false);
   });
 });

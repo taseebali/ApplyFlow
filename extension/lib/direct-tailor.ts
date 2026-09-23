@@ -24,7 +24,7 @@ import { ANGLES, makeVariant, type Angle, type BulletVariant } from './bullet-ba
 import { isPublishable } from './bullet-quality';
 import { danglingEstimates, undeclaredNumbers } from './estimates';
 import { sourcesFrom, type Source } from './bank-generation';
-import { runPrompt } from './llm-client';
+import { fence, runPrompt } from './llm-client';
 import type { LlmSettings } from './settings';
 import type { Profile } from './schema';
 
@@ -63,25 +63,33 @@ export function buildDirectPrompt(sources: Source[], jobDescription: string): st
     '',
   ];
 
+  /*
+   * Fenced with the shared helper rather than by hand.
+   *
+   * Hand-written markers were the bug. The job description is scraped from a
+   * page nobody here controls, and a posting carrying the literal end marker
+   * closed the block early — putting its own text outside the data, level with
+   * the rules and right before "Write the bullets now." `fence` strips its own
+   * markers out of the content, so the block cannot be closed from inside it.
+   *
+   * None of the code-side guards would have caught what that buys: they check
+   * the source id, the angle, the opening verb and every number against the
+   * source. A libellous sentence with no digits in it passes all of them.
+   */
   const sourceBlocks = sources.map((source) =>
-    [
-      `<<<SOURCE ${source.id}>>>`,
-      source.label,
-      source.techStack ? `Technologies: ${source.techStack}` : '',
-      source.facts,
-      `<<<END SOURCE ${source.id}>>>`,
-    ]
-      .filter(Boolean)
-      .join('\n')
+    fence(
+      `SOURCE ${source.id}`,
+      [source.label, source.techStack ? `Technologies: ${source.techStack}` : '', source.facts]
+        .filter(Boolean)
+        .join('\n')
+    )
   );
 
   return [
     rules.join('\n'),
     ...sourceBlocks,
     '',
-    '<<<JOB_POSTING>>>',
-    jobDescription.slice(0, 6_000) || '(not available)',
-    '<<<END JOB_POSTING>>>',
+    fence('JOB_POSTING', jobDescription.slice(0, 6_000) || '(not available)'),
     '',
     'Write the bullets now.',
   ].join('\n');

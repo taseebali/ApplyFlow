@@ -82,3 +82,24 @@ describe('chooseOptionWithAi', () => {
     expect(await chooseOptionWithAi('Status?', ['A', 'B'], 'B', LLM)).toBe(-1);
   });
 });
+
+describe('the question is page-written too', () => {
+  it('flattens and caps it, the way the options already were', async () => {
+    runPrompt.mockResolvedValue('0');
+    const payload = 'PAYLOAD '.repeat(200);
+    const hostile = 'Where do you live?‮​\n\n' + payload;
+
+    await chooseOptionWithAi(hostile, ['Berlin', 'Munich'], 'Berlin', LLM);
+
+    const prompt = runPrompt.mock.calls[0]![0] as string;
+    const line = prompt.split('\n').find((l) => l.startsWith('QUESTION:'))!;
+
+    // One line, capped, and with the bidi and zero-width run stripped. The
+    // label was the last page-controlled string going into a prompt raw,
+    // while the options beside it had been sanitised all along.
+    expect(line.length).toBeLessThan(320);
+    expect(line).not.toContain('‮');
+    expect(line).not.toContain('​');
+    expect(prompt.split('QUESTION:')).toHaveLength(2);
+  });
+});

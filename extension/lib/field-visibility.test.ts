@@ -65,3 +65,46 @@ describe('isOffLimits', () => {
     expect(isOffLimits(build('<input name="email">'))).toBe(false);
   });
 });
+
+describe('hidden by an ancestor rather than by itself', () => {
+  /*
+   * Measured in Chrome, because jsdom does no layout and cannot show this:
+   *
+   *   ancestor display:none    → getComputedStyle(input).display = "inline-block",
+   *                              getClientRects().length = 0
+   *   ancestor opacity:0       → getComputedStyle(input).opacity = "1"
+   *   position left:-9999px    → one rect, 169x21, left -9999
+   *   ancestor visibility:hidden → "hidden" (visibility inherits — the one that worked)
+   *
+   * So three of the four ways a page hides a field got through: the check read
+   * only the field's own style, and skipped the rect test whenever there were
+   * no rects at all. Both honeypots (the application is binned) and deliberate
+   * harvesting (a hidden EEO or address field is filled and read back) depend
+   * on exactly that.
+   */
+  it('sees through a display:none wrapper', () => {
+    document.body.innerHTML = '<div style="display:none"><input id="a" name="dob"></div>';
+    expect(isHiddenField(document.getElementById('a') as HTMLElement)).toBe(true);
+  });
+
+  it('sees through an opacity:0 wrapper', () => {
+    document.body.innerHTML = '<div style="opacity:0"><input id="a" name="ssn"></div>';
+    expect(isHiddenField(document.getElementById('a') as HTMLElement)).toBe(true);
+  });
+
+  it('sees through a wrapper hidden further up than the parent', () => {
+    document.body.innerHTML = '<div style="display:none"><fieldset><div><input id="a"></div></fieldset></div>';
+    expect(isHiddenField(document.getElementById('a') as HTMLElement)).toBe(true);
+  });
+
+  it('still treats an ordinary nested field as visible', () => {
+    document.body.innerHTML = '<div><fieldset><div><input id="a"></div></fieldset></div>';
+    expect(isHiddenField(document.getElementById('a') as HTMLElement)).toBe(false);
+  });
+
+  it('does not hide a field merely because an ancestor is partly transparent', () => {
+    // 0.5 is a styling choice, not a hiding technique.
+    document.body.innerHTML = '<div style="opacity:0.5"><input id="a"></div>';
+    expect(isHiddenField(document.getElementById('a') as HTMLElement)).toBe(false);
+  });
+});

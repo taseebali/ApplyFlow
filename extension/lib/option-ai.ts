@@ -10,13 +10,15 @@ import type { LlmSettings } from './settings';
  * be reasoned away in the prompt, so the text is flattened and capped first.
  */
 const MAX_OPTION_LENGTH = 200;
+/** A real question is a sentence. Anything longer is a payload. */
+const MAX_QUESTION_LENGTH = 300;
 
-function sanitizeForPrompt(text: string): string {
+function sanitizeForPrompt(text: string, max = MAX_OPTION_LENGTH): string {
   return text
     .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u2060\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, MAX_OPTION_LENGTH);
+    .slice(0, max);
 }
 
 /**
@@ -51,7 +53,10 @@ export async function chooseOptionWithAi(
     'Reply with the option number alone. If none of them genuinely match, reply exactly: none',
     'Never pick an option that would state something different from the saved answer.',
     '',
-    `QUESTION: ${question}`,
+    // Sanitised like the options, and for the same reason: the label is written
+    // by the page. It was the one page-controlled string going in raw and
+    // uncapped, which is room enough for an instruction of any length.
+    `QUESTION: ${sanitizeForPrompt(question, MAX_QUESTION_LENGTH)}`,
     `SAVED ANSWER: ${value}`,
     '',
     'OPTIONS:',
