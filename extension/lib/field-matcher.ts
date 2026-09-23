@@ -81,7 +81,13 @@ function scoreAgainstAlias(text: string, alias: string): number {
   // score here made "Preferred First Name" match the alias "name" as strongly
   // as "first name", and the more generic field won purely on list order.
   if (containsAlias(text, alias)) return 0.6 + 0.35 * (alias.length / text.length);
-  if (alias.includes(text)) return 0.6 + 0.35 * (text.length / alias.length);
+  // Whole words in this direction too. A raw `alias.includes(text)` scored the
+  // label "Location" at 0.88 against the alias "relocation" — location is
+  // literally inside re-location — and every Ashby form wrote the answer to
+  // "are you willing to relocate" into the box asking where the applicant
+  // lives. The containment is worth keeping ("LinkedIn" inside "linkedin
+  // profile url"); matching inside a word never was.
+  if (containsAlias(alias, text)) return 0.6 + 0.35 * (text.length / alias.length);
 
   const textTokens = new Set(text.split(' '));
   const aliasTokens = new Set(alias.split(' '));
@@ -301,6 +307,10 @@ export function matchFields(
       const weight = SOURCE_WEIGHTS[candidate.source] ?? 0.5;
       for (const field of SCHEMA_FIELDS) {
         if (wantsYesNo && field.valueKind !== 'boolean') continue;
+        // A label the field explicitly disowns is out, however well it scores:
+        // "Location Type" asks on-site or remote, and a city written into it
+        // is wrong in a way an empty field never is.
+        if (field.never?.some((phrase) => containsAlias(candidate.text, phrase))) continue;
         for (const alias of field.aliases) {
           const score = scoreAgainstAlias(candidate.text, alias) * weight;
           if (score > bestScore) {

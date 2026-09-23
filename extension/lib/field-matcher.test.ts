@@ -249,3 +249,50 @@ describe('a label that points at nothing', () => {
     expect(getDisplayLabel(document.getElementById('real') as HTMLInputElement)).toBe('Email address');
   });
 });
+
+describe('a label that is a substring of an alias', () => {
+  it('does not read "Location" as the relocation question', () => {
+    // The bug this exists for: `location` is a substring of the alias
+    // `relocation`, and the containment check that catches "linkedin" inside
+    // "linkedin profile url" had no word boundary — so Ashby's location field
+    // scored 0.88 against logistics.willingToRelocate and the fill wrote "Yes"
+    // into the box asking where the applicant lives.
+    document.body.innerHTML =
+      '<form><label for="loc">Location</label><input id="loc" role="combobox" placeholder="Start typing..."></form>';
+    const match = matchFields(document).find((m) => m.element.id === 'loc');
+    expect(match?.path).not.toBe('logistics.willingToRelocate');
+  });
+
+  it('still matches a label the alias genuinely extends', () => {
+    // The containment check earns its place on these, and they must survive
+    // the boundary being enforced.
+    document.body.innerHTML =
+      '<form><label for="a">LinkedIn</label><input id="a"><label for="b">Phone</label><input id="b"></form>';
+    const byId = new Map(matchFields(document).map((m) => [m.element.id, m.path]));
+    expect(byId.get('a')).toBe('links.linkedin');
+    expect(byId.get('b')).toBe('contact.phone');
+  });
+
+  it('reads a real relocation question as the relocation question', () => {
+    document.body.innerHTML =
+      '<form><label for="r">Are you willing to relocate to Berlin?</label><input id="r"></form>';
+    const match = matchFields(document).find((m) => m.element.id === 'r');
+    expect(match?.path).toBe('logistics.willingToRelocate');
+  });
+});
+
+describe('where a person lives', () => {
+  it('matches the labels ATSs actually use for it', () => {
+    for (const label of ['Location', 'Current Location', 'Where are you living?', 'Standort', 'City']) {
+      document.body.innerHTML = `<form><label for="x">${label}</label><input id="x"></form>`;
+      const match = matchFields(document).find((m) => m.element.id === 'x');
+      expect(match?.path, `${label} should be a location field`).toMatch(/^contact\.(location|city)$/);
+    }
+  });
+
+  it('leaves "Location Type" alone, which asks on-site or remote', () => {
+    document.body.innerHTML = '<form><label for="t">Location Type</label><select id="t"><option>On-site</option></select></form>';
+    const match = matchFields(document).find((m) => m.element.id === 't');
+    expect(match?.path).toBeUndefined();
+  });
+});

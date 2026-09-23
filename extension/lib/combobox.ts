@@ -41,7 +41,20 @@ function wait(ms: number): Promise<void> {
  * How long a framework takes to open a dropdown varies with the page, and a
  * fixed delay either wastes time or misses the menu entirely.
  */
-async function waitForOptions(input: HTMLInputElement, timeoutMs = 900): Promise<HTMLElement[]> {
+/**
+ * How long to wait for a menu the widget already has, and how long to wait for
+ * one it has to fetch.
+ *
+ * A location box on Ashby, Lever or Greenhouse queries a geocoding service on
+ * every keystroke: nothing is in the DOM until that round trip lands, and on a
+ * cold connection 900ms is not enough. Waiting the longer time on the click
+ * would add a second to every ordinary `<select>`-like dropdown, so only the
+ * path that has just typed something pays it.
+ */
+const OPEN_TIMEOUT_MS = 900;
+const REMOTE_TIMEOUT_MS = 3_000;
+
+async function waitForOptions(input: HTMLInputElement, timeoutMs = OPEN_TIMEOUT_MS): Promise<HTMLElement[]> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const options = visibleOptions(input);
@@ -202,7 +215,11 @@ export async function fillCombobox(
   if (!options.length) {
     // Typing both filters long lists and opens widgets that ignored the click.
     setNativeFieldValue(input, value);
-    options = await waitForOptions(input);
+    // A keystroke as well as the value: a type-ahead that queries on `keyup`
+    // rather than on `input` sees nothing from setNativeFieldValue alone, and
+    // "Start typing..." is exactly that kind of control.
+    pressKey(input, 'a', 65);
+    options = await waitForOptions(input, REMOTE_TIMEOUT_MS);
   }
 
   if (!options.length) {

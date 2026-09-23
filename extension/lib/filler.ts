@@ -48,6 +48,15 @@ export function resolveText(profile: Profile, path: string): string | undefined 
     const full = `${profile.contact.firstName} ${profile.contact.lastName}`.trim();
     return full.length > 0 ? full : undefined;
   }
+  if (path === 'contact.location') {
+    // "Berlin, Germany" — the shape the single-box location type-aheads offer,
+    // so the typed text and the option to pick are the same string. City alone
+    // still works where no country is saved; nothing at all is better than a
+    // bare ", Germany".
+    const { city, country } = profile.contact;
+    const joined = [city, country].filter((part) => part.trim().length > 0).join(', ');
+    return joined.length > 0 ? joined : undefined;
+  }
   if (path === 'logistics.hearAboutUs') {
     return profile.logistics.hearAboutUsPreferences[0];
   }

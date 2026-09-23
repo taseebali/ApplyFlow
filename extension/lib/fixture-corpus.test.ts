@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { matchFields } from './field-matcher';
+import { getDisplayLabel, matchFields, normalizeText, type FillableElement } from './field-matcher';
 import { detectQuestions } from './question-detector';
 
 /**
@@ -46,9 +46,20 @@ function loadFixtures(): Array<{ name: string; html: string; expected: Expectati
     });
 }
 
-/** The id of the element a match landed on, so results key by something stable. */
+/**
+ * The key a match is recorded under, which has to be stable across captures.
+ *
+ * Falls back to the label when there is neither an id nor a name. That gap is
+ * how the Ashby location bug survived a fixture at 100% of its baseline: the
+ * field being filled with the wrong value had no id, so `idOf` returned '',
+ * the row was dropped, and the harness measured every field except the broken
+ * one. A field the matcher can see is a field this must be able to score.
+ */
 function idOf(element: Element): string {
-  return element.getAttribute('id') ?? element.getAttribute('name') ?? '';
+  const id = element.getAttribute('id') ?? element.getAttribute('name');
+  if (id) return id;
+  const label = normalizeText(getDisplayLabel(element as FillableElement));
+  return label ? `label:${label}` : '';
 }
 
 const fixtures = loadFixtures();

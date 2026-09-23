@@ -242,6 +242,15 @@ export interface SchemaFieldDef {
    *   present among the form's options/radio labels is used.
    */
   valueKind?: 'text' | 'boolean' | 'preference';
+  /**
+   * Labels that contain an alias but mean something else entirely.
+   *
+   * "Location Type" contains "location" and asks on-site or remote; a city
+   * written into it is wrong in a way a blank field never is. Checked as whole
+   * words against the label, and a hit rules the field out completely rather
+   * than merely lowering its score.
+   */
+  never?: string[];
 }
 
 export const SCHEMA_FIELDS: SchemaFieldDef[] = [
@@ -259,6 +268,28 @@ export const SCHEMA_FIELDS: SchemaFieldDef[] = [
   { path: 'contact.addressLine1', aliases: ['address', 'address line 1', 'street address', 'address 1', 'adresse', 'anschrift', 'strasse', 'strasse und hausnummer', 'strasse hausnummer'] },
   { path: 'contact.addressLine2', aliases: ['address line 2', 'apt', 'apartment', 'suite', 'address 2', 'adresszusatz'] },
   { path: 'contact.city', aliases: ['city', 'town', 'stadt', 'ort', 'wohnort'] },
+  /*
+   * One box for the whole place, which is what most modern ATSs ask for:
+   * Ashby, Lever and Greenhouse all use a single "Location" type-ahead that
+   * offers "Berlin, Germany" rather than separate city and country fields.
+   * Resolved in filler.ts from city and country together, so it needs nothing
+   * new in the profile.
+   */
+  {
+    path: 'contact.location',
+    aliases: [
+      'location',
+      'current location',
+      'where are you living',
+      'where do you live',
+      'where are you based',
+      'city and country',
+      'standort',
+      'wohnsitz',
+      'aktueller wohnort',
+    ],
+    never: ['location type', 'job location', 'office location', 'work location', 'preferred location', 'locations'],
+  },
   { path: 'contact.state', aliases: ['state', 'province', 'region', 'bundesland'] },
   { path: 'contact.postalCode', aliases: ['zip', 'zip code', 'postal code', 'postcode', 'plz', 'postleitzahl'] },
   { path: 'contact.country', aliases: ['country', 'land'] },
