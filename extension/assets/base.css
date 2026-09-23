@@ -721,3 +721,31 @@ kbd {
 .spend-line-paid {
   color: var(--wait);
 }
+
+/* ---- a render that threw ----
+   Deliberately plain and deliberately not hidden: this replaces a blank panel
+   whose only cure anyone could find was reloading the extension. */
+.crash {
+  padding: var(--space-6) var(--space-4);
+}
+
+.crash h2 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.crash-detail {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 260px;
+}

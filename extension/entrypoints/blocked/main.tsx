@@ -4,6 +4,7 @@ import { jobUrlVerdict } from '@/lib/job-urls';
 import { useStoredTheme } from '@/components/ThemeControl';
 import '@/assets/base.css';
 import './blocked.css';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 /**
  * What the toolbar button does where the panel may not open.
@@ -77,6 +78,8 @@ function Blocked() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Blocked />
+    <ErrorBoundary>
+      <Blocked />
+    </ErrorBoundary>
   </StrictMode>
 );

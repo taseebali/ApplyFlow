@@ -4,9 +4,12 @@ import { ReviewPage } from './ReviewPage.tsx';
 import '@/assets/base.css';
 import '@/components/forms.css';
 import './Review.css';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ReviewPage />
+    <ErrorBoundary>
+      <ReviewPage />
+    </ErrorBoundary>
   </React.StrictMode>,
 );
