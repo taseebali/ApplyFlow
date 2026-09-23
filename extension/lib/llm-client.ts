@@ -61,6 +61,17 @@ const PREVIOUS_ANSWER_EXCERPT_CHARS = 600;
  * rather than being one number that has to suit both.
  */
 const REQUEST_TIMEOUT_MS = 90_000;
+/*
+ * A connection test is a probe, not a run.
+ *
+ * Testing used to go through the full drafting path: up to three retries, each
+ * walking up to three candidate models, each with a 90-second timeout. A
+ * misconfigured key could therefore sit on "Testing…" for thirteen minutes
+ * before saying anything, which is indistinguishable from a button that does
+ * nothing. One model, one attempt, and an answer either way inside half a
+ * minute.
+ */
+const PROBE_TIMEOUT_MS = 20_000;
 const LONG_REQUEST_TIMEOUT_MS = 240_000;
 /** Roughly the point where a prompt stops being a question and starts being a document. */
 const LONG_PROMPT_CHARS = 4_000;
@@ -202,12 +213,12 @@ export function buildPrompt(context: DraftContext): string {
   return sections.join('\n');
 }
 
-async function runWithOllama(prompt: string, llm: LlmSettings): Promise<Completion> {
+async function runWithOllama(prompt: string, llm: LlmSettings, timeoutMs?: number): Promise<Completion> {
   const response = await fetch('http://localhost:11434/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: llm.ollamaModel, prompt, stream: false }),
-    signal: timeoutSignal(prompt),
+    signal: timeoutMs === undefined ? timeoutSignal(prompt) : AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
     throw new LlmError(
@@ -240,7 +251,12 @@ async function candidatesFor(llm: LlmSettings): Promise<string[]> {
   return candidates;
 }
 
-async function postToProvider(prompt: string, llm: LlmSettings, models: string[]): Promise<Completion> {
+async function postToProvider(
+  prompt: string,
+  llm: LlmSettings,
+  models: string[],
+  timeoutMs?: number
+): Promise<Completion> {
   const provider = providerById(llm.provider);
   const baseUrl = llm.baseUrl || provider.baseUrl;
   const apiKey = llm.apiKeys[provider.id] ?? '';
@@ -261,7 +277,7 @@ async function postToProvider(prompt: string, llm: LlmSettings, models: string[]
       method: 'POST',
       headers: request.headers,
       body: JSON.stringify(payload),
-      signal: timeoutSignal(prompt),
+      signal: timeoutMs === undefined ? timeoutSignal(prompt) : AbortSignal.timeout(timeoutMs),
     });
 
   let response = await send(request.body);
@@ -450,7 +466,7 @@ export async function draftAnswer(context: DraftContext, llm: LlmSettings): Prom
 export async function testLlmConnection(
   llm: LlmSettings,
   backend: 'ollama' | 'openrouter'
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true; model?: string } | { ok: false; message: string }> {
   // Keyed on the selected provider, not on `backend`. Keys are stored per
   // provider, so reading the old single-key field reported "enter your API
   // key" at people who had entered one — and testing Anthropic or Groq checked
@@ -463,10 +479,30 @@ export async function testLlmConnection(
     return { ok: false, message: 'Enter the base URL for your endpoint first.' };
   }
 
+  const prompt = 'Reply with exactly the word: ok';
+
   try {
-    await runWith(backend, 'Reply with exactly the word: ok', llm);
-    return { ok: true };
+    if (backend === 'ollama') {
+      await runWithOllama(prompt, llm, PROBE_TIMEOUT_MS);
+      return { ok: true };
+    }
+
+    // The first candidate only. Walking the rest is right for a real run,
+    // where a busy free endpoint should not end the drafting; it is wrong
+    // here, where the question is whether this configuration works and the
+    // person is watching a spinner.
+    const [model] = await candidatesFor(llm);
+    const completion = await postToProvider(prompt, llm, [model!], PROBE_TIMEOUT_MS);
+    // The provider names the model that actually served the request; not every
+    // one of them does, so the model we asked for is the fallback.
+    return { ok: true, model: completion.model || model };
   } catch (err) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      return {
+        ok: false,
+        message: `No answer in ${PROBE_TIMEOUT_MS / 1000} seconds. The endpoint may be busy — try again, or pick another model.`,
+      };
+    }
     return { ok: false, message: err instanceof Error ? err.message : 'The request failed.' };
   }
 }

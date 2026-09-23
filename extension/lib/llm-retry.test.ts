@@ -263,3 +263,29 @@ describe('a model the provider will not serve at all', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the connection test is a probe, not a run', () => {
+  it('asks once and gives up, rather than walking every model and retrying', async () => {
+    // The bug: a test went through the full drafting path — three retries,
+    // each walking up to three candidates, each with a 90-second timeout. A
+    // wrong key could sit on "Testing…" for thirteen minutes, which reads as a
+    // button that does nothing.
+    fetchMock.mockImplementation(async () => upstreamBusy());
+
+    const result = await withTimers(
+      testLlmConnection(
+        { ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two', 'c/three'] } },
+        'openrouter'
+      )
+    );
+
+    expect(result.ok).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('says which model answered, since a pool picks one for you', async () => {
+    fetchMock.mockImplementation(async () => ok('ok'));
+    const result = await withTimers(testLlmConnection(LLM, 'openrouter'));
+    expect(result).toEqual({ ok: true, model: 'primary/model' });
+  });
+});

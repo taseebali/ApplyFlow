@@ -114,8 +114,24 @@ export function LlmSettingsSection({
     try {
       const result = await testLlmConnection(llm, llm.backend);
       setTestResult(
-        result.ok ? { ok: true, message: 'The model answered. Drafting is ready.' } : { ok: false, message: result.message }
+        result.ok
+          ? {
+              ok: true,
+              // Which model answered, not just that one did: under a free-pool
+              // policy the model that answers is chosen for you, and "it
+              // works" without saying what worked is half an answer.
+              message: result.model
+                ? `${result.model} answered. Drafting is ready.`
+                : 'The model answered. Drafting is ready.',
+            }
+          : { ok: false, message: result.message }
       );
+    } catch (err) {
+      // testLlmConnection is written to return its failures rather than throw,
+      // so reaching here means something unforeseen did. Swallowing it would
+      // leave the button spinning with nothing said, which is the bug this
+      // whole path was reported for.
+      setTestResult({ ok: false, message: err instanceof Error ? err.message : 'The test failed.' });
     } finally {
       setTesting(false);
     }
