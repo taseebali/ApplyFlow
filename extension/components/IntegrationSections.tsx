@@ -3,6 +3,10 @@ import { getDocumentsFolderHandle, saveDocumentsFolderHandle, supportsDocumentsF
 import type { LlmSettings } from '@/lib/settings';
 import { ModelPicker } from './ModelPicker';
 import { PROVIDERS, originPatternFor, providerById } from '@/lib/providers';
+// Static, though it was once deferred: ProfileSections imports llm-client
+// directly and lands in the same chunk, so the dynamic import split nothing
+// out and only cost an await. Rolldown says as much (INEFFECTIVE_DYNAMIC_IMPORT).
+import { testLlmConnection } from '@/lib/llm-client';
 import { TextField } from '@/components/fields';
 
 /**
@@ -108,7 +112,6 @@ export function LlmSettingsSection({
     if (!llm.backend) return;
     setTesting(true);
     try {
-      const { testLlmConnection } = await import('@/lib/llm-client');
       const result = await testLlmConnection(llm, llm.backend);
       setTestResult(
         result.ok ? { ok: true, message: 'The model answered. Drafting is ready.' } : { ok: false, message: result.message }
