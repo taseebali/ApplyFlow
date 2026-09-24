@@ -66,14 +66,30 @@ jobs:
         run: npm run zip
 
       # npm is the second way to get it, and the one that needs no browsing to
-      # a releases page: `npx applyflow` unpacks the same build. Skipped
-      # silently when no NPM_TOKEN is configured, so a fork's tag still cuts a
-      # GitHub release rather than failing here.
+      # a releases page: `npx applyflow` unpacks the same build.
+      #
+      # Tokenless by default. npm's trusted publishing exchanges this
+      # workflow's OIDC identity for a short-lived credential, so there is no
+      # long-lived secret in the repository to leak, rotate or scope — the
+      # trust is pinned on npmjs.com to this repo and this workflow file, and
+      # nothing else can publish with it. It needs npm 11.5.1+, which is newer
+      # than the npm bundled with Node 22, hence the upgrade.
+      #
+      # NPM_TOKEN is read only if it is set, which covers the first publish of
+      # a brand new package: npm cannot pin a trusted publisher to a package
+      # that does not exist yet, so either publish that first version by hand
+      # or set the secret once and remove it afterwards.
+      #
+      # Gated on a repository variable rather than on the token, so that a
+      # tokenless OIDC setup still runs and a fork's tag does not fail here.
       - name: Publish to npm
-        if: env.NPM_TOKEN != ''
+        if: vars.NPM_PUBLISH == 'true'
         run: |
+          npm install -g npm@latest
           node packaging/npm/build.mjs
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          fi
           npm publish packaging/npm --provenance --access public
 
       - name: Publish the release
