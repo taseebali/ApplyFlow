@@ -43,7 +43,7 @@ Data leaves your machine only when you press a button that says it will, and
 only to an AI provider you configured yourself with your own API key — or to
 nowhere at all, if you point it at [Ollama](https://ollama.com) running
 locally. Full policy:
-[docs/privacy-policy.md](https://github.com/jordanavery/ApplyFlow-autofiller/blob/master/docs/privacy-policy.md).
+[docs/privacy-policy.md](https://github.com/taseebali/ApplyFlow/blob/master/docs/privacy-policy.md).
 
 ## Firefox
 
@@ -54,6 +54,6 @@ if you want it anyway.
 
 ## Source
 
-[github.com/jordanavery/ApplyFlow-autofiller](https://github.com/jordanavery/ApplyFlow-autofiller)
+[github.com/taseebali/ApplyFlow](https://github.com/taseebali/ApplyFlow)
 
 MIT licensed.

@@ -25,10 +25,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jordanavery/ApplyFlow-autofiller.git"
+    "url": "git+https://github.com/taseebali/ApplyFlow.git"
   },
-  "homepage": "https://github.com/jordanavery/ApplyFlow-autofiller#readme",
+  "homepage": "https://github.com/taseebali/ApplyFlow#readme",
   "bugs": {
-    "url": "https://github.com/jordanavery/ApplyFlow-autofiller/issues"
+    "url": "https://github.com/taseebali/ApplyFlow/issues"
   }
 }

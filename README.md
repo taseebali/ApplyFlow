@@ -9,7 +9,7 @@
 Autofill, document attach, AI drafting and a dashboard of everything you have sent —
 in the side panel, next to the form you are filling.
 
-[![CI](https://github.com/jordanavery/ApplyFlow-autofiller/actions/workflows/ci.yml/badge.svg)](https://github.com/jordanavery/ApplyFlow-autofiller/actions/workflows/ci.yml)
+[![CI](https://github.com/taseebali/ApplyFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/taseebali/ApplyFlow/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/applyflow?color=9e3389)](https://www.npmjs.com/package/applyflow)
 [![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-black)](extension/wxt.config.ts)
@@ -28,7 +28,7 @@ Unpacks the built extension and prints where. Then: `chrome://extensions` →
 > Chrome does not let a script add an extension to your browser unless it came
 > from the Web Store. That refusal is doing its job, so those four clicks are
 > yours to make — whether you use npm or the
-> [release zip](https://github.com/jordanavery/ApplyFlow-autofiller/releases).
+> [release zip](https://github.com/taseebali/ApplyFlow/releases).
 
 Click the toolbar icon to open the panel. With no profile saved it walks you
 through a setup you can skip any step of; after that it opens on a daily view
@@ -172,8 +172,8 @@ yet, so treat that as untested rather than working. Adding one is
 ## Development
 
 ```bash
-git clone https://github.com/jordanavery/ApplyFlow-autofiller.git
-cd ApplyFlow-autofiller
+git clone https://github.com/taseebali/ApplyFlow.git
+cd ApplyFlow
 npm install --prefix extension
 npm install --prefix dashboard
 npm run build --prefix extension

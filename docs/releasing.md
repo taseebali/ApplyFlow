@@ -47,7 +47,7 @@ publisher**, add:
 |---|---|
 | Publisher | GitHub Actions |
 | Organization or user | `jordanavery` |
-| Repository | `ApplyFlow-autofiller` |
+| Repository | `ApplyFlow` |
 | Workflow filename | `release.yml` |
 | Environment | leave empty |
 
