@@ -130,8 +130,13 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
                     ? 'pill-warning'
                     : 'pill-success'
               }`}
+              // The ring below says what this percentage is of; on the collapsed
+              // row it needs to say so itself.
+              title={`${result.gap.covered.length} of ${
+                result.gap.covered.length + result.gap.missing.length
+              } things the posting asks for`}
             >
-              {result.score}
+              {result.score}% match
             </span>
             {result.offline && <span className="pill pill-neutral">no AI</span>}
           </>
@@ -175,7 +180,7 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
                 detail={
                   asked > 0
                     ? `${result.gap.covered.length} of ${asked} things the posting asks for`
-                    : 'Writing quality only. No posting text to compare against.'
+                    : 'No posting text to compare against.'
                 }
               />
               {asked > 0 && (

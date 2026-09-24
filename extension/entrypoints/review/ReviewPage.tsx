@@ -383,9 +383,13 @@ export function ReviewPage() {
           detail={
             asked > 0
               ? `${handoff.result.gap.covered.length} of ${asked} things the posting asks for`
-              : 'Writing quality only. No posting text to compare against.'
+              : 'No posting text to compare against.'
           }
         />
+        {/* Said separately because it answers a different question. The ring
+            is how much of the posting the resume covers; this is how well the
+            bullets are written, and one used to be shown as the other. */}
+        <p className="hint mt-2">Writing quality {handoff.result.writingScore} / 100</p>
 
         {asked > 0 && (
           <section>
@@ -483,7 +487,8 @@ export function ReviewPage() {
         </div>
         <p className="hint">
           .docx goes straight to your documents folder, where Attach finds it. PDF opens your browser's print
-          dialog — choose "Save as PDF", and save it to that same folder so Attach can find it too.
+          dialog — choose "Save as PDF", and save it to that same folder so Attach can find it too. If the date
+          or a URL appears along the edges, untick "Headers and footers" under More settings.
         </p>
       </div>
 

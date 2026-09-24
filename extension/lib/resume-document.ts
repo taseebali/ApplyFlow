@@ -5,6 +5,8 @@ import {
   lineTwips,
   twips,
   type DocumentStyle,
+  A4_HEIGHT_TWIPS,
+  A4_WIDTH_TWIPS,
 } from './document-style';
 import { postingTerms } from './keyword-gap';
 import { CONVENTIONS, type LetterLanguage } from './letter-language';
@@ -169,10 +171,20 @@ export function assembleResume(
     // The same budget on both paths. They used to differ — four from the
     // fallback, three from the bank — so the count on the page depended on
     // which one had run.
-    if (chosen && chosen.length > 0) {
-      const picked = chosen.slice(0, budget);
+    /*
+     * Generated bullets go through the same filter the imported ones do.
+     *
+     * They did not, and a variant whose text was a bare "…" printed as a
+     * bullet on the page — the punctuation-only check below was doing its job
+     * on the fallback path and was simply not on this one. A source whose
+     * generated bullets are all discarded then falls through to the person's
+     * own wording rather than printing a project with nothing under it.
+     */
+    const printable = (chosen ?? []).filter((v) => asBullets(v.text).length > 0);
+    if (printable.length > 0) {
+      const picked = printable.slice(0, budget);
       return {
-        bullets: picked.map((v) => v.text),
+        bullets: picked.map((v) => v.text.trim()),
         tailored: true,
         estimated: picked.map((v) => v.estimated ?? []),
       };
@@ -253,7 +265,16 @@ export function assembleResume(
   return {
     name: [c.firstName, c.lastName].filter(Boolean).join(' '),
     headline: profile.headline.trim(),
-    summary: profile.summary.trim(),
+    /*
+     * One paragraph, whatever the source did.
+     *
+     * A summary imported from a PDF carries that PDF's hard line wraps, and
+     * `.trim()` only removed the ones at the ends — so the headline paragraph
+     * of the resume printed as three ragged lines broken mid-sentence, at
+     * whatever width the original document happened to be. Runs of whitespace
+     * collapse to single spaces; a summary has no internal structure to lose.
+     */
+    summary: profile.summary.replace(/\s+/g, ' ').trim(),
     contactLine: [c.email, c.phone, [c.city, c.country].filter(Boolean).join(', ')].filter(Boolean).join('  ·  '),
     linksLine: [profile.links.linkedin, profile.links.github, profile.links.portfolio || profile.links.website]
       .filter(Boolean)
@@ -384,7 +405,21 @@ function documentDefaults(style: DocumentStyle) {
 
 function pageProperties(style: DocumentStyle) {
   const margin = twips(style.margin);
-  return { page: { margin: { top: margin, right: margin, bottom: margin, left: margin } } };
+  /*
+   * A4, stated rather than defaulted.
+   *
+   * The `docx` library defaults to US Letter, which is 11" tall; the preview
+   * and the PDF are measured against A4 at 11.69". So a resume trimmed to fit
+   * exactly one page on screen printed as one page and saved as *two* in Word
+   * — three quarters of an inch of content with nowhere to go. The page rule
+   * in the review tab and the page in the file are now the same sheet.
+   */
+  return {
+    page: {
+      size: { width: A4_WIDTH_TWIPS, height: A4_HEIGHT_TWIPS },
+      margin: { top: margin, right: margin, bottom: margin, left: margin },
+    },
+  };
 }
 
 /**
