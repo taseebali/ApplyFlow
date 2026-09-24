@@ -7,8 +7,7 @@ import { mergeFillResults } from '@/lib/frames';
 import { patchRecord } from '@/lib/application-db';
 import { saveFillToRecord } from '@/lib/fill-record';
 import { useTabState } from '@/components/useTabState';
-import { ActionRow } from '@/components/ActionRow';
-import { AttachIcon } from '@/components/icons';
+import { Step } from '@/components/Step';
 import {
   askFrames,
   listFillableFrames,
@@ -28,8 +27,10 @@ type DocStatus =
 const DOC_LABELS: Record<DocumentKind, string> = { resume: 'Resume', coverLetter: 'Cover letter' };
 
 export function FillAndAttachSection({
+  index,
   onOpenSetup,
 }: {
+  index: number;
   onOpenSetup: OpenSetup;
 }) {
   // Results live with the tab, not with the panel: each application has its own
@@ -366,29 +367,53 @@ export function FillAndAttachSection({
         />
       )}
 
-      <ActionRow
-        icon={<AttachIcon />}
-        title="Attach documents"
-        description="Finds your resume and cover letter, ready for you to attach."
-        tint="green"
-        onClick={handleCheckDocuments}
-        disabled={docStatus.kind === 'loading'}
-        collapsed={docsClosed}
-        onToggleCollapse={() => setDocsClosed((v) => !v)}
+      <Step
+        index={index}
+        title="Attach the documents"
+        status={
+          docStatus.kind === 'loading'
+            ? 'Looking in your documents folder…'
+            : docStatus.kind === 'no-folder'
+              ? 'No documents folder linked yet.'
+              : docStatus.kind === 'error'
+                ? docStatus.message
+                : docStatus.kind === 'ready'
+                  ? `${[docStatus.resume, docStatus.coverLetter].filter((d) => d.file).length} of 2 found — attach each one below.`
+                  : 'Not looked yet.'
+        }
+        tone={
+          docStatus.kind === 'error'
+            ? 'bad'
+            : docStatus.kind === 'no-folder'
+              ? 'wait'
+              : docStatus.kind === 'ready'
+                ? 'ok'
+                : 'neutral'
+        }
+        done={Object.values(attachResults).some((outcome) => outcome?.ok)}
+        action={
+          docStatus.kind === 'no-folder' ? (
+            <button type="button" className="btn" onClick={() => onOpenSetup('documents', 'documents')}>
+              Link a folder
+            </button>
+          ) : (
+            // Explicit, and the only thing here that searches. This used to be
+            // the whole row, so reading the results re-ran the search.
+            <button
+              type="button"
+              className="btn"
+              disabled={docStatus.kind === 'loading'}
+              onClick={handleCheckDocuments}
+            >
+              {docStatus.kind === 'ready' ? 'Look again' : 'Find documents'}
+            </button>
+          )
+        }
+        open={!docsClosed}
+        onToggle={() => setDocsClosed((v) => !v)}
       >
-        {docStatus.kind === 'loading' && <span className="pill pill-neutral">Checking…</span>}
-        {docStatus.kind === 'no-folder' && (
-          <span className="pill pill-neutral">No documents folder linked — set it up in Settings</span>
-        )}
-        {docStatus.kind === 'error' && <span className="pill pill-danger">{docStatus.message}</span>}
-      </ActionRow>
-      {!docsClosed && docStatus.kind === 'no-folder' && (
-        <button type="button" className="btn-plain" onClick={() => onOpenSetup('documents', 'documents')}>
-          Link a documents folder
-        </button>
-      )}
-      {!docsClosed && attachError && <span className="pill pill-danger">{attachError}</span>}
-      {!docsClosed && docStatus.kind === 'ready' && (
+      {attachError && <span className="pill pill-danger">{attachError}</span>}
+      {docStatus.kind === 'ready' && (
         <div className="doc-results">
           {(['resume', 'coverLetter'] as const).map((kind) => {
             const result = kind === 'resume' ? docStatus.resume : docStatus.coverLetter;
@@ -468,6 +493,7 @@ export function FillAndAttachSection({
           })}
         </div>
       )}
+      </Step>
     </>
   );
 }

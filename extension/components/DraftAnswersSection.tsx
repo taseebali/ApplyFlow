@@ -7,8 +7,7 @@ import { patchTabState, type DraftEntry } from '@/lib/tab-state';
 import { formatCost, summarizeRunCost } from '@/lib/run-cost';
 import { getModels, type CatalogModel } from '@/lib/openrouter-catalog';
 import { useTabState } from '@/components/useTabState';
-import { ActionRow } from '@/components/ActionRow';
-import { DraftIcon } from '@/components/icons';
+import { Step } from '@/components/Step';
 
 // Serializes profile read-modify-write across concurrent "Save for reuse"
 // clicks so a second save can't clobber the first (both would otherwise read
@@ -28,7 +27,7 @@ function queueProfileSave(question: string, answer: string): Promise<void> {
   return next;
 }
 
-export function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
+export function DraftAnswersCard({ index, onOpenSetup }: { index: number; onOpenSetup: OpenSetup }) {
   // Drafts live in the tab's own state, written by the background worker.
   // The panel is a view onto that run rather than its owner, so switching to
   // another application and back shows this one's answers — finished, or
@@ -126,34 +125,39 @@ export function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
   const needsSetup = run?.status === 'error' && /Settings/i.test(run.message ?? '');
 
   return (
-    <>
-      <ActionRow
-        icon={<DraftIcon />}
-        title="Draft answers"
-        description="Drafts replies to open-ended questions. You review before anything is entered."
-        tint="neutral"
-        onClick={handleDraft}
-        disabled={running}
-        collapsed={cardClosed}
-        onToggleCollapse={() => setCardClosed((v) => !v)}
-      >
-        {running && (
-          <span className="pill pill-neutral">
-            {run?.total
+      <Step
+        index={index}
+        title="Draft the open questions"
+        status={
+          running
+            ? run?.total
               ? `Drafting ${Math.min(run.done + 1, run.total)} of ${run.total}…`
-              : 'Looking for questions…'}
-          </span>
-        )}
-        {run?.status === 'done' && <span className="pill pill-success">{run.entries.length} drafted</span>}
-        {run?.status === 'error' && <span className="pill pill-danger">{run.message}</span>}
-      </ActionRow>
-      {!cardClosed && needsSetup && (
-        <button type="button" className="btn-plain" onClick={() => onOpenSetup('ai')}>
-          Set up AI drafting
-        </button>
-      )}
-
-      {!cardClosed && run && run.entries.length > 0 && (
+              : 'Looking for questions…'
+            : run?.status === 'error'
+              ? (run.message ?? 'Drafting failed.')
+              : run?.status === 'done'
+                ? `${run.entries.length} drafted — review each before it is entered.`
+                : 'Not drafted yet.'
+        }
+        tone={running ? 'ai' : run?.status === 'error' ? 'bad' : run?.status === 'done' ? 'ok' : 'neutral'}
+        done={run?.status === 'done' && run.entries.length > 0}
+        action={
+          needsSetup ? (
+            <button type="button" className="btn" onClick={() => onOpenSetup('ai')}>
+              Set up AI
+            </button>
+          ) : (
+            // The row used to be this button, so a click meant to read the
+            // answers started another run and spent the requests again.
+            <button type="button" className="btn" disabled={running} onClick={handleDraft}>
+              {run?.status === 'done' ? 'Draft again' : 'Draft answers'}
+            </button>
+          )
+        }
+        open={!cardClosed}
+        onToggle={() => setCardClosed((v) => !v)}
+      >
+      {run && run.entries.length > 0 && (
         <div className="drafts">
           <div className="drafts-toolbar">
             <span className="hint">
@@ -242,6 +246,6 @@ export function DraftAnswersCard({ onOpenSetup }: { onOpenSetup: OpenSetup }) {
           })}
         </div>
       )}
-    </>
+      </Step>
   );
 }
