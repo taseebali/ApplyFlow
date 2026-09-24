@@ -45,34 +45,35 @@ const MAX_JOB_DESCRIPTION_CHARS = 12_000;
 /** Enough of a previous answer to tell what ground it covered. */
 const PREVIOUS_ANSWER_EXCERPT_CHARS = 600;
 
-/**
- * A local model on a busy machine can take a while, but never minutes. A cap
- * means a stalled backend surfaces as a clear failure instead of a spinner
- * that never resolves.
- */
-/**
- * How long to wait before giving up on one request.
+/*
+ * How long one request may take before it is abandoned.
  *
- * 90s was tuned against short answers. A cover letter sends the whole posting,
- * every selected bullet and a page of rules, then asks for several paragraphs
- * back — the largest prompt and the longest generation this makes. On a busy
- * free endpoint that is routinely past 90s, so the letter was the one thing
- * that timed out while everything else worked. The cap scales with the prompt
- * rather than being one number that has to suit both.
+ * The cap scales with the prompt, because a cover letter sends the whole
+ * posting, every selected bullet and a page of rules and then asks for several
+ * paragraphs back — it is the largest prompt and the longest generation this
+ * makes, and one number cannot suit both it and a one-line answer.
+ *
+ * These were 90s and 240s, so a slow free endpoint had every chance. Against
+ * three attempts that is twelve minutes of spinner before anything is said,
+ * and the tailoring prompt carries the whole profile, so it always crossed the
+ * "long" threshold and always got the larger number. A free endpoint that has
+ * not started answering inside a minute is queued behind other people rather
+ * than working on this, and the attempt is better spent on the next model.
+ * Worst case is three minutes now rather than twelve.
  */
-const REQUEST_TIMEOUT_MS = 90_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 /*
  * A connection test is a probe, not a run.
  *
  * Testing used to go through the full drafting path: up to three retries, each
- * walking up to three candidate models, each with a 90-second timeout. A
+ * walking up to three candidate models, each with a minute-plus timeout. A
  * misconfigured key could therefore sit on "Testing…" for thirteen minutes
  * before saying anything, which is indistinguishable from a button that does
  * nothing. One model, one attempt, and an answer either way inside half a
  * minute.
  */
 const PROBE_TIMEOUT_MS = 20_000;
-const LONG_REQUEST_TIMEOUT_MS = 240_000;
+const LONG_REQUEST_TIMEOUT_MS = 120_000;
 /** Roughly the point where a prompt stops being a question and starts being a document. */
 const LONG_PROMPT_CHARS = 4_000;
 
@@ -356,25 +357,68 @@ async function postToProvider(
  * next request - and the next question in a drafting run - starts somewhere
  * that is actually answering.
  */
+/**
+ * The total number of requests one logical call may cost.
+ *
+ * This used to be a product rather than a budget: `runWith` retried three
+ * times, and each retry walked up to three candidate models, so a single
+ * drafted answer could cost nine requests — and a run of five questions,
+ * forty-five. On a free pool where several models fail before one answers,
+ * that is both the bill and the wait.
+ *
+ * Three attempts, spent either across models or across retries of the one
+ * model, whichever the policy leaves available.
+ */
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Which model each attempt uses.
+ *
+ * With several candidates, moving on beats trying the same busy endpoint
+ * again. With one — a named model, or a pool down to its last entry — there is
+ * nowhere to move to, so the attempts go back to it with a pause, which is
+ * what a saturated free endpoint actually needs.
+ */
+export function attemptPlan(candidates: string[], budget = MAX_ATTEMPTS): string[] {
+  if (candidates.length === 0) return [];
+  const plan: string[] = [];
+  while (plan.length < budget) {
+    for (const candidate of candidates) {
+      plan.push(candidate);
+      if (plan.length === budget) break;
+    }
+  }
+  return plan;
+}
+
 async function runWithOpenRouter(prompt: string, llm: LlmSettings): Promise<Completion> {
   const candidates = await candidatesFor(llm);
+  const plan = attemptPlan(candidates);
   let last: unknown;
 
-  for (let i = 0; i < candidates.length; i++) {
+  for (let i = 0; i < plan.length; i++) {
+    const model = plan[i]!;
+
     // One model per request. Handing OpenRouter the rest of the list made the
     // fallback theirs: a 504 on our first choice was retried against whatever
     // came next in their routing, which is how a paid music model answered a
     // drafting request. Falling back here keeps the choice ours and keeps the
     // cooldown accounting honest about which model actually failed.
     try {
-      return await postToProvider(prompt, llm, [candidates[i]!]);
+      return await postToProvider(prompt, llm, [model]);
     } catch (err) {
       last = err;
       if (!(err instanceof LlmError) || !err.transient) throw err;
       // A refusal about the model outlives the session; a busy endpoint does
       // not. Remembering the difference is what stops the same gated model
       // being first in the pool again after every restart.
-      await (err.modelUnavailable ? recordUnavailable(candidates[i]!) : recordFailure(candidates[i]!));
+      await (err.modelUnavailable ? recordUnavailable(model) : recordFailure(model));
+
+      // Only when the next attempt is the same endpoint. Pausing before a
+      // different model buys nothing but delay.
+      if (plan[i + 1] === model) {
+        await wait(RETRY_DELAYS_MS[Math.min(i, RETRY_DELAYS_MS.length - 1)]!);
+      }
     }
   }
 
@@ -421,6 +465,12 @@ async function runOnce(backend: 'ollama' | 'openrouter', prompt: string, llm: Ll
  * handling live in exactly one place.
  */
 async function runWith(backend: 'ollama' | 'openrouter', prompt: string, llm: LlmSettings): Promise<Completion> {
+  // OpenRouter already spent its budget inside the candidate walk; retrying
+  // here would multiply it rather than extend it — three retries of a
+  // three-model walk is nine requests for one answer. Ollama is a single
+  // endpoint with no walk of its own, so these retries are its resilience.
+  if (backend === 'openrouter') return runOnce(backend, prompt, llm);
+
   let last: unknown;
 
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -524,15 +574,37 @@ export async function testLlmConnection(
       return { ok: true };
     }
 
-    // The first candidate only. Walking the rest is right for a real run,
-    // where a busy free endpoint should not end the drafting; it is wrong
-    // here, where the question is whether this configuration works and the
-    // person is watching a spinner.
-    const [model] = await candidatesFor(llm);
-    const completion = await postToProvider(prompt, llm, [model!], PROBE_TIMEOUT_MS);
-    // The provider names the model that actually served the request; not every
-    // one of them does, so the model we asked for is the fallback.
-    return { ok: true, model: completion.model || model };
+    /*
+     * Walks past a model that is closed to ordinary API keys, and stops at
+     * anything else.
+     *
+     * The question this button answers is "does my key work". A model
+     * OpenRouter reserves for approved apps says nothing about the key — but
+     * reporting it made the whole connection look broken while nineteen other
+     * models in the pool would have answered. Those are skipped and recorded,
+     * so the pool stops offering them for real work too.
+     *
+     * Every other failure still stops here: a bad key, a dead endpoint or an
+     * account out of credit are answers, and walking past them to try again
+     * is how a test takes a minute to say what it knew at the first reply.
+     */
+    const candidates = await candidatesFor(llm);
+    let last: unknown;
+
+    for (const model of attemptPlan(candidates)) {
+      try {
+        const completion = await postToProvider(prompt, llm, [model], PROBE_TIMEOUT_MS);
+        // The provider names the model that actually served the request; not
+        // every one of them does, so the model we asked for is the fallback.
+        return { ok: true, model: completion.model || model };
+      } catch (err) {
+        last = err;
+        if (!(err instanceof LlmError) || !err.modelUnavailable) throw err;
+        await recordUnavailable(model);
+      }
+    }
+
+    throw last;
   } catch (err) {
     if (err instanceof Error && err.name === 'TimeoutError') {
       return {

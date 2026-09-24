@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleDashboardRequest, readProperties, toTransferable } from './dashboard-bridge';
+import { handleDashboardRequest, isFromOwnPage, readProperties, toTransferable } from './dashboard-bridge';
 import { emptyRecord } from './application-record';
 
 const record = emptyRecord({ company: 'Enpal', title: 'AI Intern', url: 'https://x/1', hostname: 'x' });
@@ -129,5 +129,38 @@ describe('readProperties', () => {
     expect(readProperties(null)).toEqual({});
     expect(readProperties('status=offer')).toEqual({});
     expect(readProperties(undefined)).toEqual({});
+  });
+});
+
+describe('isFromOwnPage', () => {
+  const ID = 'jlfojkgndajebhpbcegdimapokhjpdik';
+  const ROOT = `chrome-extension://${ID}/`;
+
+  it('accepts the dashboard, which is an extension page open in a tab', () => {
+    // The bug: the gate also required `sender.tab === undefined`, which is
+    // true of the side panel and false of the dashboard. Every dashboard
+    // request came back "Not an allowed origin", and the page reported it as
+    // the extension having stopped answering.
+    expect(isFromOwnPage({ id: ID, url: `${ROOT}dashboard/index.html` }, ID, ROOT)).toBe(true);
+  });
+
+  it('accepts the side panel and the review tab', () => {
+    expect(isFromOwnPage({ id: ID, url: `${ROOT}sidepanel.html` }, ID, ROOT)).toBe(true);
+    expect(isFromOwnPage({ id: ID, url: `${ROOT}review.html` }, ID, ROOT)).toBe(true);
+  });
+
+  it('refuses a content script, whose URL is the page it runs on', () => {
+    // Chrome sets sender.url itself, so this is the part a page cannot forge.
+    expect(isFromOwnPage({ id: ID, url: 'https://evil.example/apply' }, ID, ROOT)).toBe(false);
+  });
+
+  it('refuses another extension, and a sender with nothing to check', () => {
+    expect(isFromOwnPage({ id: 'someotherextensionid', url: `${ROOT}dashboard/index.html` }, ID, ROOT)).toBe(false);
+    expect(isFromOwnPage({ id: ID }, ID, ROOT)).toBe(false);
+    expect(isFromOwnPage({}, ID, ROOT)).toBe(false);
+  });
+
+  it('is not fooled by our id appearing somewhere other than the origin', () => {
+    expect(isFromOwnPage({ id: ID, url: `https://evil.example/${ROOT}` }, ID, ROOT)).toBe(false);
   });
 });

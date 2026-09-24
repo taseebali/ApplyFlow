@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isSafeEndpoint, runPrompt, testLlmConnection } from './llm-client';
+import { attemptPlan, isSafeEndpoint, runPrompt, testLlmConnection } from './llm-client';
 import { LlmError } from './llm-error';
 import type { LlmSettings } from './settings';
 
@@ -322,5 +322,97 @@ describe('where a key may be sent', () => {
     expect(isSafeEndpoint('http://127.0.0.1:11434')).toBe(true);
     expect(isSafeEndpoint('https://api.openai.com/v1')).toBe(true);
     expect(isSafeEndpoint('not a url')).toBe(false);
+  });
+});
+
+describe('what one answer is allowed to cost', () => {
+  it('spends three requests across three models, not nine', async () => {
+    // The bug: runWith retried three times and each retry walked three
+    // candidates, so one drafted answer could cost nine requests — and a run
+    // of five questions, forty-five.
+    fetchMock.mockImplementation(async () => upstreamBusy());
+
+    await withTimers(
+      runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two', 'c/three'] } })
+    ).catch(() => undefined);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('spends the same three on one model when there is nowhere else to go', async () => {
+    fetchMock.mockImplementation(async () => upstreamBusy());
+
+    await withTimers(runPrompt('hi', { ...LLM, modelPolicy: { kind: 'single', model: 'only/one' } })).catch(
+      () => undefined
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops at the first model that answers', async () => {
+    fetchMock.mockImplementationOnce(async () => upstreamBusy()).mockImplementation(async () => ok('done'));
+
+    const text = await withTimers(
+      runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two', 'c/three'] } })
+    );
+
+    expect(text).toBe('done');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a failure that is not transient', async () => {
+    // A bad key is not worth three requests.
+    fetchMock.mockImplementation(async () => new Response('{"error":{"message":"invalid key"}}', { status: 401 }));
+
+    await withTimers(runPrompt('hi', { ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two'] } })).catch(
+      () => undefined
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('attemptPlan', () => {
+  it('walks the models it has, then repeats to fill the budget', () => {
+    expect(attemptPlan(['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+    expect(attemptPlan(['a', 'b'])).toEqual(['a', 'b', 'a']);
+    expect(attemptPlan(['a'])).toEqual(['a', 'a', 'a']);
+    expect(attemptPlan(['a', 'b', 'c', 'd'])).toEqual(['a', 'b', 'c']);
+    expect(attemptPlan([])).toEqual([]);
+  });
+});
+
+describe('a model closed to ordinary keys', () => {
+  const gated = () =>
+    new Response(
+      JSON.stringify({
+        error: { message: 'thinkingmachines/inkling-small:free is only available on agentic harnesses' },
+      }),
+      { status: 404 }
+    );
+
+  it('is skipped by the connection test rather than reported as a broken key', async () => {
+    // The screenshot this exists for: "Test connection FAILED — that model is
+    // not open to ordinary API keys", while nineteen other models in the pool
+    // would have answered. The button answers "does my key work", and a gated
+    // model says nothing about the key.
+    fetchMock.mockImplementationOnce(async () => gated()).mockImplementation(async () => ok('ok'));
+
+    const result = await withTimers(
+      testLlmConnection({ ...LLM, modelPolicy: { kind: 'list', models: ['gated/one', 'good/two'] } }, 'openrouter')
+    );
+
+    expect(result).toEqual({ ok: true, model: 'good/two' });
+  });
+
+  it('still stops at a bad key, which is an answer', async () => {
+    fetchMock.mockImplementation(async () => new Response('{"error":{"message":"invalid"}}', { status: 401 }));
+
+    const result = await withTimers(
+      testLlmConnection({ ...LLM, modelPolicy: { kind: 'list', models: ['a/one', 'b/two'] } }, 'openrouter')
+    );
+
+    expect(result.ok).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

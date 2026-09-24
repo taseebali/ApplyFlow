@@ -9,7 +9,7 @@ import type { GetQuestionsMessage, GetQuestionsResponse } from '@/entrypoints/co
 import { rankFrames, type FrameReport } from '@/lib/frames';
 import { runBankGeneration } from '@/lib/bank-run';
 import type { TargetFamily } from '@/lib/target-families';
-import { handleDashboardRequest, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
+import { handleDashboardRequest, isFromOwnPage, type DashboardRequest, type DashboardResponse } from '@/lib/dashboard-bridge';
 import { getRecord, listRecords, patchRecord } from '@/lib/application-db';
 import { migrateApplicationLog } from '@/lib/application-migrate';
 
@@ -287,8 +287,8 @@ export default defineBackground(() => {
    * more: the extension answers no outside page at all, in any build, which
    * is a boundary that cannot be misconfigured because it does not exist.
    *
-   * Gated the same way drafting is — our id, no tab, and a URL inside the
-   * extension. A content script always carries `sender.tab`, so a web page
+   * Gated on the sender being our extension and the sender's URL being inside
+   * it. A content script's `sender.url` is the web page's address, so a page
    * cannot dress itself up as this.
    *
    * `__dashboard` marks the message so it is not confused with the panel's own
@@ -298,12 +298,7 @@ export default defineBackground(() => {
     (message: DashboardRequest & { __dashboard?: boolean }, sender, sendResponse: (r: DashboardResponse) => void) => {
       if (!message?.__dashboard) return undefined;
 
-      const fromOurPage =
-        sender.id === browser.runtime.id &&
-        sender.tab === undefined &&
-        (sender.url?.startsWith(browser.runtime.getURL('/')) ?? false);
-
-      if (!fromOurPage) {
+      if (!isFromOwnPage(sender, browser.runtime.id, browser.runtime.getURL('/'))) {
         sendResponse({ ok: false, error: 'Not an allowed origin.' });
         return true;
       }
