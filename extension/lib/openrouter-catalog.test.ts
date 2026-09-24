@@ -207,3 +207,28 @@ describe('isModelUnavailable', () => {
     expect(isModelUnavailable(429, body('only available on agentic harnesses'))).toBe(false);
   });
 });
+
+describe('a catalogue request that never comes back', () => {
+  it('carries a timeout, because fetch does not have one', async () => {
+    // The hang this exists for: the model list is fetched on every completion
+    // under a free-pool policy, and it was issued with no AbortSignal at all.
+    // A stalled connection did not fail — it never returned, and every AI
+    // feature waited behind it with nothing on screen but "Working…".
+    const seen: RequestInit[] = [];
+    // This describe sits outside the one that stubs storage, so it brings its
+    // own: `getModels` reads the cache before it ever reaches the network.
+    vi.stubGlobal('browser', {
+      storage: { local: { get: async () => ({}), set: async () => {} } },
+    });
+    vi.stubGlobal('fetch', (_url: string, init: RequestInit) => {
+      seen.push(init);
+      return Promise.resolve(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    });
+
+    await getModels({ force: true }).catch(() => []);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.signal).toBeInstanceOf(AbortSignal);
+    vi.unstubAllGlobals();
+  });
+});

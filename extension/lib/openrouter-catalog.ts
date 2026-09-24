@@ -136,12 +136,29 @@ export function isFresh(cached: CachedCatalogue | null, now: number): boolean {
  * is one — an out-of-date list beats no list — and only throws when there is
  * nothing at all to show.
  */
+/**
+ * How long the catalogue may take before we stop waiting for it.
+ *
+ * `fetch` has no timeout of its own. Both requests in this file were issued
+ * without one, and the model list is fetched on *every* completion under a
+ * free-pool policy — so a stalled connection to openrouter.ai did not fail,
+ * it simply never came back, and every AI feature in the extension waited
+ * behind it with no error, no timeout and nothing on screen but "Working…".
+ *
+ * The catalogue is a convenience: the cached copy, or none at all, is a far
+ * better outcome than an unbounded wait.
+ */
+const CATALOGUE_TIMEOUT_MS = 10_000;
+
 export async function getModels(options: { force?: boolean } = {}): Promise<CatalogModel[]> {
   const cached = await readCache();
   if (!options.force && isFresh(cached, Date.now())) return cached!.models;
 
   try {
-    const response = await fetch(MODELS_URL, { headers: { Accept: 'application/json' } });
+    const response = await fetch(MODELS_URL, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(CATALOGUE_TIMEOUT_MS),
+    });
     if (!response.ok) throw new Error(`OpenRouter returned ${response.status}`);
 
     const models = normalizeCatalogue(await response.json());
@@ -206,7 +223,10 @@ export function summarizeHealth(payload: unknown): ModelHealth {
  */
 export async function fetchModelHealth(modelId: string): Promise<ModelHealth | null> {
   try {
-    const response = await fetch(`${MODELS_URL}/${modelId}/endpoints`, { headers: { Accept: 'application/json' } });
+    const response = await fetch(`${MODELS_URL}/${modelId}/endpoints`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(CATALOGUE_TIMEOUT_MS),
+    });
     if (!response.ok) return null;
     return summarizeHealth(await response.json());
   } catch {
