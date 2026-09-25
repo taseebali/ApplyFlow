@@ -270,13 +270,36 @@
   margin-bottom: 2px;
 }
 
+/*
+ * The shape of a letter, which is mostly its blank lines: sender, then the
+ * recipient, the date, the subject, the salutation, the body, the sign-off —
+ * each separated, the way every business letter has been for a century.
+ */
 .doc-letter-block {
   white-space: pre-line;
-  margin-top: 14px;
+  margin-top: 20px;
 }
 
 .doc-letter-date {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.doc-letter-subject {
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.doc-letter-salutation {
   margin-bottom: 14px;
+}
+
+.doc-letter-closing {
+  margin-top: 20px;
+}
+
+.doc-letter-signature {
+  margin-top: 4px;
 }
 
 .doc-letter-body {
@@ -290,7 +313,16 @@
   outline: 0;
   border-radius: 3px;
   padding: 0 2px;
-  margin: 0 -2px;
+  /*
+   * Horizontal only.
+   *
+   * This was the `margin` shorthand, which also sets top and bottom to zero —
+   * and because every line of the letter is an `.editable`, it overrode the
+   * spacing those blocks set for themselves. The address, the date, the
+   * subject and the salutation all collapsed into one unbroken stack, which is
+   * not a letter anybody would send.
+   */
+  margin-inline: -2px;
 }
 
 /* Text that shares a line with other text: an entry's title and its dates, a
@@ -371,6 +403,22 @@
  * nothing else — no rail, no tabs, no page rule, and no shadow or border that
  * would print as a line across the paper.
  */
+/*
+ * No margin on the sheet itself, so the browser has nowhere to print its own
+ * header and footer.
+ *
+ * Chrome stamps the date, the page title and the full chrome-extension:// URL
+ * into the margin of anything printed — which landed on every PDF saved from
+ * here, across the top and bottom of a document meant for an employer. That
+ * stamp is drawn in the page margin, so a page with no margin has none of it.
+ * The white space around the text is the sheet's own padding instead, restored
+ * below, which is the same measurement the preview and the .docx use.
+ */
+@page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
   .review-rail,
   .doc-toolbar,
@@ -394,8 +442,10 @@
     box-shadow: none;
   }
 
+  /* The margin moved off @page, so the sheet supplies it — same number the
+     preview shows and the .docx writes. */
   .doc-body {
-    padding: 0;
+    padding: var(--doc-margin, 96px);
   }
 
   /* The estimate marks are a review aid, not part of the document. */

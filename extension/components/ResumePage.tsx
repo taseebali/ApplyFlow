@@ -339,6 +339,7 @@ export function LetterPage({
         onChange={(t) => onEditLetter({ subject: t })}
       />
       <Editable
+        className="doc-letter-salutation"
         value={letter.salutation}
         label="Salutation"
         onChange={(t) => onEditLetter({ salutation: t })}
@@ -346,8 +347,18 @@ export function LetterPage({
 
       <Editable className="doc-letter-body" value={body} label="Cover letter body" onChange={onEditBody} />
 
-      <Editable value={letter.closing} label="Sign-off" onChange={(t) => onEditLetter({ closing: t })} />
-      <Editable value={letter.signature} label="Signature" onChange={(t) => onEditLetter({ signature: t })} />
+      <Editable
+        className="doc-letter-closing"
+        value={letter.closing}
+        label="Sign-off"
+        onChange={(t) => onEditLetter({ closing: t })}
+      />
+      <Editable
+        className="doc-letter-signature"
+        value={letter.signature}
+        label="Signature"
+        onChange={(t) => onEditLetter({ signature: t })}
+      />
     </article>
   );
 }

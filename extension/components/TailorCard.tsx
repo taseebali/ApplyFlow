@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { ActionRow } from '@/components/ActionRow';
-import { KeywordChips, ScoreRing, verdictFor } from '@/components/ScoreRing';
-import { DraftIcon } from '@/components/icons';
+import { Step } from '@/components/Step';
 import { tailorResume, writeCoverLetter, type CoverLetterResult, type TailorResult } from '@/lib/tailor-run';
 import { readJobInfo, getActiveTabId } from '@/lib/active-tab';
 import { openReviewTab, putReview } from '@/lib/review-handoff';
@@ -45,7 +43,15 @@ const REQUESTS: Record<What, number> = { resume: 1, letter: 1, both: 2 };
  * resume cannot be read, let alone edited, in a 400px column, and the tab
  * shows the actual page.
  */
-export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenSetup: OpenSetup }) {
+export function TailorCard({
+  index,
+  posting,
+  onOpenSetup,
+}: {
+  index: number;
+  posting: Posting;
+  onOpenSetup: OpenSetup;
+}) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [closed, setClosed] = useState(true);
   // The result belongs to the application, not to this component: it used to
@@ -96,122 +102,75 @@ export function TailorCard({ posting, onOpenSetup }: { posting: Posting; onOpenS
   };
 
   const result = built?.result ?? null;
-  const asked = result ? result.gap.covered.length + result.gap.missing.length : 0;
-  // Sections that fell back to the user's own bullets because the bank had
-  // nothing for them — worth saying, since the resume looks complete either way.
-  const untailored = result
-    ? result.document.experience
-        .concat(result.document.projects)
-        .filter((section) => !section.tailored)
-        .map((section) => section.heading)
-    : [];
+  const working = status.kind === 'working';
+
+  /*
+   * One line for where this stands.
+   *
+   * The panel used to show the score ring, the keyword chips, the untailored
+   * warning and the open button all inline — a resume's worth of detail in a
+   * 400px column, under a strip that re-ran the build when clicked. All of it
+   * is in the review tab, on the actual page, where it can be read and edited.
+   */
+  const status_line = working
+    ? `Writing ${LABELS[status.what].toLowerCase()}…`
+    : status.kind === 'error'
+      ? status.message
+      : result
+        ? `${result.score}% of what the posting asks for · ${
+            built?.letter ? 'resume and cover letter' : 'resume'
+          } ready`
+        : 'Nothing built for this posting yet.';
+
+  const tone = working ? 'ai' : status.kind === 'error' ? 'bad' : result ? 'ok' : 'neutral';
 
   return (
-    <>
-      <ActionRow
-        icon={<DraftIcon />}
-        title="Tailor this application"
-        description="Choose what to build for this posting."
-        tint="green"
-        // The row opens rather than runs. Clicking it used to spend requests.
-        onClick={() => setClosed((v) => !v)}
-        collapsed={closed}
-        onToggleCollapse={() => setClosed((v) => !v)}
-      >
-        {status.kind === 'working' && <span className="pill pill-neutral">Writing {LABELS[status.what]}…</span>}
-        {status.kind === 'error' && <span className="pill pill-danger">{status.message}</span>}
-        {result && (
-          <>
-            <span
-              className={`pill ${
-                verdictFor(result.score) === 'weak'
-                  ? 'pill-danger'
-                  : verdictFor(result.score) === 'fair'
-                    ? 'pill-warning'
-                    : 'pill-success'
-              }`}
-            >
-              {result.score}
+    <Step
+      index={index}
+      title="Tailor the documents"
+      status={status_line}
+      tone={tone}
+      done={Boolean(result) && !working}
+      action={
+        result && !working ? (
+          <button type="button" className="btn btn-primary" onClick={() => void openReview()}>
+            Open review
+          </button>
+        ) : undefined
+      }
+    >
+      {/*
+        The build controls. Separate elements from the row above, which is why
+        reading the result no longer risks paying for another one.
+      */}
+      <div className="step-choices">
+        {(['resume', 'letter', 'both'] as const).map((what) => (
+          <button
+            key={what}
+            type="button"
+            className="btn"
+            disabled={working}
+            onClick={() => void build(what)}
+          >
+            {result ? `Rebuild ${LABELS[what].toLowerCase()}` : LABELS[what]}
+            <span className="build-cost">
+              {REQUESTS[what]} request{REQUESTS[what] === 1 ? '' : 's'}
             </span>
-            {result.offline && <span className="pill pill-neutral">no AI</span>}
-          </>
-        )}
-      </ActionRow>
+          </button>
+        ))}
+      </div>
 
-      {!closed && (
-        <div className="tailor-preview">
-          <div className="build-choices">
-            {(['resume', 'letter', 'both'] as const).map((what) => (
-              <button
-                key={what}
-                type="button"
-                className={`btn ${what === 'resume' ? 'btn-primary' : ''}`}
-                disabled={status.kind === 'working'}
-                onClick={() => void build(what)}
-              >
-                {LABELS[what]}
-                <span className="build-cost">
-                  {REQUESTS[what]} request{REQUESTS[what] === 1 ? '' : 's'}
-                </span>
-              </button>
-            ))}
-          </div>
-          <p className="hint">
-            Nothing is sent until you choose. With a tailoring bank the wording is picked on this machine for
-            nothing, and only ranking it for this posting costs a request; without one the bullets are written
-            for this posting instead, which is the same single request. A letter is one more.
-          </p>
+      <p className="hint">
+        Nothing is sent until you press one. With a tailoring bank the wording is picked on this machine for
+        nothing and only the ranking costs a request; without one the bullets are written for this posting
+        instead, which is the same single request. A letter is one more.
+      </p>
 
-          {status.kind === 'error' && status.message.includes('bank') && (
-            <button type="button" className="btn-plain" onClick={() => onOpenSetup('documents', 'bank')}>
-              Generate a tailoring bank
-            </button>
-          )}
-
-          {result && (
-            <>
-              <ScoreRing
-                score={result.score}
-                detail={
-                  asked > 0
-                    ? `${result.gap.covered.length} of ${asked} things the posting asks for`
-                    : 'Writing quality only. No posting text to compare against.'
-                }
-              />
-              {asked > 0 && (
-                <KeywordChips
-                  covered={result.gap.covered.slice(0, 8).map((g) => g.term)}
-                  missing={result.gap.missing.map((g) => g.term)}
-                />
-              )}
-              {result.gap.missing.length > 0 && (
-                <p className="hint">
-                  Dashed means the posting asks and your profile never mentions it. Tailoring reorders what you
-                  have; it cannot cover a gap.
-                </p>
-              )}
-
-              {untailored.length > 0 && (
-                <div className="notice notice-warning">
-                  <p>
-                    The bank has nothing for <strong>{untailored.join(', ')}</strong>, so your own wording is
-                    used there. Nothing is missing from the resume — those parts are just not tailored to this
-                    posting.
-                  </p>
-                </div>
-              )}
-
-              {/* Saving happens where the document is visible. Doing it from
-                  here meant saving a file nobody had seen. */}
-              <div className="actions">
-                <button type="button" className="btn btn-primary" onClick={() => void openReview()}>
-                  Open it to review and save
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+      {status.kind === 'error' && status.message.includes('bank') && (
+        <button type="button" className="btn-plain" onClick={() => onOpenSetup('documents', 'bank')}>
+          Generate a tailoring bank
+        </button>
       )}
-    </>
+    </Step>
   );
 }

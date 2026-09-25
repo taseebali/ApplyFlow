@@ -40,8 +40,11 @@ export interface TailorResult {
   /** The variants that made it onto the resume — what the letter must not repeat. */
   selected: BulletVariant[];
   gap: GapReport;
-  /** The finished document's own quality, by the same measure as everything else. */
+  /** How much of what the posting asks for the resume covers, 0-100. */
   score: number;
+  /** How well the bullets are written, by the same measure as everything else.
+   *  A different question from the match, and shown as one. */
+  writingScore: number;
   /** True when no model was involved — the ordering is term overlap alone. */
   offline: boolean;
 }
@@ -119,20 +122,45 @@ export async function tailorResume(input: {
     ...variantPool.map((v) => v.text),
   ].join('\n');
 
+  const gap = analyseGap({
+    jobDescription,
+    profileText,
+    // The candidate's own skills and tech stacks count as things a posting
+    // can ask for, so matching improves as the profile does rather than
+    // depending on a general vocabulary being complete.
+    vocabulary: vocabularyFrom(profile.skills, profile.projects.map((p) => p.techStack)),
+  });
+
   return {
     document,
     selected,
-    gap: analyseGap({
-      jobDescription,
-      profileText,
-      // The candidate's own skills and tech stacks count as things a posting
-      // can ask for, so matching improves as the profile does rather than
-      // depending on a general vocabulary being complete.
-      vocabulary: vocabularyFrom(profile.skills, profile.projects.map((p) => p.techStack)),
-    }),
-    score: scoreSection(selected.map((v) => v.text)).score,
+    gap,
+    score: matchScore(gap),
+    writingScore: scoreSection(selected.map((v) => v.text)).score,
     offline,
   };
+}
+
+/**
+ * How much of what the posting asks for the resume actually covers.
+ *
+ * This used to be `scoreSection`, which measures how well the bullets are
+ * *written* — metrics, opening verbs, clichés — and has nothing to do with the
+ * posting. The ring showed it under the heading "Fair match" above the line
+ * "0 of 8 things the posting asks for", so the panel confidently reported 75%
+ * and none-of-it in the same breath. Two real numbers; only one of them was a
+ * match.
+ *
+ * Writing quality is still measured and still worth seeing — it is
+ * `writingScore` now, and says what it is.
+ */
+export function matchScore(gap: GapReport): number {
+  const asked = gap.covered.length + gap.missing.length;
+  // Nothing recognisable was asked for — a posting with no tech terms in it,
+  // or none that were read. Neither a match nor a failure to match, so the
+  // panel says so in words rather than scoring an empty question.
+  if (asked === 0) return 0;
+  return Math.round((gap.covered.length / asked) * 100);
 }
 
 export interface CoverLetterResult {

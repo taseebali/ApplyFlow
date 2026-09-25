@@ -70,6 +70,16 @@ const DPI = 96;
 export const A4_HEIGHT_PX = 1123;
 export const A4_WIDTH_PX = 794;
 
+/*
+ * The same sheet, in the unit Word measures pages in.
+ *
+ * Stated because the docx library's default is US Letter, which is 0.69"
+ * shorter — so a resume trimmed to exactly one A4 page on screen came out of
+ * Word as two.
+ */
+export const A4_WIDTH_TWIPS = twips(8.27);
+export const A4_HEIGHT_TWIPS = twips(11.69);
+
 export const marginPx = (margin: number) => Math.round(margin * DPI);
 
 /**

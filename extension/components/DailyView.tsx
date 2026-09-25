@@ -5,6 +5,7 @@ import { DraftAnswersCard } from '@/components/DraftAnswersSection';
 import { ReadinessBar, useReadiness } from '@/components/ReadinessBar';
 import { SpendLine } from '@/components/SpendLine';
 import { FieldMirror, Tally, type FormPlanState } from '@/components/FieldMirror';
+import { Step } from '@/components/Step';
 import { DiffSheet } from '@/components/DiffSheet';
 import { usePrimaryAction } from '@/components/PrimaryAction';
 import { frameOf, localId, writable } from '@/lib/field-plan';
@@ -141,14 +142,49 @@ export function DailyView({
     <div className="daily-actions">
       <ReadinessBar onOpen={onOpenSetup} />
 
-      {plan && plan.fields.length > 0 && <Tally plan={plan} />}
-      <FieldMirror plan={plan} loading={loading} onJump={jump} onPick={pick} />
-
-      <div className="action-rows">
-        <FillAndAttachSection onOpenSetup={onOpenSetup} />
-        <TailorCard posting={posting} onOpenSetup={onOpenSetup} />
-        <DraftAnswersCard onOpenSetup={onOpenSetup} />
-      </div>
+      {/*
+        One flow, numbered in the order the work happens.
+        
+        These were three cards that each behaved differently: one opened when
+        clicked, one searched a folder, one spent model requests — all with
+        their results rendered inside the same clickable strip. Now every step
+        reports on the left and acts through one button on the right, and the
+        numbers say what to do next.
+      */}
+      <ol className="steps">
+        <li>
+          <Step
+            index={1}
+            title="Fill the form"
+            status={
+              loading
+                ? 'Reading the page…'
+                : !plan || plan.fields.length === 0
+                  ? 'Nothing fillable found on this page.'
+                  : changes.length === 0
+                    ? 'Everything this page asks for is already filled.'
+                    : `${changes.length} field${changes.length === 1 ? '' : 's'} ready to write.`
+            }
+            tone={changes.length > 0 ? 'ok' : 'neutral'}
+            done={Boolean(plan && plan.fields.length > 0 && changes.length === 0)}
+          >
+            {/* The action is the sticky button at the foot of the panel, which
+                is always in reach; repeating it here would be two buttons for
+                one thing. */}
+            {plan && plan.fields.length > 0 && <Tally plan={plan} />}
+            <FieldMirror plan={plan} loading={loading} onJump={jump} onPick={pick} />
+          </Step>
+        </li>
+        <li>
+          <TailorCard index={2} posting={posting} onOpenSetup={onOpenSetup} />
+        </li>
+        <li>
+          <FillAndAttachSection index={3} onOpenSetup={onOpenSetup} />
+        </li>
+        <li>
+          <DraftAnswersCard index={4} onOpenSetup={onOpenSetup} />
+        </li>
+      </ol>
 
       <SpendLine />
     </div>

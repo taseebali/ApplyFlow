@@ -407,3 +407,57 @@ describe('what a section is called', () => {
     expect(headingText({ ...base, headings: { projects: 'Selected Work' } }, 'skills')).toBe('Skills');
   });
 });
+
+describe('what may appear as a bullet', () => {
+  const profile = () => ({
+    ...EMPTY_PROFILE,
+    projects: [
+      {
+        id: 'p1',
+        name: 'VERDICT',
+        role: '',
+        bullets: [{ id: 'b1', text: 'Built an AutoML pipeline with scikit-learn and SHAP.' }],
+        techStack: 'Python',
+        link: '',
+        outcomes: '',
+      },
+    ],
+  });
+
+  it('does not print a generated bullet that is only punctuation', () => {
+    // A variant whose text was a bare "…" printed as a bullet on the page:
+    // the punctuation filter ran on imported bullets and not on generated
+    // ones.
+    const junk = makeVariant({ sourceId: 'p1', angle: 'technical', text: '…' });
+    const doc = assembleResume(profile(), [junk]);
+    expect(doc.projects[0]!.bullets).not.toContain('…');
+  });
+
+  it('falls back to the wording the person wrote themselves', () => {
+    const junk = makeVariant({ sourceId: 'p1', angle: 'technical', text: '...' });
+    const doc = assembleResume(profile(), [junk]);
+    expect(doc.projects[0]!.bullets).toEqual(['Built an AutoML pipeline with scikit-learn and SHAP.']);
+    expect(doc.projects[0]!.tailored).toBe(false);
+  });
+
+  it('still prefers a real generated bullet over the original', () => {
+    const good = makeVariant({ sourceId: 'p1', angle: 'impact', text: 'Cut model selection from days to minutes' });
+    const doc = assembleResume(profile(), [good]);
+    expect(doc.projects[0]!.bullets).toEqual(['Cut model selection from days to minutes']);
+    expect(doc.projects[0]!.tailored).toBe(true);
+  });
+});
+
+describe('the summary', () => {
+  it('is one paragraph, whatever wrapping the source had', () => {
+    // A summary imported from a PDF carries that PDF's hard wraps, so the
+    // headline paragraph printed as ragged lines broken mid-sentence.
+    const wrapped = {
+      ...EMPTY_PROFILE,
+      summary: 'Computer Science student who builds real systems,\nnot demos. Python-first,\n  currently learning TypeScript.',
+    };
+    expect(assembleResume(wrapped, []).summary).toBe(
+      'Computer Science student who builds real systems, not demos. Python-first, currently learning TypeScript.'
+    );
+  });
+});

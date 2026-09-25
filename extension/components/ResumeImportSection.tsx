@@ -1,13 +1,21 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Profile } from '@/lib/schema';
 import type { LlmSettings } from '@/lib/settings';
 import { extractResumeText } from '@/lib/resume-text';
-import { parseResume, type ParsedResume } from '@/lib/resume-parser';
+import { parseResume, parseResumeHeuristic, type ParsedResume } from '@/lib/resume-parser';
 import { snapshotProfile } from '@/lib/storage';
 
 type ImportState =
   | { kind: 'idle' }
-  | { kind: 'working'; note: string }
+  /**
+   * `heuristic` is what was read without any model, held so the AI pass can be
+   * abandoned at any moment and still leave a usable import. Before this the
+   * screen said "Pulling out your details with AI…" and offered nothing else:
+   * on a free model pool that wait can run to minutes across several attempts,
+   * and there was no elapsed time, no way to stop, and nothing to show for the
+   * contact details and links that had already been read perfectly well.
+   */
+  | { kind: 'working'; note: string; heuristic?: ParsedResume; fileName?: string; startedAt?: number }
   | { kind: 'error'; message: string }
   | { kind: 'review'; parsed: ParsedResume; fileName: string; aiError?: string }
   | { kind: 'applied'; summary: string };
@@ -21,6 +29,30 @@ interface Selection {
   projects: boolean;
   certifications: boolean;
   summaryAndSkills: boolean;
+}
+
+/**
+ * How long this has been going, ticking every second.
+ *
+ * Free endpoints are shared and slow, and the extension tries more than one of
+ * them before giving up — so a genuinely working import can sit for a minute
+ * or more. Without a number moving on screen there is no way to tell that from
+ * a hang, which is exactly how it was read.
+ */
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const seconds = Math.max(0, Math.round((now - since) / 1000));
+  return (
+    <span className="hint mono" aria-hidden="true">
+      {seconds}s
+    </span>
+  );
 }
 
 function countFound(parsed: ParsedResume) {
@@ -104,6 +136,8 @@ export function ResumeImportSection({
     summaryAndSkills: true,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Distinguishes a finished run from one the user walked away from. */
+  const runId = useRef(0);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,13 +145,33 @@ export function ResumeImportSection({
     if (!file) return;
 
     setState({ kind: 'working', note: `Reading ${file.name}…` });
+    const run = ++runId.current;
+
     try {
       const text = await extractResumeText(file);
+
+      // Read without a model first. It costs nothing, it is where contact
+      // details and links come from anyway, and having it in hand is what
+      // makes the AI pass optional rather than a wait with no way out.
+      const heuristic = parseResumeHeuristic(text);
+      if (!llm.backend) {
+        setState({ kind: 'review', parsed: heuristic, fileName: file.name });
+        return;
+      }
+
       setState({
         kind: 'working',
-        note: llm.backend ? 'Pulling out your details with AI…' : 'Pulling out your details…',
+        note: 'Pulling out your details with AI…',
+        heuristic,
+        fileName: file.name,
+        startedAt: Date.now(),
       });
+
       const outcome = await parseResume(text, llm);
+      // Skipped or superseded while the model was working: whatever is on
+      // screen now is the user's choice, and this answer is no longer wanted.
+      if (run !== runId.current) return;
+
       setState({
         kind: 'review',
         parsed: outcome.parsed,
@@ -125,8 +179,21 @@ export function ResumeImportSection({
         aiError: outcome.ai === 'failed' ? outcome.aiError : undefined,
       });
     } catch (err) {
+      if (run !== runId.current) return;
       setState({ kind: 'error', message: err instanceof Error ? err.message : 'Could not read that file.' });
     }
+  };
+
+  /** Takes what was read without a model and stops waiting for the rest. */
+  const skipAi = () => {
+    if (state.kind !== 'working' || !state.heuristic) return;
+    runId.current += 1;
+    setState({
+      kind: 'review',
+      parsed: state.heuristic,
+      fileName: state.fileName ?? 'your resume',
+      aiError: 'Skipped — this is what was read without the model.',
+    });
   };
 
   const handleApply = async () => {
@@ -179,9 +246,18 @@ export function ResumeImportSection({
       )}
 
       {state.kind === 'working' && (
-        <p className="status-row mt-3">
+        <div className="status-row mt-3">
           <span className="pill pill-neutral">{state.note}</span>
-        </p>
+          {/* Elapsed, because a pill that never changes is indistinguishable
+              from one that has hung — and on a free pool this genuinely takes
+              a while, across more than one model. */}
+          {state.startedAt !== undefined && <Elapsed since={state.startedAt} />}
+          {state.heuristic && (
+            <button type="button" className="btn-plain" onClick={skipAi}>
+              Skip and use what was read
+            </button>
+          )}
+        </div>
       )}
       {state.kind === 'error' && (
         <p className="status-row mt-3">

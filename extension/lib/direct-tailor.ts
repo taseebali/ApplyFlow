@@ -98,6 +98,59 @@ export function buildDirectPrompt(sources: Source[], jobDescription: string): st
 const isAngle = (value: unknown): value is Angle => ANGLES.includes(value as Angle);
 
 /**
+ * The list of bullets, out of whatever the model actually sent.
+ *
+ * Asking for `{"bullets":[...]}` and accepting only that is how a working
+ * answer gets thrown away. The small free models this has to live with
+ * reliably return the right *content* in the wrong *wrapper*: a bare array, a
+ * different key, the JSON with a sentence in front of it. All of those are the
+ * answer, and rejecting them reported "the model did not return any usable
+ * bullets" about a model that had.
+ *
+ * Only the shape is forgiven. Every bullet still goes through the same checks
+ * afterwards — source, angle, quality, undeclared numbers, verb variety.
+ */
+function readEntries(raw: string): unknown[] | null {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = (fenced?.[1] ?? raw).trim();
+
+  // The outermost object or array in the text, whichever starts first — a
+  // model that prefaces its JSON with "Here are the bullets:" is common.
+  const candidates: string[] = [];
+  for (const [open, close] of [
+    ['{', '}'],
+    ['[', ']'],
+  ] as const) {
+    const start = body.indexOf(open);
+    const end = body.lastIndexOf(close);
+    if (start !== -1 && end > start) candidates.push(body.slice(start, end + 1));
+  }
+  // Longest first: an object containing an array beats the array alone.
+  candidates.sort((a, b) => b.length - a.length);
+
+  for (const text of candidates) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      continue;
+    }
+
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as Record<string, unknown>;
+      // `bullets` is what the prompt asks for; `variants` is what the bank
+      // prompt asks for and what a model reaches for when it has seen both.
+      for (const key of ['bullets', 'variants', 'items', 'results']) {
+        if (Array.isArray(record[key])) return record[key] as unknown[];
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Reads the reply, keeping only bullets that survive the same gate a bank's do.
  *
  * Identical rules to `parseVariants`, applied across sources rather than
@@ -111,21 +164,8 @@ export function parseDirectBullets(
   raw: string,
   sources: Source[]
 ): { kept: BulletVariant[]; rejected: string[] } {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = (fenced?.[1] ?? raw).trim();
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start === -1 || end <= start) return { kept: [], rejected: [] };
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body.slice(start, end + 1));
-  } catch {
-    return { kept: [], rejected: [] };
-  }
-
-  const entries = (parsed as { bullets?: unknown }).bullets;
-  if (!Array.isArray(entries)) return { kept: [], rejected: [] };
+  const entries = readEntries(raw);
+  if (!entries) return { kept: [], rejected: [] };
 
   const byId = new Map(sources.map((source) => [source.id, source]));
   const kept: BulletVariant[] = [];
@@ -206,10 +246,22 @@ export async function tailorFromProfile(
   const { kept, rejected } = parseDirectBullets(reply, sources);
 
   if (kept.length === 0) {
+    if (rejected.length > 0) {
+      throw new Error(
+        `Every bullet the model wrote failed the quality check — ${rejected.length} of them. ` +
+          'That usually means a model too small to follow the rules about numbers and opening verbs. ' +
+          'Try again, or pick a stronger model under Setup → AI drafting.'
+      );
+    }
+
+    // What came back, not just that nothing usable did. "Try another model"
+    // is not a diagnosis, and this is the one failure where the reply itself
+    // says what went wrong — usually prose, a refusal, or an empty list.
+    const sample = reply.trim().replace(/\s+/g, ' ').slice(0, 120);
     throw new Error(
-      rejected.length > 0
-        ? 'Every bullet the model wrote failed the quality check. Try again, or pick a stronger model under Setup → AI drafting.'
-        : 'The model did not return any usable bullets. Try again, or pick another model.'
+      `The model did not return bullets in a form this could read. It replied: "${sample}${
+        reply.trim().length > 120 ? '…' : ''
+      }". Try again, or pick a stronger model under Setup → AI drafting.`
     );
   }
 

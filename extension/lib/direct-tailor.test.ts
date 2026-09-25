@@ -140,3 +140,35 @@ describe('a posting that tries to close the fence', () => {
     expect(prompt.split('<<<END_SOURCE role-1>>>')).toHaveLength(2);
   });
 });
+
+describe('replies whose shape is not quite what was asked for', () => {
+  const bullet = { sourceId: 'role-1', angle: 'technical', text: 'Built an ingestion service in Go', estimated: [] };
+
+  it('reads a bare array, which indexOf("{") could never see', () => {
+    // The failure behind "the model did not return any usable bullets": a
+    // small free model returns the right content in the wrong wrapper, and
+    // the old parser looked for an object or gave up.
+    expect(parseDirectBullets(JSON.stringify([bullet]), SOURCES).kept).toHaveLength(1);
+  });
+
+  it('reads the key the bank prompt uses, which models reach for', () => {
+    expect(parseDirectBullets(JSON.stringify({ variants: [bullet] }), SOURCES).kept).toHaveLength(1);
+  });
+
+  it('reads JSON with a sentence in front of it', () => {
+    const raw = `Here are the bullets you asked for:\n${JSON.stringify({ bullets: [bullet] })}`;
+    expect(parseDirectBullets(raw, SOURCES).kept).toHaveLength(1);
+  });
+
+  it('prefers the object wrapper over an array nested inside it', () => {
+    const raw = JSON.stringify({ bullets: [bullet], notes: ['ignore me'] });
+    const { kept } = parseDirectBullets(raw, SOURCES);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.text).toBe('Built an ingestion service in Go');
+  });
+
+  it('still returns nothing for a reply that carries no list at all', () => {
+    expect(parseDirectBullets('I cannot help with that.', SOURCES)).toEqual({ kept: [], rejected: [] });
+    expect(parseDirectBullets('{"bullets":"not an array"}', SOURCES)).toEqual({ kept: [], rejected: [] });
+  });
+});
